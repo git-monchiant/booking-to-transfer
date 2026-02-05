@@ -3,6 +3,29 @@
 // ครบทั้ง 13 Sections ตาม Requirement
 // ===============================================
 
+// ===== SEEDED RANDOM (เพื่อให้ Server และ Client ได้ค่าเดียวกัน) =====
+class SeededRandom {
+  private seed: number;
+
+  constructor(seed: number) {
+    this.seed = seed;
+  }
+
+  // Linear Congruential Generator (LCG)
+  next(): number {
+    this.seed = (this.seed * 1664525 + 1013904223) % 4294967296;
+    return this.seed / 4294967296;
+  }
+
+  // Reset seed
+  reset(seed: number) {
+    this.seed = seed;
+  }
+}
+
+// Global seeded random instance - ใช้ seed คงที่เพื่อ deterministic
+const seededRandom = new SeededRandom(12345);
+
 // ===== ENUMS & CONSTANTS =====
 export const STAGES = {
   BOOKING: 'booking',
@@ -40,6 +63,19 @@ export const TEAM_CONFIG: Record<Team, { label: string; color: string }> = {
 
 export type Grade = 'A' | 'B' | 'C' | 'D' | 'F';
 export type KPIResult = 'PASS' | 'FAIL' | 'N/A';
+
+// Bank types - รวม Internal Bank "เงินสดใจดี"
+export const BANKS_LIST = ['SCB', 'KBANK', 'BBL', 'KTB', 'TTB', 'UOB', 'BAY', 'TBANK', 'GSB', 'GHB', 'เงินสดใจดี', 'CASH'] as const;
+export type BankCode = typeof BANKS_LIST[number];
+
+// Bank submission tracking - per bank
+export interface BankSubmission {
+  bank: BankCode;
+  submit_date: string | null;        // วันที่ส่ง
+  result: 'อนุมัติ' | 'ไม่อนุมัติ' | 'รอผล' | null;
+  approved_amount: number | null;    // วงเงินอนุมัติ
+  remark: string | null;
+}
 
 // ===============================================
 // BOOKING INTERFACE - ครบ 13 Sections
@@ -104,7 +140,7 @@ export interface Booking {
   sale_type: string;                // "ผ่อนดาวน์" | "เงินสด"
   down_payment_complete_date: string | null;
   credit_request_type: string;      // "โอนสด" | "สินเชื่อธนาคาร"
-  bank_submitted: string | null;    // "CASH" | "SCB" | "KBANK" etc.
+  banks_submitted: BankSubmission[]; // ธนาคารที่ส่ง 1-3 แห่ง (รวม เงินสดใจดี)
 
   // ─────────────────────────────────────────────
   // 6. CREDIT / BANK PROCESS (CO)
@@ -314,7 +350,9 @@ export const bookings: Booking[] = [
     sale_type: 'ผ่อนดาวน์',
     down_payment_complete_date: '25/05/2026',
     credit_request_type: 'โอนสด',
-    bank_submitted: 'CASH',
+    banks_submitted: [
+      { bank: 'CASH', submit_date: null, result: 'อนุมัติ', approved_amount: 1830000, remark: 'โอนสด' }
+    ],
 
     // 6. Credit
     credit_status: 'โอนสด',
@@ -484,7 +522,11 @@ export const bookings: Booking[] = [
     sale_type: 'ผ่อนดาวน์',
     down_payment_complete_date: '05/03/2026',
     credit_request_type: 'สินเชื่อธนาคาร',
-    bank_submitted: 'SCB',
+    banks_submitted: [
+      { bank: 'SCB', submit_date: '15/01/2026', result: 'รอผล', approved_amount: null, remark: null },
+      { bank: 'KBANK', submit_date: '15/01/2026', result: 'รอผล', approved_amount: null, remark: null },
+      { bank: 'เงินสดใจดี', submit_date: '15/01/2026', result: 'รอผล', approved_amount: null, remark: null }
+    ],
 
     // 6. Credit
     credit_status: 'รอผล Bureau',
@@ -654,7 +696,10 @@ export const bookings: Booking[] = [
     sale_type: 'ผ่อนดาวน์',
     down_payment_complete_date: '10/02/2026',
     credit_request_type: 'สินเชื่อธนาคาร',
-    bank_submitted: 'KBANK',
+    banks_submitted: [
+      { bank: 'KBANK', submit_date: '20/12/2025', result: 'อนุมัติ', approved_amount: 3600000, remark: null },
+      { bank: 'เงินสดใจดี', submit_date: '20/12/2025', result: 'ไม่อนุมัติ', approved_amount: null, remark: 'วงเงินไม่พอ' }
+    ],
 
     // 6. Credit
     credit_status: 'อนุมัติแล้ว',
@@ -824,7 +869,11 @@ export const bookings: Booking[] = [
     sale_type: 'เงินสด',
     down_payment_complete_date: '01/12/2025',
     credit_request_type: 'สินเชื่อธนาคาร',
-    bank_submitted: 'BBL',
+    banks_submitted: [
+      { bank: 'BBL', submit_date: '10/12/2025', result: 'อนุมัติ', approved_amount: 1785000, remark: 'ข้าราชการ อนุมัติไว' },
+      { bank: 'SCB', submit_date: '10/12/2025', result: 'อนุมัติ', approved_amount: 1700000, remark: null },
+      { bank: 'เงินสดใจดี', submit_date: '10/12/2025', result: 'อนุมัติ', approved_amount: 1500000, remark: null }
+    ],
 
     // 6. Credit
     credit_status: 'อนุมัติแล้ว',
@@ -994,7 +1043,11 @@ export const bookings: Booking[] = [
     sale_type: 'เงินสด',
     down_payment_complete_date: '15/11/2025',
     credit_request_type: 'สินเชื่อธนาคาร',
-    bank_submitted: 'TTB',
+    banks_submitted: [
+      { bank: 'TTB', submit_date: '25/11/2025', result: 'อนุมัติ', approved_amount: 4160000, remark: 'VIP ผู้บริหาร' },
+      { bank: 'KBANK', submit_date: '25/11/2025', result: 'อนุมัติ', approved_amount: 4000000, remark: null },
+      { bank: 'เงินสดใจดี', submit_date: '25/11/2025', result: 'อนุมัติ', approved_amount: 3500000, remark: 'backup option' }
+    ],
 
     // 6. Credit
     credit_status: 'โอนแล้ว',
@@ -1139,12 +1192,66 @@ const CUSTOMER_NAMES = [
 ];
 
 const SALE_NAMES = ['สกุลกาญจน์ ชินพราหมณ์', 'นภาพร วงศ์สกุล', 'ศิริพร แก้วใส', 'มานพ ดีเด่น', 'พัชรี สุขสันต์'];
-const BANKS = ['SCB', 'KBANK', 'BBL', 'KTB', 'TMB', 'CASH'];
+const GEN_BANKS: BankCode[] = ['SCB', 'KBANK', 'BBL', 'KTB', 'TTB', 'UOB', 'เงินสดใจดี'];
 const STAGES_LIST: Stage[] = ['booking', 'contract', 'credit', 'inspection', 'ready'];
 const GRADES: Grade[] = ['A', 'B', 'C', 'D', 'F'];
 const TEAMS_LIST: Team[] = ['Sale', 'CO', 'CS', 'Construction', 'Legal', 'Finance'];
 
+// Helper function to generate random banks (1-3) - always includes เงินสดใจดี
+function generateBankSubmissions(price: number, hasBankFinal: boolean, hasBureauResult: boolean): BankSubmission[] {
+  // Always start with เงินสดใจดี, then add 0-2 more banks
+  const additionalBanks = seededRandom.next() > 0.6 ? (seededRandom.next() > 0.5 ? 2 : 1) : 0;
+  const selectedBanks: BankCode[] = [];
+
+  // Randomly select additional banks without duplicates
+  const availableBanks = [...GEN_BANKS].filter(b => b !== 'เงินสดใจดี');
+  for (let i = 0; i < additionalBanks && availableBanks.length > 0; i++) {
+    const idx = Math.floor(seededRandom.next() * availableBanks.length);
+    selectedBanks.push(availableBanks.splice(idx, 1)[0]);
+  }
+
+  // Always add เงินสดใจดี at the end
+  selectedBanks.push('เงินสดใจดี');
+
+  return selectedBanks.map((bank, index) => {
+    // First bank is primary - most likely to be approved
+    const isPrimary = index === 0;
+    const isJaidee = bank === 'เงินสดใจดี';
+    let result: BankSubmission['result'] = 'รอผล';
+    let approvedAmount: number | null = null;
+
+    if (hasBankFinal && isPrimary) {
+      result = 'อนุมัติ';
+      approvedAmount = Math.round(price * (0.85 + seededRandom.next() * 0.1));
+    } else if (hasBureauResult) {
+      result = seededRandom.next() > 0.3 ? 'อนุมัติ' : (seededRandom.next() > 0.5 ? 'ไม่อนุมัติ' : 'รอผล');
+      if (result === 'อนุมัติ') {
+        approvedAmount = Math.round(price * (0.75 + seededRandom.next() * 0.15));
+      }
+    }
+
+    // Jaidee typically approves at lower amounts
+    if (isJaidee && hasBureauResult) {
+      result = seededRandom.next() > 0.2 ? 'อนุมัติ' : 'รอผล';
+      if (result === 'อนุมัติ') {
+        approvedAmount = Math.round(price * (0.6 + seededRandom.next() * 0.15));
+      }
+    }
+
+    return {
+      bank,
+      submit_date: '20/01/2026',
+      result,
+      approved_amount: approvedAmount,
+      remark: null
+    };
+  });
+}
+
 function generateBulkBookings(): Booking[] {
+  // Reset seed ให้เริ่มต้นที่ค่าเดิมเสมอ
+  seededRandom.reset(12345);
+
   const generated: Booking[] = [];
   const targetBacklog = 6000000000; // 6,000 million baht
   let currentTotal = 0;
@@ -1159,7 +1266,7 @@ function generateBulkBookings(): Booking[] {
 
   while (currentTotal < targetBacklog) {
     // Select price range based on weight
-    const rand = Math.random() * 100;
+    const rand = seededRandom.next() * 100;
     let cumWeight = 0;
     let selectedRange = priceRanges[0];
     for (const range of priceRanges) {
@@ -1170,35 +1277,40 @@ function generateBulkBookings(): Booking[] {
       }
     }
 
-    const price = Math.round((selectedRange.min + Math.random() * (selectedRange.max - selectedRange.min)) / 1000000) * 1000000;
-    const stage = STAGES_LIST[Math.floor(Math.random() * STAGES_LIST.length)];
-    const grade = GRADES[Math.floor(Math.random() * GRADES.length)];
-    const project = PROJECT_NAMES[Math.floor(Math.random() * PROJECT_NAMES.length)];
-    const customerName = CUSTOMER_NAMES[Math.floor(Math.random() * CUSTOMER_NAMES.length)];
-    const saleName = SALE_NAMES[Math.floor(Math.random() * SALE_NAMES.length)];
-    const bank = BANKS[Math.floor(Math.random() * BANKS.length)];
-    const team = TEAMS_LIST[Math.floor(Math.random() * TEAMS_LIST.length)];
+    const price = Math.round((selectedRange.min + seededRandom.next() * (selectedRange.max - selectedRange.min)) / 1000000) * 1000000;
+    const stage = STAGES_LIST[Math.floor(seededRandom.next() * STAGES_LIST.length)];
+    const grade = GRADES[Math.floor(seededRandom.next() * GRADES.length)];
+    const project = PROJECT_NAMES[Math.floor(seededRandom.next() * PROJECT_NAMES.length)];
+    const customerName = CUSTOMER_NAMES[Math.floor(seededRandom.next() * CUSTOMER_NAMES.length)];
+    const saleName = SALE_NAMES[Math.floor(seededRandom.next() * SALE_NAMES.length)];
+    const team = TEAMS_LIST[Math.floor(seededRandom.next() * TEAMS_LIST.length)];
 
     // Determine credit status based on stage
-    const hasBureauResult = stage === 'inspection' || stage === 'ready' || Math.random() > 0.5;
-    const hasBankFinal = stage === 'ready' || (stage === 'inspection' && Math.random() > 0.3);
+    const hasBureauResult = stage === 'inspection' || stage === 'ready' || seededRandom.next() > 0.5;
+    const hasBankFinal = stage === 'ready' || (stage === 'inspection' && seededRandom.next() > 0.3);
+
+    // Generate multi-bank submissions (1-3 banks)
+    const isCash = seededRandom.next() > 0.85; // 15% cash
+    const banksSubmitted = isCash
+      ? [{ bank: 'CASH' as BankCode, submit_date: null, result: 'อนุมัติ' as const, approved_amount: price, remark: 'โอนสด' }]
+      : generateBankSubmissions(price, hasBankFinal, hasBureauResult);
 
     // Inspection appointments based on stage
     const hasInspect1 = stage === 'inspection' || stage === 'ready';
-    const hasInspect2 = (stage === 'inspection' && Math.random() > 0.6) || stage === 'ready';
-    const hasInspect3 = stage === 'ready' && Math.random() > 0.5;
+    const hasInspect2 = (stage === 'inspection' && seededRandom.next() > 0.6) || stage === 'ready';
+    const hasInspect3 = stage === 'ready' && seededRandom.next() > 0.5;
 
     const booking: Booking = {
       id: `BK-2026-GEN-${String(id++).padStart(4, '0')}`,
 
       // 1. Backlog
       backlog_status: grade === 'A' ? '1. พร้อมโอน' : grade === 'B' ? '2. รอสินเชื่อ' : '3. backlog เดิม',
-      backlog_old_flag: Math.random() > 0.7,
-      sale_type_flag: Math.random() > 0.2 ? 'ขายใหม่' : 'Re-sale',
-      dec_period: ['JAN', 'FEB', 'MAR'][Math.floor(Math.random() * 3)],
+      backlog_old_flag: seededRandom.next() > 0.7,
+      sale_type_flag: seededRandom.next() > 0.2 ? 'ขายใหม่' : 'Re-sale',
+      dec_period: ['JAN', 'FEB', 'MAR'][Math.floor(seededRandom.next() * 3)],
       fiscal_year: 1403,
       no_count_flag: false,
-      obj_purchase: Math.random() > 0.3 ? 'เพื่ออยู่อาศัย' : 'ลงทุน',
+      obj_purchase: seededRandom.next() > 0.3 ? 'เพื่ออยู่อาศัย' : 'ลงทุน',
       OPM: 'CH1 - คุณธานินทร์',
       BUD: 'H2 - คุณเอกกฤษณ์',
       head_co: 'ภาวิณีย์',
@@ -1207,29 +1319,29 @@ function generateBulkBookings(): Booking[] {
       project_code: project.split(' - ')[0].replace('0', ''),
       project_name: project,
       row_no: id,
-      building_zone: ['A', 'B', 'C', 'D', 'E'][Math.floor(Math.random() * 5)],
-      unit_no: String(Math.floor(Math.random() * 200) + 1),
-      house_reg_no: `${Math.floor(Math.random() * 200) + 1}/${Math.floor(Math.random() * 50) + 1}`,
-      house_type: ['Euro', 'Modern', 'Classic', 'Contemporary'][Math.floor(Math.random() * 4)],
+      building_zone: ['A', 'B', 'C', 'D', 'E'][Math.floor(seededRandom.next() * 5)],
+      unit_no: String(Math.floor(seededRandom.next() * 200) + 1),
+      house_reg_no: `${Math.floor(seededRandom.next() * 200) + 1}/${Math.floor(seededRandom.next() * 50) + 1}`,
+      house_type: ['Euro', 'Modern', 'Classic', 'Contemporary'][Math.floor(seededRandom.next() * 4)],
 
       // 3. Booking/Contract
       booking_date: '15/01/2026',
       contract_date: stage !== 'booking' ? '22/01/2026' : null,
       net_contract_value: price,
-      aging_N_minus_U: Math.floor(Math.random() * 60) + 10,
+      aging_N_minus_U: Math.floor(seededRandom.next() * 60) + 10,
       pro_transfer_bonus: Math.round(price * 0.008),
-      reason_not_transfer_this_month: Math.random() > 0.5 ? 'รอผลอนุมัติธนาคาร' : null,
+      reason_not_transfer_this_month: seededRandom.next() > 0.5 ? 'รอผลอนุมัติธนาคาร' : null,
 
       // 4. Customer
       customer_name: customerName,
-      customer_tel: `08${Math.floor(Math.random() * 10)}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
+      customer_tel: `08${Math.floor(seededRandom.next() * 10)}-${String(Math.floor(seededRandom.next() * 1000)).padStart(3, '0')}-${String(Math.floor(seededRandom.next() * 10000)).padStart(4, '0')}`,
       customer_profile_text: `Book Date : 15 ม.ค.2569\nรายได้ ${Math.floor(price / 100).toLocaleString()} บาท/เดือน`,
-      customer_age: Math.floor(Math.random() * 30) + 25,
-      customer_age_range: ['25-30', '30-40', '40-50', '50-60'][Math.floor(Math.random() * 4)],
-      customer_occupation: ['พนักงานบริษัท', 'ข้าราชการ', 'ค้าขาย', 'ธุรกิจส่วนตัว'][Math.floor(Math.random() * 4)],
+      customer_age: Math.floor(seededRandom.next() * 30) + 25,
+      customer_age_range: ['25-30', '30-40', '40-50', '50-60'][Math.floor(seededRandom.next() * 4)],
+      customer_occupation: ['พนักงานบริษัท', 'ข้าราชการ', 'ค้าขาย', 'ธุรกิจส่วนตัว'][Math.floor(seededRandom.next() * 4)],
       customer_monthly_income: Math.floor(price / 100),
-      customer_debt: Math.random() > 0.6 ? 'ไม่มี' : `${Math.floor(Math.random() * 20000)} บาท/เดือน`,
-      customer_ltv: bank === 'CASH' ? 'N/A' : '90%',
+      customer_debt: seededRandom.next() > 0.6 ? 'ไม่มี' : `${Math.floor(seededRandom.next() * 20000)} บาท/เดือน`,
+      customer_ltv: isCash ? 'N/A' : '90%',
       purchase_reason: 'ทำเล / ราคา',
       purchase_objective: 'เพื่ออยู่อาศัย',
 
@@ -1237,8 +1349,8 @@ function generateBulkBookings(): Booking[] {
       sale_name: saleName,
       sale_type: 'ผ่อนดาวน์',
       down_payment_complete_date: '15/03/2026',
-      credit_request_type: bank === 'CASH' ? 'โอนสด' : 'สินเชื่อธนาคาร',
-      bank_submitted: bank,
+      credit_request_type: isCash ? 'โอนสด' : 'สินเชื่อธนาคาร',
+      banks_submitted: banksSubmitted,
 
       // 6. Credit
       credit_status: hasBankFinal ? 'อนุมัติแล้ว' : hasBureauResult ? 'รอผลธนาคาร' : 'รอผล Bureau',
@@ -1266,7 +1378,7 @@ function generateBulkBookings(): Booking[] {
       inspection_status: hasInspect1 ? (hasInspect3 ? 'ผ่านแล้ว' : 'รอแก้งาน') : 'รอนัดตรวจ',
       inspection_appointment_status: hasInspect1 ? 'นัดแล้ว' : 'รอนัด',
       notify_customer_date: hasInspect1 ? '01/02/2026' : null,
-      inspection_method: Math.random() > 0.5 ? 'ตรวจเอง' : 'จ้างตรวจ',
+      inspection_method: seededRandom.next() > 0.5 ? 'ตรวจเอง' : 'จ้างตรวจ',
       unit_ready_inspection_date: '05/02/2026',
       cs_notify_target_date: '07/02/2026',
       inspect1_notify_date: hasInspect1 ? '07/02/2026' : null,
@@ -1296,10 +1408,10 @@ function generateBulkBookings(): Booking[] {
       cancel_reason: null,
 
       // 9. LivNex
-      livnex_able_status: Math.random() > 0.3 ? 'Offer แล้ว' : 'ยังไม่ Offer',
-      livnex_able_completion_result: Math.random() > 0.5 ? 'สนใจ' : 'ไม่สนใจ',
+      livnex_able_status: seededRandom.next() > 0.3 ? 'Offer แล้ว' : 'ยังไม่ Offer',
+      livnex_able_completion_result: seededRandom.next() > 0.5 ? 'สนใจ' : 'ไม่สนใจ',
       livnex_complete_date: null,
-      sale_offer_livnex_flag: Math.random() > 0.3,
+      sale_offer_livnex_flag: seededRandom.next() > 0.3,
       livnex_contract_appointment_date: null,
       livnex_contract_actual_date: null,
       livnex_cancel_date: null,
@@ -1309,7 +1421,7 @@ function generateBulkBookings(): Booking[] {
       rentnex_cancel_reason: null,
 
       // 10. Follow-up
-      followup_bank: Math.random() > 0.5 ? 'รอผล' : null,
+      followup_bank: seededRandom.next() > 0.5 ? 'รอผล' : null,
       followup_bank_date: null,
       sale_followup_task: null,
       followup_note: null,
@@ -1331,20 +1443,20 @@ function generateBulkBookings(): Booking[] {
       fin_day_appointment_date: null,
 
       // 12. KPI
-      aging_days: Math.floor(Math.random() * 50) + 15,
-      m2_bureau_to_handover_days: hasBureauResult ? Math.floor(Math.random() * 30) + 10 : null,
-      call_customer_within_2_days: Math.random() > 0.2 ? 'PASS' : 'FAIL',
-      inspection_within_15_days: Math.random() > 0.3 ? 'PASS' : 'FAIL',
-      booking_to_preapprove_days: hasBureauResult ? Math.floor(Math.random() * 20) + 10 : null,
-      booking_to_bank_final_days: hasBankFinal ? Math.floor(Math.random() * 30) + 20 : null,
-      docsubmit_to_bank_final_days: hasBankFinal ? Math.floor(Math.random() * 20) + 10 : null,
-      booking_to_bureau_days: hasBureauResult ? Math.floor(Math.random() * 15) + 5 : null,
+      aging_days: Math.floor(seededRandom.next() * 50) + 15,
+      m2_bureau_to_handover_days: hasBureauResult ? Math.floor(seededRandom.next() * 30) + 10 : null,
+      call_customer_within_2_days: seededRandom.next() > 0.2 ? 'PASS' : 'FAIL',
+      inspection_within_15_days: seededRandom.next() > 0.3 ? 'PASS' : 'FAIL',
+      booking_to_preapprove_days: hasBureauResult ? Math.floor(seededRandom.next() * 20) + 10 : null,
+      booking_to_bank_final_days: hasBankFinal ? Math.floor(seededRandom.next() * 30) + 20 : null,
+      docsubmit_to_bank_final_days: hasBankFinal ? Math.floor(seededRandom.next() * 20) + 10 : null,
+      booking_to_bureau_days: hasBureauResult ? Math.floor(seededRandom.next() * 15) + 5 : null,
       efficiency_cycle_status: grade === 'A' ? 'On Track' : 'Delayed',
-      ahead_delay_days: grade === 'A' ? Math.floor(Math.random() * 5) : -Math.floor(Math.random() * 10),
+      ahead_delay_days: grade === 'A' ? Math.floor(seededRandom.next() * 5) : -Math.floor(seededRandom.next() * 10),
       backlog_grade: grade,
 
       // 13. Management
-      backlog_owner: Math.random() > 0.5 ? 'พี่เหน่ง' : null,
+      backlog_owner: seededRandom.next() > 0.5 ? 'พี่เหน่ง' : null,
       transfer_target_status: stage === 'ready' ? 'โอนเดือนนี้' : 'มีเงื่อนไขโอนเดือนอื่น',
       credit_day_status: hasBankFinal ? 'อนุมัติแล้ว' : 'In process',
       product_status: stage === 'ready' ? 'พร้อมโอน' : hasInspect1 ? 'รอแก้งาน' : 'รอตรวจ',
@@ -1354,7 +1466,7 @@ function generateBulkBookings(): Booking[] {
       // Computed
       stage: stage,
       current_owner_team: team,
-      current_blocker: Math.random() > 0.7 ? 'รอผลธนาคาร' : null,
+      current_blocker: seededRandom.next() > 0.7 ? 'รอผลธนาคาร' : null,
       next_action: stage === 'ready' ? 'นัดโอน' : stage === 'inspection' ? 'นัดตรวจ' : 'รอผลสินเชื่อ',
     };
 
