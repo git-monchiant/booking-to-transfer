@@ -143,8 +143,10 @@ export interface Booking {
   // 7. INSPECTION / CS / CONSTRUCTION
   // ─────────────────────────────────────────────
   inspection_status: string;        // "รับนัดตรวจ" | "รอแก้งาน" | "ผ่านแล้ว"
+  inspection_appointment_status: string | null; // "นัดแล้ว" | "รอนัด" | "ยกเลิกนัด"
   inspection_method: string | null; // "ตรวจเอง" | "จ้างตรวจ"
-  unit_ready_inspection_date: string | null;
+  unit_ready_inspection_date: string | null; // วันที่ห้องพร้อมตรวจ 5.5
+  notify_customer_date: string | null; // แจ้งลูกค้า
   cs_notify_target_date: string | null;
 
   // Round 1
@@ -338,6 +340,8 @@ export const bookings: Booking[] = [
 
     // 7. Inspection
     inspection_status: 'รับนัดตรวจ',
+    inspection_appointment_status: 'นัดแล้ว',
+    notify_customer_date: '24/12/2025',
     inspection_method: 'ตรวจเอง',
     unit_ready_inspection_date: '07/01/2026',
     cs_notify_target_date: null,
@@ -506,6 +510,8 @@ export const bookings: Booking[] = [
 
     // 7. Inspection
     inspection_status: 'รอนัดตรวจ',
+    inspection_appointment_status: 'รอนัด',
+    notify_customer_date: null,
     inspection_method: 'ตรวจเอง',
     unit_ready_inspection_date: '20/01/2026',
     cs_notify_target_date: '22/01/2026',
@@ -674,6 +680,8 @@ export const bookings: Booking[] = [
 
     // 7. Inspection
     inspection_status: 'รอแก้งาน',
+    inspection_appointment_status: 'นัดแล้ว',
+    notify_customer_date: '15/12/2025',
     inspection_method: 'จ้างตรวจ',
     unit_ready_inspection_date: '05/01/2026',
     cs_notify_target_date: '07/01/2026',
@@ -842,6 +850,8 @@ export const bookings: Booking[] = [
 
     // 7. Inspection
     inspection_status: 'ผ่านแล้ว',
+    inspection_appointment_status: 'นัดแล้ว',
+    notify_customer_date: '10/12/2025',
     inspection_method: 'ตรวจเอง',
     unit_ready_inspection_date: '15/12/2025',
     cs_notify_target_date: '16/12/2025',
@@ -1010,6 +1020,8 @@ export const bookings: Booking[] = [
 
     // 7. Inspection
     inspection_status: 'โอนแล้ว',
+    inspection_appointment_status: 'นัดแล้ว',
+    notify_customer_date: '20/11/2025',
     inspection_method: 'จ้างตรวจ',
     unit_ready_inspection_date: '01/12/2025',
     cs_notify_target_date: '02/12/2025',
@@ -1102,6 +1114,260 @@ export const bookings: Booking[] = [
     next_action: null,
   },
 ];
+
+// ===============================================
+// GENERATE BULK BOOKINGS FOR ~6,000 MILLION BACKLOG
+// ===============================================
+const PROJECT_NAMES = [
+  '01800 - เสนา เวล่า สิริโสธร',
+  '01801 - เสนา พาร์ค แกรนด์ รามอินทรา',
+  '01802 - เสนา โซลาร์ พหลโยธิน',
+  '01803 - เสนา เอโค่ บางนา',
+  '01804 - เสนา คอนโด วงเวียนใหญ่',
+  '01805 - เสนา ทาวน์ รังสิต',
+  '01806 - เสนา วิลล่า สุขุมวิท',
+  '01807 - เสนา เพลส ลาดพร้าว',
+  '01808 - เสนา ไลฟ์ บางปู',
+  '01809 - เสนา เรสซิเดนซ์ อารีย์',
+];
+
+const CUSTOMER_NAMES = [
+  'นายสมชาย ใจดี', 'นางสาวสมหญิง รักเรียน', 'นายวิชัย มั่งมี', 'นางมาลี สุขสันต์',
+  'นายประสิทธิ์ ทำดี', 'นางสาวพิมพ์ใจ งามตา', 'นายอภิชาติ รุ่งเรือง', 'นางสาวณัฐธิดา สว่างใส',
+  'นายธนากร ศรีสุข', 'นางวารี ชื่นใจ', 'นายกิตติ พงษ์พานิช', 'นางสาวรัตนา แก้วมณี',
+  'นายพิชัย เจริญสุข', 'นางบุญมี ศรีทอง', 'นายเอกชัย วงศ์สกุล', 'นางสาวอรุณี จันทร์เพ็ญ',
+];
+
+const SALE_NAMES = ['สกุลกาญจน์ ชินพราหมณ์', 'นภาพร วงศ์สกุล', 'ศิริพร แก้วใส', 'มานพ ดีเด่น', 'พัชรี สุขสันต์'];
+const BANKS = ['SCB', 'KBANK', 'BBL', 'KTB', 'TMB', 'CASH'];
+const STAGES_LIST: Stage[] = ['booking', 'contract', 'credit', 'inspection', 'ready'];
+const GRADES: Grade[] = ['A', 'B', 'C', 'D', 'F'];
+const TEAMS_LIST: Team[] = ['Sale', 'CO', 'CS', 'Construction', 'Legal', 'Finance'];
+
+function generateBulkBookings(): Booking[] {
+  const generated: Booking[] = [];
+  const targetBacklog = 6000000000; // 6,000 million baht
+  let currentTotal = 0;
+  let id = 100;
+
+  // Price ranges - Luxury villas ~100 million each
+  const priceRanges = [
+    { min: 80000000, max: 120000000, weight: 70 },   // Luxury villas ~100M
+    { min: 50000000, max: 80000000, weight: 20 },    // Premium houses ~65M
+    { min: 30000000, max: 50000000, weight: 10 },    // High-end townhouses ~40M
+  ];
+
+  while (currentTotal < targetBacklog) {
+    // Select price range based on weight
+    const rand = Math.random() * 100;
+    let cumWeight = 0;
+    let selectedRange = priceRanges[0];
+    for (const range of priceRanges) {
+      cumWeight += range.weight;
+      if (rand <= cumWeight) {
+        selectedRange = range;
+        break;
+      }
+    }
+
+    const price = Math.round((selectedRange.min + Math.random() * (selectedRange.max - selectedRange.min)) / 1000000) * 1000000;
+    const stage = STAGES_LIST[Math.floor(Math.random() * STAGES_LIST.length)];
+    const grade = GRADES[Math.floor(Math.random() * GRADES.length)];
+    const project = PROJECT_NAMES[Math.floor(Math.random() * PROJECT_NAMES.length)];
+    const customerName = CUSTOMER_NAMES[Math.floor(Math.random() * CUSTOMER_NAMES.length)];
+    const saleName = SALE_NAMES[Math.floor(Math.random() * SALE_NAMES.length)];
+    const bank = BANKS[Math.floor(Math.random() * BANKS.length)];
+    const team = TEAMS_LIST[Math.floor(Math.random() * TEAMS_LIST.length)];
+
+    // Determine credit status based on stage
+    const hasBureauResult = stage === 'inspection' || stage === 'ready' || Math.random() > 0.5;
+    const hasBankFinal = stage === 'ready' || (stage === 'inspection' && Math.random() > 0.3);
+
+    // Inspection appointments based on stage
+    const hasInspect1 = stage === 'inspection' || stage === 'ready';
+    const hasInspect2 = (stage === 'inspection' && Math.random() > 0.6) || stage === 'ready';
+    const hasInspect3 = stage === 'ready' && Math.random() > 0.5;
+
+    const booking: Booking = {
+      id: `BK-2026-GEN-${String(id++).padStart(4, '0')}`,
+
+      // 1. Backlog
+      backlog_status: grade === 'A' ? '1. พร้อมโอน' : grade === 'B' ? '2. รอสินเชื่อ' : '3. backlog เดิม',
+      backlog_old_flag: Math.random() > 0.7,
+      sale_type_flag: Math.random() > 0.2 ? 'ขายใหม่' : 'Re-sale',
+      dec_period: ['JAN', 'FEB', 'MAR'][Math.floor(Math.random() * 3)],
+      fiscal_year: 1403,
+      no_count_flag: false,
+      obj_purchase: Math.random() > 0.3 ? 'เพื่ออยู่อาศัย' : 'ลงทุน',
+      OPM: 'CH1 - คุณธานินทร์',
+      BUD: 'H2 - คุณเอกกฤษณ์',
+      head_co: 'ภาวิณีย์',
+
+      // 2. Project
+      project_code: project.split(' - ')[0].replace('0', ''),
+      project_name: project,
+      row_no: id,
+      building_zone: ['A', 'B', 'C', 'D', 'E'][Math.floor(Math.random() * 5)],
+      unit_no: String(Math.floor(Math.random() * 200) + 1),
+      house_reg_no: `${Math.floor(Math.random() * 200) + 1}/${Math.floor(Math.random() * 50) + 1}`,
+      house_type: ['Euro', 'Modern', 'Classic', 'Contemporary'][Math.floor(Math.random() * 4)],
+
+      // 3. Booking/Contract
+      booking_date: '15/01/2026',
+      contract_date: stage !== 'booking' ? '22/01/2026' : null,
+      net_contract_value: price,
+      aging_N_minus_U: Math.floor(Math.random() * 60) + 10,
+      pro_transfer_bonus: Math.round(price * 0.008),
+      reason_not_transfer_this_month: Math.random() > 0.5 ? 'รอผลอนุมัติธนาคาร' : null,
+
+      // 4. Customer
+      customer_name: customerName,
+      customer_tel: `08${Math.floor(Math.random() * 10)}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
+      customer_profile_text: `Book Date : 15 ม.ค.2569\nรายได้ ${Math.floor(price / 100).toLocaleString()} บาท/เดือน`,
+      customer_age: Math.floor(Math.random() * 30) + 25,
+      customer_age_range: ['25-30', '30-40', '40-50', '50-60'][Math.floor(Math.random() * 4)],
+      customer_occupation: ['พนักงานบริษัท', 'ข้าราชการ', 'ค้าขาย', 'ธุรกิจส่วนตัว'][Math.floor(Math.random() * 4)],
+      customer_monthly_income: Math.floor(price / 100),
+      customer_debt: Math.random() > 0.6 ? 'ไม่มี' : `${Math.floor(Math.random() * 20000)} บาท/เดือน`,
+      customer_ltv: bank === 'CASH' ? 'N/A' : '90%',
+      purchase_reason: 'ทำเล / ราคา',
+      purchase_objective: 'เพื่ออยู่อาศัย',
+
+      // 5. Sale
+      sale_name: saleName,
+      sale_type: 'ผ่อนดาวน์',
+      down_payment_complete_date: '15/03/2026',
+      credit_request_type: bank === 'CASH' ? 'โอนสด' : 'สินเชื่อธนาคาร',
+      bank_submitted: bank,
+
+      // 6. Credit
+      credit_status: hasBankFinal ? 'อนุมัติแล้ว' : hasBureauResult ? 'รอผลธนาคาร' : 'รอผล Bureau',
+      credit_owner: '1.1) สมหญิง (หญิง)',
+      doc_submit_date: stage !== 'booking' ? '20/01/2026' : null,
+      doc_complete_bank_jd_date: stage !== 'booking' ? '23/01/2026' : null,
+      doc_complete_jd_date: null,
+      bank_request_more_doc_date: null,
+      jd_request_more_doc_date: null,
+      bureau_target_result_date: '28/01/2026',
+      bureau_actual_result_date: hasBureauResult ? '27/01/2026' : null,
+      bureau_result: hasBureauResult ? 'ผ่าน' : null,
+      bank_preapprove_target_date: '05/02/2026',
+      bank_preapprove_actual_date: hasBureauResult ? '03/02/2026' : null,
+      bank_preapprove_result: hasBureauResult ? `Pre-approve ${(price * 0.9).toLocaleString()}` : null,
+      bank_final_target_date: '15/02/2026',
+      bank_final_actual_date: hasBankFinal ? '12/02/2026' : null,
+      bank_final_result: hasBankFinal ? `อนุมัติ ${(price * 0.9).toLocaleString()}` : null,
+      jd_final_target_date: hasBankFinal ? '20/02/2026' : null,
+      jd_final_actual_date: hasBankFinal ? '18/02/2026' : null,
+      jd_final_result: hasBankFinal ? 'อนุมัติ' : null,
+      co_remark: null,
+
+      // 7. Inspection
+      inspection_status: hasInspect1 ? (hasInspect3 ? 'ผ่านแล้ว' : 'รอแก้งาน') : 'รอนัดตรวจ',
+      inspection_appointment_status: hasInspect1 ? 'นัดแล้ว' : 'รอนัด',
+      notify_customer_date: hasInspect1 ? '01/02/2026' : null,
+      inspection_method: Math.random() > 0.5 ? 'ตรวจเอง' : 'จ้างตรวจ',
+      unit_ready_inspection_date: '05/02/2026',
+      cs_notify_target_date: '07/02/2026',
+      inspect1_notify_date: hasInspect1 ? '07/02/2026' : null,
+      inspect1_appointment_date: hasInspect1 ? '12/02/2026' : null,
+      inspect1_actual_date: hasInspect1 ? '12/02/2026' : null,
+      inspect1_ready_date: hasInspect2 ? '20/02/2026' : null,
+      inspect2_appointment_date: hasInspect2 ? '25/02/2026' : null,
+      inspect2_actual_date: hasInspect2 ? '25/02/2026' : null,
+      inspect2_ready_date: hasInspect3 ? '01/03/2026' : null,
+      inspect3_appointment_date: hasInspect3 ? '05/03/2026' : null,
+      inspect3_actual_date: hasInspect3 ? '05/03/2026' : null,
+      handover_accept_date: stage === 'ready' ? '08/03/2026' : null,
+      inspection_officer: 'ประวิทย์ (เอ็ม)',
+      cs_owner: 'มานพ / ศิริพร',
+
+      // 8. Transfer
+      bank_contract_date: hasBankFinal ? '20/02/2026' : null,
+      transfer_package_sent_date: stage === 'ready' ? '22/02/2026' : null,
+      title_clear_date: stage === 'ready' ? '25/02/2026' : null,
+      title_clear_notify_date: stage === 'ready' ? '26/02/2026' : null,
+      transfer_target_date: '15/03/2026',
+      transfer_actual_date: null,
+      transfer_appointment_date: stage === 'ready' ? '12/03/2026' : null,
+      transfer_status: 'In process',
+      cancel_flag: false,
+      cancel_date: null,
+      cancel_reason: null,
+
+      // 9. LivNex
+      livnex_able_status: Math.random() > 0.3 ? 'Offer แล้ว' : 'ยังไม่ Offer',
+      livnex_able_completion_result: Math.random() > 0.5 ? 'สนใจ' : 'ไม่สนใจ',
+      livnex_complete_date: null,
+      sale_offer_livnex_flag: Math.random() > 0.3,
+      livnex_contract_appointment_date: null,
+      livnex_contract_actual_date: null,
+      livnex_cancel_date: null,
+      livnex_cancel_reason: null,
+      rentnex_contract_appointment_date: null,
+      rentnex_cancel_date: null,
+      rentnex_cancel_reason: null,
+
+      // 10. Follow-up
+      followup_bank: Math.random() > 0.5 ? 'รอผล' : null,
+      followup_bank_date: null,
+      sale_followup_task: null,
+      followup_note: null,
+      pm_fast_sent_date: null,
+      cs_review_date: null,
+      qc_result: hasInspect1 ? 'QC.Pass' : null,
+      con_review_result: hasInspect1 ? 'Pass' : null,
+
+      // 11. Finance
+      refund_status: null,
+      refund_aging: null,
+      refund_transfer_date: null,
+      refund_amount: null,
+      water_meter_change_date: null,
+      electricity_meter_change_date: null,
+      handover_document_received_date: null,
+      cannot_transfer_issue: null,
+      expected_transfer_month: 'มี.ค.',
+      fin_day_appointment_date: null,
+
+      // 12. KPI
+      aging_days: Math.floor(Math.random() * 50) + 15,
+      m2_bureau_to_handover_days: hasBureauResult ? Math.floor(Math.random() * 30) + 10 : null,
+      call_customer_within_2_days: Math.random() > 0.2 ? 'PASS' : 'FAIL',
+      inspection_within_15_days: Math.random() > 0.3 ? 'PASS' : 'FAIL',
+      booking_to_preapprove_days: hasBureauResult ? Math.floor(Math.random() * 20) + 10 : null,
+      booking_to_bank_final_days: hasBankFinal ? Math.floor(Math.random() * 30) + 20 : null,
+      docsubmit_to_bank_final_days: hasBankFinal ? Math.floor(Math.random() * 20) + 10 : null,
+      booking_to_bureau_days: hasBureauResult ? Math.floor(Math.random() * 15) + 5 : null,
+      efficiency_cycle_status: grade === 'A' ? 'On Track' : 'Delayed',
+      ahead_delay_days: grade === 'A' ? Math.floor(Math.random() * 5) : -Math.floor(Math.random() * 10),
+      backlog_grade: grade,
+
+      // 13. Management
+      backlog_owner: Math.random() > 0.5 ? 'พี่เหน่ง' : null,
+      transfer_target_status: stage === 'ready' ? 'โอนเดือนนี้' : 'มีเงื่อนไขโอนเดือนอื่น',
+      credit_day_status: hasBankFinal ? 'อนุมัติแล้ว' : 'In process',
+      product_status: stage === 'ready' ? 'พร้อมโอน' : hasInspect1 ? 'รอแก้งาน' : 'รอตรวจ',
+      contract_transfer_due_date: '30 วันหลังทำสัญญา',
+      transferred_actual_flag: false,
+
+      // Computed
+      stage: stage,
+      current_owner_team: team,
+      current_blocker: Math.random() > 0.7 ? 'รอผลธนาคาร' : null,
+      next_action: stage === 'ready' ? 'นัดโอน' : stage === 'inspection' ? 'นัดตรวจ' : 'รอผลสินเชื่อ',
+    };
+
+    generated.push(booking);
+    currentTotal += price;
+  }
+
+  return generated;
+}
+
+// Add generated bookings to main array
+const generatedBookings = generateBulkBookings();
+bookings.push(...generatedBookings);
 
 // ===============================================
 // HELPER FUNCTIONS

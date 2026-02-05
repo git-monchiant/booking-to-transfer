@@ -13,6 +13,9 @@ import {
   Settings,
   Wallet,
   FileText,
+  XCircle,
+  ArrowRightCircle,
+  Home,
   LucideIcon,
 } from 'lucide-react';
 import { STAGE_CONFIG, TEAM_CONFIG, Stage, Team, Booking, formatMoney } from '@/data/bookings';
@@ -20,15 +23,23 @@ import { STAGE_CONFIG, TEAM_CONFIG, Stage, Team, Booking, formatMoney } from '@/
 // Types for menu configuration
 export type View =
   | 'dashboard'
+  | 'dashboard-performance'
+  | 'dashboard-tracking'
   | 'pipeline'
   | 'list'
   | 'list-stage'
   | 'blocked'
   | 'team'
+  | 'cancel'
+  | 'cancel-onprocess'
+  | 'cancel-livnex'
+  | 'cancel-rentnex'
+  | 'cancel-actual'
   | 'after-transfer'
   | 'refund'
   | 'meter'
-  | 'handover';
+  | 'freebie'
+  | 'pending-work';
 
 interface MenuItemBase {
   id: string;
@@ -77,25 +88,6 @@ export const createMenuConfig = (
   blockedCount: number
 ): MenuGroup[] => [
   {
-    id: 'overview',
-    label: 'Overview',
-    defaultExpanded: true,
-    items: [
-      {
-        id: 'dashboard',
-        label: 'Dashboard',
-        icon: LayoutDashboard,
-        view: 'dashboard',
-      },
-      {
-        id: 'pipeline',
-        label: 'Pipeline',
-        icon: Layers,
-        view: 'pipeline',
-      },
-    ],
-  },
-  {
     id: 'bookings',
     label: 'Bookings',
     defaultExpanded: true,
@@ -109,15 +101,26 @@ export const createMenuConfig = (
         badge: globalFilteredBookings.length,
         badgeColor: 'bg-slate-700',
       },
-      // Dynamic stage items will be added
-      ...Object.entries(STAGE_CONFIG).map(([key, config]) => ({
-        id: `stage-${key}`,
-        label: config.label,
+      // Dynamic stage items (excluding cancelled - added separately below)
+      ...Object.entries(STAGE_CONFIG)
+        .filter(([key]) => key !== 'cancelled')
+        .map(([key, config]) => ({
+          id: `stage-${key}`,
+          label: config.label,
+          view: 'list' as const,
+          stageFilter: key as Stage,
+          color: config.color,
+          badge: globalFilteredBookings.filter(b => b.stage === key).length,
+        })),
+      // Cancel - single item with dot like stages
+      {
+        id: 'stage-cancelled',
+        label: 'Cancelled',
         view: 'list' as const,
-        stageFilter: key as Stage,
-        color: config.color,
-        badge: globalFilteredBookings.filter(b => b.stage === key).length,
-      })),
+        stageFilter: 'cancelled' as Stage,
+        color: '#ef4444',
+        badge: globalFilteredBookings.filter(b => b.stage === 'cancelled').length,
+      },
       {
         id: 'blocked',
         label: 'Blocked',
@@ -126,6 +129,7 @@ export const createMenuConfig = (
         badge: blockedCount,
         badgeColor: 'bg-amber-600',
       },
+      // After Transfer section
       {
         id: 'after-transfer-overview',
         label: 'After Transfer',
@@ -147,7 +151,7 @@ export const createMenuConfig = (
         label: 'ของแถม',
         icon: FileText,
         iconColor: '#10b981',
-        view: 'handover' as const,
+        view: 'freebie' as const,
         badge: globalFilteredBookings.filter(b => b.transferred_actual_flag && !b.handover_document_received_date).length,
       },
       {
@@ -163,7 +167,7 @@ export const createMenuConfig = (
         label: 'งานค้าง',
         icon: AlertTriangle,
         iconColor: '#ef4444',
-        view: 'handover' as const,
+        view: 'pending-work' as const,
         badge: globalFilteredBookings.filter(b => b.transferred_actual_flag && !b.handover_document_received_date).length,
       },
     ],
@@ -226,10 +230,8 @@ export function Sidebar({
   onTeamChange,
 }: SidebarProps) {
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
-    overview: true,
     bookings: true,
     teams: false,
-    afterTransfer: false,
   });
 
   const toggleMenu = (menuId: string) => {
@@ -278,6 +280,43 @@ export function Sidebar({
     return { backgroundColor: '#6366f1' }; // indigo-500
   };
 
+  const renderMenuItem = (item: MenuItem) => {
+    const active = isActive(item);
+    const Icon = 'icon' in item ? item.icon : undefined;
+    const iconColor = 'iconColor' in item ? (item as any).iconColor : undefined;
+    const hasColor = 'color' in item && item.color && !Icon;
+    const isIndented = hasColor || item.id.startsWith('stage-') || item.id.startsWith('team-') || iconColor;
+
+    return (
+      <button
+        key={item.id}
+        onClick={() => handleMenuItemClick(item)}
+        className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition
+          ${isIndented ? 'pl-6' : ''}
+          ${active ? 'text-white' : 'text-slate-300 hover:bg-slate-800'}`}
+        style={getItemStyle(item, active)}
+      >
+        {Icon && <Icon className="w-4 h-4" style={iconColor && !active ? { color: iconColor } : undefined} />}
+        {hasColor && (
+          <div
+            className="w-2 h-2 rounded-full"
+            style={{ backgroundColor: (item as any).color }}
+          />
+        )}
+        {item.label}
+        {item.badge !== undefined && (
+          <span
+            className={`ml-auto text-xs px-2 py-0.5 rounded ${
+              item.badgeColor || (active ? 'bg-white/20' : 'text-slate-500')
+            }`}
+          >
+            {item.badge}
+          </span>
+        )}
+      </button>
+    );
+  };
+
   return (
     <aside className="w-64 bg-slate-900 text-white flex flex-col">
       {/* Logo */}
@@ -293,6 +332,31 @@ export function Sidebar({
 
       {/* Nav */}
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+        {/* Dashboard Section */}
+        <div className="mb-2">
+          <div className="px-3 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            Dashboard
+          </div>
+          <button
+            onClick={() => onViewChange('dashboard-performance')}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition pl-6
+              ${currentView === 'dashboard-performance' || currentView === 'dashboard' ? 'text-white' : 'text-slate-300 hover:bg-slate-800'}`}
+            style={currentView === 'dashboard-performance' || currentView === 'dashboard' ? { backgroundColor: '#6366f1' } : undefined}
+          >
+            <LayoutDashboard className="w-4 h-4" />
+            Performance
+          </button>
+          <button
+            onClick={() => onViewChange('dashboard-tracking')}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition pl-6
+              ${currentView === 'dashboard-tracking' ? 'text-white' : 'text-slate-300 hover:bg-slate-800'}`}
+            style={currentView === 'dashboard-tracking' ? { backgroundColor: '#f59e0b' } : undefined}
+          >
+            <AlertTriangle className="w-4 h-4" />
+            Tracking
+          </button>
+        </div>
+
         {menuConfig.map(group => (
           <div key={group.id} className={`mb-2 ${group.disabled ? 'opacity-50' : ''}`}>
             <button
@@ -311,42 +375,7 @@ export function Sidebar({
 
             {!group.disabled && expandedMenus[group.id] && group.items && (
               <div className="mt-1 space-y-1">
-                {group.items.map(item => {
-                  const active = isActive(item);
-                  const Icon = 'icon' in item ? item.icon : undefined;
-                  const iconColor = 'iconColor' in item ? (item as any).iconColor : undefined;
-                  const hasColor = 'color' in item && item.color && !Icon;
-                  const isIndented = hasColor || item.id.startsWith('stage-') || item.id.startsWith('team-') || iconColor;
-
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => handleMenuItemClick(item)}
-                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition
-                        ${isIndented ? 'pl-6' : ''}
-                        ${active ? 'text-white' : 'text-slate-300 hover:bg-slate-800'}`}
-                      style={getItemStyle(item, active)}
-                    >
-                      {Icon && <Icon className="w-4 h-4" style={iconColor && !active ? { color: iconColor } : undefined} />}
-                      {hasColor && (
-                        <div
-                          className="w-2 h-2 rounded-full"
-                          style={{ backgroundColor: (item as any).color }}
-                        />
-                      )}
-                      {item.label}
-                      {item.badge !== undefined && (
-                        <span
-                          className={`ml-auto text-xs px-2 py-0.5 rounded ${
-                            item.badgeColor || (active ? 'bg-white/20' : 'text-slate-500')
-                          }`}
-                        >
-                          {item.badge}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
+                {group.items.map(item => renderMenuItem(item))}
               </div>
             )}
           </div>
