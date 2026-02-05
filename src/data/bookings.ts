@@ -181,6 +181,7 @@ export interface Booking {
   inspection_status: string;        // "รับนัดตรวจ" | "รอแก้งาน" | "ผ่านแล้ว"
   inspection_appointment_status: string | null; // "นัดแล้ว" | "รอนัด" | "ยกเลิกนัด"
   inspection_method: string | null; // "ตรวจเอง" | "จ้างตรวจ"
+  hired_inspector: string | null;   // ชื่อผู้ที่ลูกค้าจ้างมาตรวจ (คน/บริษัท)
   unit_ready_inspection_date: string | null; // วันที่ห้องพร้อมตรวจ 5.5
   notify_customer_date: string | null; // แจ้งลูกค้า
   cs_notify_target_date: string | null;
@@ -224,7 +225,13 @@ export interface Booking {
   // ─────────────────────────────────────────────
   // 9. LIVNEX / RENTNEX EQUITY
   // ─────────────────────────────────────────────
-  livnex_able_status: string | null;
+  livnex_able_status: string | null;           // "ON Hand Sale" | "ได้" | "ไม่ได้" | "รอตรวจสอบ"
+  livnex_case_receive_date: string | null;     // วันที่ รับ CASE e.g. "27/12/2025"
+  livnex_credit_status: string | null;         // สถานะสินเชื่อ e.g. "11. เซ็นสัญญา Livnex", "05. JD ไม่อนุมัติ"
+  livnex_contract_sign_status: string | null;  // สถานะการเซ็นสัญญา e.g. "เซ็นสัญญาแล้ว นัดชำระเงิน"
+  livnex_move_in_date: string | null;          // วันที่เข้าอยู่ e.g. "15 Jan 2026"
+  livnex_able_reason: string | null;           // เหตุผล Livnex Able e.g. "อนุมัติ - ไม่มีเงื่อนไข", "ไม่อนุมัติ - DSR เกิน"
+  livnex_followup_note: string | null;         // เหตุผล ติดตาม LIVNEX
   livnex_able_completion_result: string | null;
   livnex_complete_date: string | null;
   sale_offer_livnex_flag: boolean;
@@ -381,6 +388,7 @@ export const bookings: Booking[] = [
     inspection_appointment_status: 'นัดแล้ว',
     notify_customer_date: '24/12/2025',
     inspection_method: 'ตรวจเอง',
+    hired_inspector: null,
     unit_ready_inspection_date: '07/01/2026',
     cs_notify_target_date: null,
     inspect1_notify_date: '24/12/2025',
@@ -411,6 +419,12 @@ export const bookings: Booking[] = [
 
     // 9. LivNex
     livnex_able_status: 'ON Hand Sale',
+    livnex_case_receive_date: '27/12/2025',
+    livnex_credit_status: '11. เซ็นสัญญา Livnex',
+    livnex_contract_sign_status: 'เซ็นสัญญาแล้ว นัดชำระเงิน',
+    livnex_move_in_date: '15 Jan 2026',
+    livnex_able_reason: 'อนุมัติ - ไม่มีเงื่อนไข',
+    livnex_followup_note: '27/12/678 โครงการเสนา เวลา สิริโสธร ขอปิด 0904 (133/4)',
     livnex_able_completion_result: null,
     livnex_complete_date: null,
     sale_offer_livnex_flag: false,
@@ -555,6 +569,7 @@ export const bookings: Booking[] = [
     inspection_appointment_status: 'รอนัด',
     notify_customer_date: null,
     inspection_method: 'ตรวจเอง',
+    hired_inspector: null,
     unit_ready_inspection_date: '20/01/2026',
     cs_notify_target_date: '22/01/2026',
     inspect1_notify_date: null,
@@ -584,7 +599,13 @@ export const bookings: Booking[] = [
     cancel_reason: null,
 
     // 9. LivNex
-    livnex_able_status: 'Offer แล้ว',
+    livnex_able_status: 'ON Hand Sale',
+    livnex_case_receive_date: '23/01/2026',
+    livnex_credit_status: '05. JD ไม่อนุมัติ',
+    livnex_contract_sign_status: null,
+    livnex_move_in_date: null,
+    livnex_able_reason: 'ไม่อนุมัติ - DSR เกิน',
+    livnex_followup_note: '23/01/69 ไม่เข้าเงื่อนไขเกณฑ์ภูมิภาค : เนื่องจาก รายได้เดิมเพียงพอ / DSR 96.52%',
     livnex_able_completion_result: 'สนใจ',
     livnex_complete_date: null,
     sale_offer_livnex_flag: true,
@@ -728,6 +749,7 @@ export const bookings: Booking[] = [
     inspection_appointment_status: 'นัดแล้ว',
     notify_customer_date: '15/12/2025',
     inspection_method: 'จ้างตรวจ',
+    hired_inspector: 'บ.ตรวจบ้านมืออาชีพ',
     unit_ready_inspection_date: '05/01/2026',
     cs_notify_target_date: '07/01/2026',
     inspect1_notify_date: '07/01/2026',
@@ -757,7 +779,13 @@ export const bookings: Booking[] = [
     cancel_reason: null,
 
     // 9. LivNex
-    livnex_able_status: 'Offer แล้ว',
+    livnex_able_status: 'ON Hand Sale',
+    livnex_case_receive_date: '15/12/2025',
+    livnex_credit_status: '05. JD ไม่อนุมัติ',
+    livnex_contract_sign_status: null,
+    livnex_move_in_date: null,
+    livnex_able_reason: 'ไม่อนุมัติ - DSR เกิน',
+    livnex_followup_note: '15/12/68 JD ไม่เข้าเงื่อนไข : เกณฑ์การพิจารณาของบริษัท รายได้ไม่เพียงพอ',
     livnex_able_completion_result: 'ทำสัญญาแล้ว',
     livnex_complete_date: '15/01/2026',
     sale_offer_livnex_flag: true,
@@ -902,6 +930,7 @@ export const bookings: Booking[] = [
     inspection_appointment_status: 'นัดแล้ว',
     notify_customer_date: '10/12/2025',
     inspection_method: 'ตรวจเอง',
+    hired_inspector: null,
     unit_ready_inspection_date: '15/12/2025',
     cs_notify_target_date: '16/12/2025',
     inspect1_notify_date: '16/12/2025',
@@ -931,7 +960,13 @@ export const bookings: Booking[] = [
     cancel_reason: null,
 
     // 9. LivNex
-    livnex_able_status: 'ไม่สนใจ',
+    livnex_able_status: 'ON Hand Sale',
+    livnex_case_receive_date: '12/01/2026',
+    livnex_credit_status: '10. อนุมัติ นัดแล้วรอดำเนินการ',
+    livnex_contract_sign_status: '16 Feb 2026',
+    livnex_move_in_date: '15 Feb 2026',
+    livnex_able_reason: 'อนุมัติ - ไม่มีเงื่อนไข',
+    livnex_followup_note: '12/01/69 ลูกค้าแจ้งขอรอเงินจากการทำงานก่อน ภายใน 31/1/2026',
     livnex_able_completion_result: 'ปฏิเสธ',
     livnex_complete_date: null,
     sale_offer_livnex_flag: true,
@@ -1076,6 +1111,7 @@ export const bookings: Booking[] = [
     inspection_appointment_status: 'นัดแล้ว',
     notify_customer_date: '20/11/2025',
     inspection_method: 'จ้างตรวจ',
+    hired_inspector: 'คุณสมชาย (ช่างอิสระ)',
     unit_ready_inspection_date: '01/12/2025',
     cs_notify_target_date: '02/12/2025',
     inspect1_notify_date: '02/12/2025',
@@ -1105,7 +1141,13 @@ export const bookings: Booking[] = [
     cancel_reason: null,
 
     // 9. LivNex
-    livnex_able_status: 'Offer แล้ว',
+    livnex_able_status: 'ON Hand Sale',
+    livnex_case_receive_date: null,
+    livnex_credit_status: 'ไม่มีข้อมูลใน REM Livnex',
+    livnex_contract_sign_status: null,
+    livnex_move_in_date: null,
+    livnex_able_reason: null,
+    livnex_followup_note: null,
     livnex_able_completion_result: 'ทำสัญญาแล้ว',
     livnex_complete_date: '25/12/2025',
     sale_offer_livnex_flag: true,
@@ -1199,13 +1241,13 @@ const TEAMS_LIST: Team[] = ['Sale', 'CO', 'CS', 'Construction', 'Legal', 'Financ
 
 // Helper function to generate random banks (1-3) - always includes เงินสดใจดี
 function generateBankSubmissions(price: number, hasBankFinal: boolean, hasBureauResult: boolean): BankSubmission[] {
-  // Always start with เงินสดใจดี, then add 0-2 more banks
-  const additionalBanks = seededRandom.next() > 0.6 ? (seededRandom.next() > 0.5 ? 2 : 1) : 0;
+  // Generate exactly 5 banks (not including เงินสดใจดี)
+  const numberOfBanks = 5;
   const selectedBanks: BankCode[] = [];
 
-  // Randomly select additional banks without duplicates
+  // Randomly select 5 banks without duplicates
   const availableBanks = [...GEN_BANKS].filter(b => b !== 'เงินสดใจดี');
-  for (let i = 0; i < additionalBanks && availableBanks.length > 0; i++) {
+  for (let i = 0; i < numberOfBanks && availableBanks.length > 0; i++) {
     const idx = Math.floor(seededRandom.next() * availableBanks.length);
     selectedBanks.push(availableBanks.splice(idx, 1)[0]);
   }
@@ -1379,6 +1421,7 @@ function generateBulkBookings(): Booking[] {
       inspection_appointment_status: hasInspect1 ? 'นัดแล้ว' : 'รอนัด',
       notify_customer_date: hasInspect1 ? '01/02/2026' : null,
       inspection_method: seededRandom.next() > 0.5 ? 'ตรวจเอง' : 'จ้างตรวจ',
+      hired_inspector: seededRandom.next() > 0.5 ? null : ['บ.ตรวจบ้านมืออาชีพ', 'Home Check Pro', 'คุณวิชัย (ช่างอิสระ)', 'QC House Co.'][Math.floor(seededRandom.next() * 4)],
       unit_ready_inspection_date: '05/02/2026',
       cs_notify_target_date: '07/02/2026',
       inspect1_notify_date: hasInspect1 ? '07/02/2026' : null,
@@ -1407,8 +1450,16 @@ function generateBulkBookings(): Booking[] {
       cancel_date: null,
       cancel_reason: null,
 
-      // 9. LivNex
-      livnex_able_status: seededRandom.next() > 0.3 ? 'Offer แล้ว' : 'ยังไม่ Offer',
+      // 9. LivNex - livnex_able_status = คุณสมบัติเข้าโครงการ LivNex ได้หรือไม่ (ตรวจตอนจอง)
+      livnex_able_status: 'ON Hand Sale',
+      livnex_case_receive_date: seededRandom.next() > 0.5 ? '20/01/2026' : null,
+      livnex_credit_status: seededRandom.next() > 0.7 ? '11. เซ็นสัญญา Livnex' :
+        (seededRandom.next() > 0.5 ? '05. JD ไม่อนุมัติ' : 'ไม่มีข้อมูลใน REM Livnex'),
+      livnex_contract_sign_status: seededRandom.next() > 0.7 ? 'เซ็นสัญญาแล้ว นัดชำระเงิน' : null,
+      livnex_move_in_date: seededRandom.next() > 0.8 ? '15 Feb 2026' : null,
+      livnex_able_reason: seededRandom.next() > 0.6 ? 'อนุมัติ - ไม่มีเงื่อนไข' :
+        (seededRandom.next() > 0.5 ? 'ไม่อนุมัติ - DSR เกิน' : null),
+      livnex_followup_note: seededRandom.next() > 0.7 ? 'รอติดตามผลการพิจารณา' : null,
       livnex_able_completion_result: seededRandom.next() > 0.5 ? 'สนใจ' : 'ไม่สนใจ',
       livnex_complete_date: null,
       sale_offer_livnex_flag: seededRandom.next() > 0.3,

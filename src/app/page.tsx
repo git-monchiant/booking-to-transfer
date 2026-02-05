@@ -53,8 +53,7 @@ export default function Home() {
   const [currentView, setCurrentView] = useState<View>('dashboard-performance');
   const [selectedTeam, setSelectedTeam] = useState<Team>('Sale');
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
-  const [detailViewMode, setDetailViewMode] = useState<'summary' | 'details'>('summary');
-  const [searchQuery, setSearchQuery] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
   const [stageFilter, setStageFilter] = useState<Stage | 'all'>('all');
 
   // Global Filters
@@ -1734,169 +1733,273 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Booking Cards */}
-              <div className="space-y-3">
+              {/* Booking Cards - Compact */}
+              <div className="space-y-2">
                 {filteredBookings.map(booking => (
                   <div
                     key={booking.id}
                     onClick={() => setSelectedBooking(booking)}
-                    className="bg-white rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-md cursor-pointer transition overflow-hidden"
+                    className="bg-white rounded-lg border border-slate-200 hover:border-indigo-300 hover:shadow-sm cursor-pointer transition"
                   >
-                    <div className="flex">
-                      {/* Left Section - Identity */}
-                      <div className="w-72 p-4 border-r border-slate-100 flex-shrink-0">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="font-bold text-teal-600">{booking.id}</span>
-                          <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${
-                            booking.backlog_grade === 'A' ? 'bg-emerald-100 text-emerald-700' :
-                            booking.backlog_grade === 'B' ? 'bg-blue-100 text-blue-700' :
-                            booking.backlog_grade === 'C' ? 'bg-amber-100 text-amber-700' :
-                            'bg-red-100 text-red-700'
-                          }`}>
-                            {booking.backlog_grade}
-                          </span>
-                          <span
-                            className="px-2 py-0.5 rounded-full text-xs font-medium"
-                            style={{
+                    <div className="flex items-stretch">
+                      {/* Grade Indicator */}
+                      <div className={`w-1 rounded-l-lg flex-shrink-0 ${
+                        booking.backlog_grade === 'A' ? 'bg-emerald-500' :
+                        booking.backlog_grade === 'B' ? 'bg-blue-500' :
+                        booking.backlog_grade === 'C' ? 'bg-amber-500' :
+                        'bg-red-500'
+                      }`} />
+
+                      {/* Main Content */}
+                      <div className="flex-1 px-4 py-3">
+                        {/* Row 1: Header */}
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-bold text-base text-teal-700">{booking.id}</span>
+                            <span className={`w-5 h-5 rounded flex items-center justify-center text-xs font-bold text-white ${
+                              booking.backlog_grade === 'A' ? 'bg-emerald-500' :
+                              booking.backlog_grade === 'B' ? 'bg-blue-500' :
+                              booking.backlog_grade === 'C' ? 'bg-amber-500' :
+                              'bg-red-500'
+                            }`}>{booking.backlog_grade}</span>
+                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold" style={{
                               backgroundColor: STAGE_CONFIG[booking.stage]?.bg ?? '#f1f5f9',
                               color: STAGE_CONFIG[booking.stage]?.color ?? '#475569',
-                            }}
-                          >
-                            {STAGE_CONFIG[booking.stage]?.label ?? booking.stage}
-                          </span>
-                        </div>
-                        <div className="text-sm font-medium text-slate-900 mb-0.5">{booking.customer_name}</div>
-                        <div className="text-xs text-slate-500 mb-2">{booking.customer_tel}</div>
-                        <div className="text-xs text-slate-600 truncate">{booking.project_name}</div>
-                        <div className="text-xs text-slate-500">Unit: {booking.unit_no} • {booking.house_type}</div>
-                      </div>
-
-                      {/* Middle Section - Progress Status */}
-                      <div className="flex-1 p-4 grid grid-cols-4 gap-4 border-r border-slate-100">
-                        {/* Credit */}
-                        <div>
-                          <div className="text-xs text-slate-400 mb-1">สินเชื่อ</div>
-                          <div className={`text-sm font-medium ${
-                            booking.credit_status === 'อนุมัติแล้ว' || booking.credit_status === 'โอนสด' || booking.credit_status === 'โอนแล้ว'
-                              ? 'text-emerald-600'
-                              : booking.credit_status === 'รอผล Bureau'
-                                ? 'text-amber-600'
-                                : 'text-slate-700'
-                          }`}>
-                            {booking.credit_status}
-                          </div>
-                          <div className="text-xs text-slate-500 flex flex-col gap-1">
-                            {booking.banks_submitted.length > 0 ? booking.banks_submitted.map((b, idx) => (
-                              <div key={idx} className="flex items-center gap-1.5">
-                                <div className={`w-4 h-4 rounded flex items-center justify-center text-white text-[10px] font-bold ${
-                                  b.result === 'อนุมัติ' ? 'bg-emerald-500' :
-                                  b.result === 'ไม่อนุมัติ' ? 'bg-red-500' :
-                                  'bg-slate-300'
-                                }`}>
-                                  {b.result === 'อนุมัติ' ? '✓' : b.result === 'ไม่อนุมัติ' ? '✗' : '-'}
-                                </div>
-                                <span>{b.bank}</span>
-                                {b.result === 'อนุมัติ' && b.approved_amount && (
-                                  <span className="text-emerald-600 font-medium">({(b.approved_amount / 1000000).toFixed(1)}M)</span>
-                                )}
-                              </div>
-                            )) : '-'}
-                          </div>
-                        </div>
-
-                        {/* Inspection */}
-                        <div>
-                          <div className="text-xs text-slate-400 mb-1">ตรวจบ้าน</div>
-                          <div className={`text-sm font-medium ${
-                            booking.inspection_status === 'ผ่านแล้ว' || booking.inspection_status === 'โอนแล้ว'
-                              ? 'text-emerald-600'
-                              : booking.inspection_status === 'รอแก้งาน'
-                                ? 'text-amber-600'
-                                : 'text-slate-700'
-                          }`}>
-                            {booking.inspection_status}
-                          </div>
-                          <div className="text-xs text-slate-500">
-                            {booking.inspect1_appointment_date ? `นัด: ${booking.inspect1_appointment_date}` : '-'}
-                          </div>
-                        </div>
-
-                        {/* Product Status */}
-                        <div>
-                          <div className="text-xs text-slate-400 mb-1">สินค้า</div>
-                          <div className={`text-sm font-medium ${
-                            booking.product_status === 'พร้อมโอน' || booking.product_status === 'โอนแล้ว'
-                              ? 'text-emerald-600'
-                              : booking.product_status === 'รอแก้งาน'
-                                ? 'text-amber-600'
-                                : 'text-slate-700'
-                          }`}>
-                            {booking.product_status}
-                          </div>
-                          <div className="text-xs text-slate-500">{booking.qc_result || '-'}</div>
-                        </div>
-
-                        {/* Transfer Target */}
-                        <div>
-                          <div className="text-xs text-slate-400 mb-1">Target โอน</div>
-                          <div className="text-sm font-medium text-slate-700">
-                            {booking.transfer_target_date || '-'}
-                          </div>
-                          <div className={`text-xs ${
-                            booking.transfer_target_status === 'โอนเดือนนี้'
-                              ? 'text-emerald-600 font-medium'
-                              : booking.transfer_target_status === 'โอนแล้ว'
-                                ? 'text-emerald-600'
-                                : 'text-slate-500'
-                          }`}>
-                            {booking.transfer_target_status}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Right Section - Value & Action */}
-                      <div className="w-64 p-4 flex-shrink-0 bg-slate-50">
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <div className="text-lg font-bold text-slate-900">฿{formatMoney(booking.net_contract_value)}</div>
-                            <div className="text-xs text-slate-500">โบนัส ฿{formatMoney(booking.pro_transfer_bonus)}</div>
-                          </div>
-                          <div className="text-right">
-                            <div className={`text-xl font-bold ${
-                              booking.aging_days > 45 ? 'text-red-600' :
-                              booking.aging_days > 30 ? 'text-amber-600' :
-                              'text-slate-700'
-                            }`}>
-                              {booking.aging_days}
-                            </div>
-                            <div className="text-xs text-slate-500">วัน</div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 mb-2">
-                          <span
-                            className="px-2 py-0.5 rounded text-xs font-medium"
-                            style={{
+                            }}>{STAGE_CONFIG[booking.stage]?.label ?? booking.stage}</span>
+                            <span className="px-2 py-0.5 rounded text-xs font-medium" style={{
                               backgroundColor: (TEAM_CONFIG[booking.current_owner_team]?.color ?? '#64748b') + '20',
                               color: TEAM_CONFIG[booking.current_owner_team]?.color ?? '#64748b'
-                            }}
-                          >
-                            {TEAM_CONFIG[booking.current_owner_team]?.label ?? booking.current_owner_team}
-                          </span>
-                          <span className="text-xs text-slate-500">{booking.sale_name}</span>
+                            }}>{TEAM_CONFIG[booking.current_owner_team]?.label ?? booking.current_owner_team}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="text-right">
+                              <span className="text-base font-bold text-slate-900">฿{formatMoney(booking.net_contract_value)}</span>
+                              <span className="text-xs text-slate-400 ml-1">Pro ฿{formatMoney(booking.pro_transfer_bonus)}</span>
+                            </div>
+                            <div className={`px-2 py-1 rounded flex items-center gap-1 ${
+                              booking.aging_days > 45 ? 'bg-red-100' : booking.aging_days > 30 ? 'bg-amber-100' : 'bg-slate-100'
+                            }`}>
+                              <span className={`text-base font-bold ${
+                                booking.aging_days > 45 ? 'text-red-600' : booking.aging_days > 30 ? 'text-amber-600' : 'text-slate-600'
+                              }`}>{booking.aging_days}</span>
+                              <span className="text-xs text-slate-500">วัน</span>
+                            </div>
+                          </div>
                         </div>
 
-                        {booking.current_blocker ? (
-                          <div className="p-2 bg-amber-50 rounded border border-amber-200">
-                            <div className="text-xs text-amber-700 font-medium truncate">{booking.current_blocker}</div>
+                        {/* Row 1.5: Column Headers */}
+                        <div className="flex text-[10px] text-slate-400 font-bold uppercase mb-1">
+                          <div className="w-[400px] shrink-0 pr-3 mr-3">
+                            <span className="text-sm font-semibold text-slate-900 normal-case truncate">{booking.customer_name}</span>
                           </div>
-                        ) : booking.next_action ? (
-                          <div className="p-2 bg-indigo-50 rounded border border-indigo-200">
-                            <div className="text-xs text-teal-700 font-medium truncate">{booking.next_action}</div>
+                          <div className="w-[250px] shrink-0 pr-3 mr-3 flex justify-between">
+                            <span>สินเชื่อ</span>
+                            <span className={`font-semibold normal-case ${
+                              booking.credit_status === 'อนุมัติแล้ว' || booking.credit_status === 'โอนสด' ? 'text-emerald-600' :
+                              booking.credit_status === 'รอผล Bureau' ? 'text-amber-600' : 'text-slate-700'
+                            }`}>{booking.credit_status}</span>
                           </div>
-                        ) : (
-                          <div className="text-xs text-slate-400">-</div>
-                        )}
+                          <div className="w-[250px] shrink-0 pr-3 mr-3 flex justify-between">
+                            <span>ตรวจบ้าน</span>
+                            <span className={`px-1.5 py-0.5 rounded font-semibold normal-case ${
+                              booking.inspection_method === 'จ้างตรวจ' ? 'bg-violet-100 text-violet-600' : 'bg-sky-100 text-sky-600'
+                            }`}>{booking.inspection_method || '-'}</span>
+                          </div>
+                          <div className="w-[250px] shrink-0 pr-3 mr-3">โอน</div>
+                          <div className="flex-1">ติดตาม</div>
+                        </div>
+
+                        {/* Row 2: Content */}
+                        <div className="flex text-xs">
+                          {/* Col 1: Customer - fixed 400px */}
+                          <div className="w-[400px] shrink-0 leading-snug border-r border-slate-200 pr-3 mr-3">
+                            <div className="text-slate-600">{booking.customer_tel}</div>
+                            <div className="text-slate-700 truncate">{booking.project_name}</div>
+                            <div className="text-slate-500 truncate">Unit {booking.unit_no} • {booking.sale_name}</div>
+                          </div>
+
+                          {/* Col 2: Credit - fixed 250px */}
+                          <div className="w-[250px] shrink-0 leading-snug border-r border-slate-200 pr-3 mr-3">
+                            {/* ธนาคาร - แบ่ง 2 columns มีเส้นคั่น */}
+                            {(() => {
+                              const banks = booking.banks_submitted.filter(b => b.bank !== 'เงินสดใจดี');
+                              const half = Math.ceil(banks.length / 2);
+                              const col1 = banks.slice(0, half);
+                              const col2 = banks.slice(half);
+                              return (
+                                <div className="flex gap-2 mt-0.5">
+                                  {/* Column 1 */}
+                                  <div className="flex-1 space-y-0">
+                                    {col1.map((b, idx) => (
+                                      <div key={idx} className="flex items-center justify-between text-[11px]">
+                                        <span className={`flex items-center gap-0.5 ${
+                                          b.result === 'อนุมัติ' ? 'text-emerald-700' :
+                                          b.result === 'ไม่อนุมัติ' ? 'text-red-600' :
+                                          'text-slate-600'
+                                        }`}>
+                                          <span className={`w-3 h-3 rounded-sm flex items-center justify-center text-white text-[8px] ${
+                                            b.result === 'อนุมัติ' ? 'bg-emerald-500' :
+                                            b.result === 'ไม่อนุมัติ' ? 'bg-red-500' :
+                                            'bg-slate-400'
+                                          }`}>{b.result === 'อนุมัติ' ? '✓' : b.result === 'ไม่อนุมัติ' ? '✗' : '-'}</span>
+                                          {b.bank}
+                                        </span>
+                                        <span className={`font-medium ${b.result === 'อนุมัติ' ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                          {b.result === 'อนุมัติ' && b.approved_amount ? `${(b.approved_amount / 1000000).toFixed(1)}M` : '-'}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  {/* Separator */}
+                                  <div className="w-px bg-slate-200"></div>
+                                  {/* Column 2 */}
+                                  <div className="flex-1 space-y-0">
+                                    {col2.map((b, idx) => (
+                                      <div key={idx} className="flex items-center justify-between text-[11px]">
+                                        <span className={`flex items-center gap-0.5 ${
+                                          b.result === 'อนุมัติ' ? 'text-emerald-700' :
+                                          b.result === 'ไม่อนุมัติ' ? 'text-red-600' :
+                                          'text-slate-600'
+                                        }`}>
+                                          <span className={`w-3 h-3 rounded-sm flex items-center justify-center text-white text-[8px] ${
+                                            b.result === 'อนุมัติ' ? 'bg-emerald-500' :
+                                            b.result === 'ไม่อนุมัติ' ? 'bg-red-500' :
+                                            'bg-slate-400'
+                                          }`}>{b.result === 'อนุมัติ' ? '✓' : b.result === 'ไม่อนุมัติ' ? '✗' : '-'}</span>
+                                          {b.bank}
+                                        </span>
+                                        <span className={`font-medium ${b.result === 'อนุมัติ' ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                          {b.result === 'อนุมัติ' && b.approved_amount ? `${(b.approved_amount / 1000000).toFixed(1)}M` : '-'}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                            {/* เงินสดใจดี - ล่างสุด */}
+                            {(() => {
+                              const cash = booking.banks_submitted.find(b => b.bank === 'เงินสดใจดี');
+                              return (
+                                <div className={`mt-1 pt-1 border-t border-slate-100 flex items-center justify-between text-[11px] ${
+                                  cash?.result === 'อนุมัติ' ? 'text-amber-700' :
+                                  cash?.result === 'ไม่อนุมัติ' ? 'text-red-600' :
+                                  'text-slate-500'
+                                }`}>
+                                  <span className="font-medium">เงินสดใจดี</span>
+                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                                    cash?.result === 'อนุมัติ' ? 'bg-amber-100 text-amber-700' :
+                                    cash?.result === 'ไม่อนุมัติ' ? 'bg-red-100 text-red-600' :
+                                    'bg-slate-100 text-slate-500'
+                                  }`}>
+                                    {cash?.result === 'อนุมัติ' ? '✓ อนุมัติ' : cash?.result === 'ไม่อนุมัติ' ? '✗ ไม่อนุมัติ' : 'รอผล'}
+                                  </span>
+                                </div>
+                              );
+                            })()}
+                          </div>
+
+                          {/* Col 3: Inspection - fixed 250px */}
+                          <div className="w-[250px] shrink-0 leading-snug border-r border-slate-200 pr-3 mr-3">
+                            {/* Table Header */}
+                            <div className="flex text-[9px] text-slate-400 pb-0.5 border-b border-slate-100">
+                              <div className="w-8">รอบ</div>
+                              <div className="flex-1">วันที่</div>
+                              <div className="w-14 text-right">สถานะ</div>
+                            </div>
+                            {/* Inspection Rows - แสดงจนกว่าจะผ่าน */}
+                            {(() => {
+                              const formatDate = (d: string | null) => d || '-';
+                              const rows = [];
+                              for (let round = 1; round <= 3; round++) {
+                                const appointmentDate = booking[`inspect${round}_appointment_date` as keyof typeof booking] as string | null;
+                                const actualDate = booking[`inspect${round}_actual_date` as keyof typeof booking] as string | null;
+                                const readyDate = booking[`inspect${round}_ready_date` as keyof typeof booking] as string | null;
+                                const nextAppointment = round < 3 ? booking[`inspect${round + 1}_appointment_date` as keyof typeof booking] as string | null : null;
+                                const status = readyDate ? 'passed' : actualDate ? 'inprogress' : appointmentDate ? 'scheduled' : 'pending';
+                                const statusText = status === 'passed' ? 'ผ่าน' : status === 'inprogress' ? 'ไม่ผ่าน' : status === 'scheduled' ? 'รอตรวจ' : '-';
+
+                                // แสดงรอบนี้
+                                rows.push(
+                                  <div key={round} className="flex items-center text-[11px] py-0.5">
+                                    <div className="w-8 font-medium text-slate-700">{round}</div>
+                                    <div className="flex-1">
+                                      {status === 'passed' ? (
+                                        <span className="text-emerald-600">{formatDate(actualDate)}</span>
+                                      ) : status === 'inprogress' ? (
+                                        <span>
+                                          <span className="text-red-500">{formatDate(actualDate)}</span>
+                                          {nextAppointment && <span className="text-slate-400 ml-1">→ {formatDate(nextAppointment)}</span>}
+                                        </span>
+                                      ) : status === 'scheduled' ? (
+                                        <span className="text-sky-500">{formatDate(appointmentDate)}</span>
+                                      ) : (
+                                        <span className="text-slate-400">-</span>
+                                      )}
+                                    </div>
+                                    <div className={`w-14 text-right font-medium ${
+                                      status === 'passed' ? 'text-emerald-600' :
+                                      status === 'inprogress' ? 'text-red-500' :
+                                      status === 'scheduled' ? 'text-sky-600' :
+                                      'text-slate-400'
+                                    }`}>{statusText}</div>
+                                  </div>
+                                );
+                                // ถ้าผ่านแล้ว หยุดแสดงรอบถัดไป
+                                if (status === 'passed') break;
+                              }
+                              return rows;
+                            })()}
+                            {/* Footer: ผู้จ้างตรวจ + สินค้า */}
+                            <div className="mt-1 pt-1 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                              {booking.inspection_method === 'จ้างตรวจ' && booking.hired_inspector ? (
+                                <span className="text-violet-600 truncate max-w-[160px]" title={booking.hired_inspector}>
+                                  {booking.hired_inspector}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">-</span>
+                              )}
+                              <span className={`font-medium ${booking.product_status === 'พร้อมโอน' ? 'text-emerald-600' : 'text-slate-600'}`}>
+                                {booking.product_status}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Col 4: Transfer - fixed 250px */}
+                          <div className="w-[250px] shrink-0 leading-snug border-r border-slate-200 pr-3 mr-3">
+                            <div><span className="text-slate-500">Target:</span> <span className="font-semibold text-slate-800">{booking.transfer_target_date || '-'}</span></div>
+                            <div><span className="text-slate-500">นัด:</span> <span className="text-slate-700">{booking.transfer_appointment_date || '-'}</span></div>
+                            <div className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium mt-0.5 ${
+                              booking.transfer_target_status === 'โอนเดือนนี้' ? 'bg-emerald-100 text-emerald-700' :
+                              booking.transfer_target_status === 'โอนแล้ว' ? 'bg-teal-100 text-teal-700' : 'bg-slate-100 text-slate-600'
+                            }`}>{booking.transfer_target_status}</div>
+                          </div>
+
+                          {/* Col 5: Action - flex เต็มพื้นที่ที่เหลือ */}
+                          <div className="flex-1 min-w-0 leading-snug">
+                            {booking.current_blocker ? (
+                              <div className="p-1.5 bg-amber-50 rounded border border-amber-200 text-[11px]">
+                                <span className="text-amber-600 font-medium">Blocker: </span>
+                                <span className="text-amber-700">{booking.current_blocker}</span>
+                              </div>
+                            ) : booking.next_action ? (
+                              <div className="p-1.5 bg-indigo-50 rounded border border-indigo-200 text-[11px]">
+                                <span className="text-indigo-600 font-medium">Next: </span>
+                                <span className="text-indigo-700">{booking.next_action}</span>
+                              </div>
+                            ) : (
+                              <div className="text-slate-400">-</div>
+                            )}
+                            <div className="flex gap-1 mt-1">
+                              <span className={`px-1 py-0.5 rounded text-[10px] font-bold ${booking.call_customer_within_2_days === 'PASS' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
+                                โทร{booking.call_customer_within_2_days === 'PASS' ? '✓' : '✗'}
+                              </span>
+                              <span className={`px-1 py-0.5 rounded text-[10px] font-bold ${booking.inspection_within_15_days === 'PASS' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
+                                ตรวจ{booking.inspection_within_15_days === 'PASS' ? '✓' : '✗'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -2341,29 +2444,6 @@ export default function Home() {
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              {/* View Toggle */}
-              <div className="flex gap-2 mt-3">
-                <button
-                  onClick={() => setDetailViewMode('summary')}
-                  className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    detailViewMode === 'summary'
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  Summary
-                </button>
-                <button
-                  onClick={() => setDetailViewMode('details')}
-                  className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    detailViewMode === 'details'
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  Details
-                </button>
-              </div>
             </div>
 
             <div className="p-6 space-y-4">
@@ -2376,281 +2456,31 @@ export default function Home() {
                   Grade {selectedBooking.backlog_grade}
                 </span>
                 <span className="px-3 py-1.5 bg-slate-100 rounded-lg text-sm font-medium">Aging: {selectedBooking.aging_days} วัน</span>
+                {selectedBooking.livnex_able_status && (
+                  <span className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+                    selectedBooking.livnex_able_status === 'ได้' ? 'bg-emerald-100 text-emerald-700' :
+                    selectedBooking.livnex_able_status === 'ไม่ได้' ? 'bg-red-100 text-red-700' :
+                    selectedBooking.livnex_able_status === 'รอตรวจสอบ' ? 'bg-amber-100 text-amber-700' :
+                    'bg-slate-100 text-slate-600'
+                  }`}>
+                    LivNex Able: {selectedBooking.livnex_able_status}
+                  </span>
+                )}
                 {selectedBooking.transferred_actual_flag && <span className="px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg text-sm font-semibold">โอนแล้ว ✓</span>}
               </div>
 
-              {/* ====== SUMMARY VIEW ====== */}
-              {detailViewMode === 'summary' && (
-                <>
-                  {/* Hero: Contract Value */}
-                  <div className="bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-xl p-5 text-white">
-                    <div className="text-xs opacity-80 mb-1">มูลค่าสัญญาสุทธิ</div>
-                    <div className="text-3xl font-bold">฿{formatMoney(selectedBooking.net_contract_value)}</div>
-                    <div className="flex items-center gap-4 mt-3 text-sm">
-                      <div className="bg-white/20 rounded-lg px-3 py-1">
-                        <span className="opacity-80">Pro: </span>
-                        <span className="font-semibold">฿{formatMoney(selectedBooking.pro_transfer_bonus)}</span>
-                      </div>
-                      {selectedBooking.transfer_appointment_date && selectedBooking.aging_N_minus_U > 0 && (
-                        <div className="bg-white/20 rounded-lg px-3 py-1">
-                          <span className="opacity-80">เลยกำหนดนัดโอน: </span>
-                          <span className="font-semibold">{selectedBooking.aging_N_minus_U} วัน</span>
-                          <span className="opacity-60 text-xs ml-1">({selectedBooking.transfer_appointment_date})</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Progress Tracker */}
-                  <div className="bg-white rounded-xl border border-slate-200 p-4">
-                    <div className="flex items-center justify-between">
-                      {(['booking', 'contract', 'credit', 'inspection', 'ready', 'transferred'] as const).map((stage, idx) => {
-                        const stageOrder = ['booking', 'contract', 'credit', 'inspection', 'ready', 'transferred'];
-                        const currentIdx = stageOrder.indexOf(selectedBooking.stage);
-                        const isActive = idx <= currentIdx;
-                        const isCurrent = selectedBooking.stage === stage;
-                        return (
-                          <div key={stage} className="flex items-center">
-                            <div className={`flex flex-col items-center ${idx > 0 ? 'ml-2' : ''}`}>
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                                isCurrent ? 'bg-indigo-500 text-white ring-4 ring-indigo-100' :
-                                isActive ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-400'
-                              }`}>
-                                {isActive && !isCurrent ? '✓' : idx + 1}
-                              </div>
-                              <div className={`text-[10px] mt-1 ${isCurrent ? 'text-indigo-600 font-semibold' : isActive ? 'text-emerald-600' : 'text-slate-400'}`}>
-                                {STAGE_CONFIG[stage]?.label}
-                              </div>
-                            </div>
-                            {idx < 5 && (
-                              <div className={`w-6 h-0.5 mx-1 ${idx < currentIdx ? 'bg-emerald-500' : 'bg-slate-200'}`} />
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* 2 Column Grid */}
-                  <div className="grid grid-cols-2 gap-3">
-                    {/* Customer Card */}
-                    <div className="bg-white rounded-xl border border-slate-200 p-4">
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                          <User className="w-4 h-4 text-blue-600" />
-                        </div>
-                        <div className="text-xs font-semibold text-slate-600">ลูกค้า</div>
-                      </div>
-                      <div className="text-sm font-semibold text-slate-900 truncate">{selectedBooking.customer_name}</div>
-                      <div className="text-xs text-slate-500 mt-1">{selectedBooking.customer_tel}</div>
-                    </div>
-
-                    {/* Sale Card */}
-                    <div className="bg-white rounded-xl border border-slate-200 p-4">
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                          <Banknote className="w-4 h-4 text-purple-600" />
-                        </div>
-                        <div className="text-xs font-semibold text-slate-600">Sale</div>
-                      </div>
-                      <div className="text-sm font-semibold text-slate-900 truncate">{selectedBooking.sale_name}</div>
-                      <div className="text-xs text-slate-500 mt-1">{selectedBooking.sale_type}</div>
-                    </div>
-                  </div>
-
-                  {/* Timeline Dates */}
-                  <div className="bg-white rounded-xl border border-slate-200 p-4">
-                    <div className="flex items-center gap-2 mb-4">
-                      <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
-                        <Clock className="w-4 h-4 text-amber-600" />
-                      </div>
-                      <div className="text-xs font-semibold text-slate-600">Timeline</div>
-                    </div>
-                    <div className="grid grid-cols-4 gap-2 text-center">
-                      <div className="bg-slate-50 rounded-lg p-2">
-                        <div className="text-[10px] text-slate-500">จอง</div>
-                        <div className="text-xs font-semibold text-slate-700">{selectedBooking.booking_date?.split('/').slice(0, 2).join('/') || '-'}</div>
-                      </div>
-                      <div className="bg-slate-50 rounded-lg p-2">
-                        <div className="text-[10px] text-slate-500">สัญญา</div>
-                        <div className="text-xs font-semibold text-slate-700">{selectedBooking.contract_date?.split('/').slice(0, 2).join('/') || '-'}</div>
-                      </div>
-                      <div className="bg-amber-50 rounded-lg p-2">
-                        <div className="text-[10px] text-amber-600">เป้าโอน</div>
-                        <div className="text-xs font-semibold text-amber-700">{selectedBooking.transfer_target_date?.split('/').slice(0, 2).join('/') || '-'}</div>
-                      </div>
-                      <div className={`rounded-lg p-2 ${selectedBooking.transfer_actual_date ? 'bg-emerald-50' : 'bg-slate-50'}`}>
-                        <div className={`text-[10px] ${selectedBooking.transfer_actual_date ? 'text-emerald-600' : 'text-slate-500'}`}>โอนจริง</div>
-                        <div className={`text-xs font-semibold ${selectedBooking.transfer_actual_date ? 'text-emerald-700' : 'text-slate-400'}`}>{selectedBooking.transfer_actual_date?.split('/').slice(0, 2).join('/') || '-'}</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Credit & Banks */}
-                  <div className="bg-white rounded-xl border border-slate-200 p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                          <Wallet className="w-4 h-4 text-blue-600" />
-                        </div>
-                        <div className="text-xs font-semibold text-slate-600">สินเชื่อ</div>
-                      </div>
-                      <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
-                        selectedBooking.credit_status === 'อนุมัติแล้ว' || selectedBooking.credit_status === 'โอนแล้ว'
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : selectedBooking.credit_status === 'โอนสด'
-                          ? 'bg-teal-100 text-teal-700'
-                          : 'bg-amber-100 text-amber-700'
-                      }`}>{selectedBooking.credit_status}</span>
-                    </div>
-                    <div className="space-y-2">
-                      {selectedBooking.banks_submitted.map((b, idx) => (
-                        <div key={idx} className={`flex items-center justify-between p-2 rounded-lg ${
-                          b.result === 'อนุมัติ' ? 'bg-emerald-50' : b.result === 'ไม่อนุมัติ' ? 'bg-red-50' : 'bg-slate-50'
-                        }`}>
-                          <div className="flex items-center gap-2">
-                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold ${
-                              b.result === 'อนุมัติ' ? 'bg-emerald-500' : b.result === 'ไม่อนุมัติ' ? 'bg-red-500' : 'bg-slate-300'
-                            }`}>
-                              {b.result === 'อนุมัติ' ? '✓' : b.result === 'ไม่อนุมัติ' ? '✗' : '?'}
-                            </div>
-                            <span className="text-sm font-medium text-slate-700">{b.bank}</span>
-                          </div>
-                          {b.result === 'อนุมัติ' && b.approved_amount && (
-                            <span className="text-sm font-bold text-emerald-600">฿{formatMoney(b.approved_amount)}</span>
-                          )}
-                          {b.result === 'ไม่อนุมัติ' && <span className="text-xs text-red-500">ไม่อนุมัติ</span>}
-                          {b.result === 'รอผล' && <span className="text-xs text-slate-400">รอผล</span>}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Inspection Section with Table */}
-                  <div className="bg-white rounded-xl border border-slate-200 p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
-                          <CheckCircle2 className="w-4 h-4 text-amber-600" />
-                        </div>
-                        <div className="text-xs font-semibold text-slate-600">ตรวจบ้าน</div>
-                      </div>
-                      <div className={`text-sm font-semibold px-3 py-1 rounded-full ${
-                        selectedBooking.inspection_status === 'ผ่านแล้ว' || selectedBooking.inspection_status === 'โอนแล้ว'
-                          ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
-                      }`}>{selectedBooking.inspection_status}</div>
-                    </div>
-
-                    {/* Inspection Rounds Table */}
-                    <div className="bg-slate-50 rounded-lg overflow-hidden">
-                      <table className="w-full text-xs">
-                        <thead className="bg-amber-100">
-                          <tr>
-                            <th className="px-3 py-2 text-left text-amber-700 font-semibold">ครั้งที่</th>
-                            <th className="px-3 py-2 text-left text-amber-700 font-semibold">นัด</th>
-                            <th className="px-3 py-2 text-left text-amber-700 font-semibold">ตรวจจริง</th>
-                            <th className="px-3 py-2 text-left text-amber-700 font-semibold">พร้อมส่งมอบ</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr className="border-b border-slate-200">
-                            <td className="px-3 py-2 font-medium text-slate-700">1</td>
-                            <td className="px-3 py-2 text-slate-600">{selectedBooking.inspect1_appointment_date || '-'}</td>
-                            <td className="px-3 py-2 text-slate-600">{selectedBooking.inspect1_actual_date || '-'}</td>
-                            <td className="px-3 py-2 text-slate-600">{selectedBooking.inspect1_ready_date || '-'}</td>
-                          </tr>
-                          <tr className="border-b border-slate-200">
-                            <td className="px-3 py-2 font-medium text-slate-700">2</td>
-                            <td className="px-3 py-2 text-slate-600">{selectedBooking.inspect2_appointment_date || '-'}</td>
-                            <td className="px-3 py-2 text-slate-600">{selectedBooking.inspect2_actual_date || '-'}</td>
-                            <td className="px-3 py-2 text-slate-600">{selectedBooking.inspect2_ready_date || '-'}</td>
-                          </tr>
-                          <tr>
-                            <td className="px-3 py-2 font-medium text-slate-700">3</td>
-                            <td className="px-3 py-2 text-slate-600">{selectedBooking.inspect3_appointment_date || '-'}</td>
-                            <td className="px-3 py-2 text-slate-600">{selectedBooking.inspect3_actual_date || '-'}</td>
-                            <td className="px-3 py-2 text-slate-600">-</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-
-                    {/* Handover Date */}
-                    {selectedBooking.handover_accept_date && (
-                      <div className="mt-3 pt-3 border-t border-slate-200 flex items-center justify-between">
-                        <span className="text-xs text-slate-500">วันรับมอบบ้าน</span>
-                        <span className="text-sm font-semibold text-emerald-600">{selectedBooking.handover_accept_date}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Current Owner / Team */}
-                  <div className="bg-white rounded-xl border border-slate-200 p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center">
-                          <Layers className="w-4 h-4 text-slate-600" />
-                        </div>
-                        <div className="text-xs font-semibold text-slate-600">Team ผู้รับผิดชอบ</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm font-semibold" style={{ color: TEAM_CONFIG[selectedBooking.current_owner_team]?.color }}>
-                          {TEAM_CONFIG[selectedBooking.current_owner_team]?.label}
-                        </div>
-                        <div className="text-xs text-slate-500">{selectedBooking.credit_owner || '-'}</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Action Banner */}
-                  {(selectedBooking.current_blocker || selectedBooking.next_action) && (
-                    <div className={`rounded-xl p-4 ${selectedBooking.current_blocker ? 'bg-amber-50 border border-amber-200' : 'bg-blue-50 border border-blue-200'}`}>
-                      {selectedBooking.current_blocker && (
-                        <div className="flex items-center gap-2 text-amber-700">
-                          <AlertTriangle className="w-4 h-4" />
-                          <span className="text-sm font-semibold">Blocker: {selectedBooking.current_blocker}</span>
-                        </div>
-                      )}
-                      {selectedBooking.next_action && (
-                        <div className={`flex items-center gap-2 text-blue-700 ${selectedBooking.current_blocker ? 'mt-2' : ''}`}>
-                          <ArrowUpRight className="w-4 h-4" />
-                          <span className="text-sm font-semibold">Next: {selectedBooking.next_action}</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Cancel Info (if applicable) */}
-                  {selectedBooking.cancel_flag && (
-                    <div className="bg-red-50 rounded-xl p-4 border-2 border-red-300">
-                      <div className="flex items-center gap-2 text-red-700 mb-2">
-                        <X className="w-5 h-5" />
-                        <span className="font-bold">ยกเลิก</span>
-                      </div>
-                      <div className="text-sm text-red-700">
-                        <div>วันที่: {selectedBooking.cancel_date}</div>
-                        <div>เหตุผล: {selectedBooking.cancel_reason}</div>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {/* ====== DETAILS VIEW ====== */}
-              {detailViewMode === 'details' && (
-                <>
-                  {/* ═══════════════════════════════════════════════════════════════ */}
-                  {/* GROUP A: ข้อมูลพื้นฐาน */}
-                  {/* ═══════════════════════════════════════════════════════════════ */}
-                  <div className="border-l-4 border-slate-400 pl-3 mb-1">
-                    <h2 className="text-sm font-bold text-slate-700">ข้อมูลพื้นฐาน</h2>
+              {/* ═══════════════════════════════════════════════════════════════ */}
+              {/* GROUP A: ข้อมูลพื้นฐาน */}
+              {/* ═══════════════════════════════════════════════════════════════ */}
+              <div className="border-l-4 border-indigo-500 pl-3 mb-1">
+                    <h2 className="text-sm font-bold text-indigo-700">ข้อมูลพื้นฐาน</h2>
                   </div>
 
                   {/* Project & Unit */}
-                  <div className="bg-white rounded-xl border border-slate-200 p-4">
+                  <div className="bg-indigo-50/50 rounded-xl border border-indigo-100 p-4">
                     <div className="flex items-center gap-2 mb-3">
-                      <div className="w-6 h-6 bg-slate-100 rounded flex items-center justify-center text-xs font-bold text-slate-500">1</div>
-                      <h3 className="text-xs font-bold text-slate-600 uppercase">โครงการ / ห้อง</h3>
+                      <div className="w-6 h-6 bg-indigo-100 rounded flex items-center justify-center text-xs font-bold text-indigo-600">1</div>
+                      <h3 className="text-xs font-bold text-indigo-600 uppercase">โครงการ / ห้อง</h3>
                     </div>
                     <div className="grid grid-cols-4 gap-x-4 gap-y-2 text-sm">
                       <div className="col-span-2"><span className="text-slate-400">โครงการ:</span> <span className="font-medium text-slate-800">{selectedBooking.project_name}</span></div>
@@ -2666,7 +2496,7 @@ export default function Home() {
                   {/* Customer & Sale - Side by Side */}
                   <div className="grid grid-cols-2 gap-3">
                     {/* Customer */}
-                    <div className="bg-white rounded-xl border border-slate-200 p-4">
+                    <div className="bg-indigo-50/50 rounded-xl border border-indigo-100 p-4">
                       <div className="flex items-center gap-2 mb-3">
                         <div className="w-6 h-6 bg-blue-100 rounded flex items-center justify-center">
                           <User className="w-3 h-3 text-blue-600" />
@@ -2688,12 +2518,12 @@ export default function Home() {
                     </div>
 
                     {/* Sale */}
-                    <div className="bg-white rounded-xl border border-slate-200 p-4">
+                    <div className="bg-indigo-50/50 rounded-xl border border-indigo-100 p-4">
                       <div className="flex items-center gap-2 mb-3">
-                        <div className="w-6 h-6 bg-purple-100 rounded flex items-center justify-center">
-                          <Banknote className="w-3 h-3 text-purple-600" />
+                        <div className="w-6 h-6 bg-indigo-100 rounded flex items-center justify-center">
+                          <Banknote className="w-3 h-3 text-indigo-600" />
                         </div>
-                        <h3 className="text-xs font-bold text-slate-600 uppercase">Sale / ผู้ดูแล</h3>
+                        <h3 className="text-xs font-bold text-indigo-600 uppercase">Sale / ผู้ดูแล</h3>
                       </div>
                       <div className="space-y-1.5 text-sm">
                         <div className="font-semibold text-slate-800">{selectedBooking.sale_name}</div>
@@ -2711,22 +2541,22 @@ export default function Home() {
                   {/* ═══════════════════════════════════════════════════════════════ */}
                   {/* GROUP B: มูลค่า & สัญญา */}
                   {/* ═══════════════════════════════════════════════════════════════ */}
-                  <div className="border-l-4 border-indigo-500 pl-3 mb-1 mt-4">
-                    <h2 className="text-sm font-bold text-indigo-700">มูลค่า & สัญญา</h2>
+                  <div className="border-l-4 border-blue-500 pl-3 mb-1 mt-4">
+                    <h2 className="text-sm font-bold text-blue-700">มูลค่า & สัญญา</h2>
                   </div>
 
-                  <div className="bg-gradient-to-r from-indigo-50 to-white rounded-xl border border-indigo-200 p-4">
+                  <div className="bg-blue-50/50 rounded-xl border border-blue-100 p-4">
                     <div className="flex items-start justify-between mb-4">
                       <div>
                         <div className="text-xs text-slate-500">มูลค่าสัญญาสุทธิ</div>
-                        <div className="text-2xl font-bold text-indigo-700">฿{formatMoney(selectedBooking.net_contract_value)}</div>
+                        <div className="text-2xl font-bold text-slate-800">฿{formatMoney(selectedBooking.net_contract_value)}</div>
                       </div>
                       <div className="text-right">
                         <div className="text-xs text-slate-500">Pro ปิดโอน</div>
-                        <div className="text-lg font-semibold text-emerald-600">฿{formatMoney(selectedBooking.pro_transfer_bonus)}</div>
+                        <div className="text-lg font-semibold text-slate-700">฿{formatMoney(selectedBooking.pro_transfer_bonus)}</div>
                       </div>
                     </div>
-                    <div className="grid grid-cols-4 gap-3 text-sm border-t border-indigo-100 pt-3">
+                    <div className="grid grid-cols-4 gap-3 text-sm border-t border-slate-100 pt-3">
                       <div><span className="text-slate-400">วันจอง:</span> <span className="font-medium">{selectedBooking.booking_date}</span></div>
                       <div><span className="text-slate-400">วันสัญญา:</span> <span className="font-medium">{selectedBooking.contract_date || '-'}</span></div>
                       <div><span className="text-slate-400">กำหนดโอน:</span> <span className="font-medium">{selectedBooking.contract_transfer_due_date || '-'}</span></div>
@@ -2742,14 +2572,14 @@ export default function Home() {
                   {/* ═══════════════════════════════════════════════════════════════ */}
                   {/* GROUP C: กระบวนการสินเชื่อ */}
                   {/* ═══════════════════════════════════════════════════════════════ */}
-                  <div className="border-l-4 border-blue-500 pl-3 mb-1 mt-4">
-                    <h2 className="text-sm font-bold text-blue-700">กระบวนการสินเชื่อ</h2>
+                  <div className="border-l-4 border-cyan-500 pl-3 mb-1 mt-4">
+                    <h2 className="text-sm font-bold text-cyan-700">กระบวนการสินเชื่อ</h2>
                   </div>
 
                   {/* Banks Submitted */}
-                  <div className="bg-blue-50 rounded-xl border border-blue-200 p-4">
+                  <div className="bg-cyan-50/50 rounded-xl border border-cyan-100 p-4">
                     <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-xs font-bold text-blue-700 uppercase">ธนาคารที่ยื่น</h3>
+                      <h3 className="text-xs font-bold text-cyan-600 uppercase">ธนาคารที่ยื่น</h3>
                       <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
                         selectedBooking.credit_status === 'อนุมัติแล้ว' || selectedBooking.credit_status === 'โอนแล้ว'
                           ? 'bg-emerald-100 text-emerald-700'
@@ -2790,8 +2620,8 @@ export default function Home() {
                   </div>
 
                   {/* Credit Timeline */}
-                  <div className="bg-white rounded-xl border border-slate-200 p-4">
-                    <h3 className="text-xs font-bold text-slate-600 uppercase mb-3">ขั้นตอนอนุมัติ</h3>
+                  <div className="bg-cyan-50/50 rounded-xl border border-cyan-100 p-4">
+                    <h3 className="text-xs font-bold text-cyan-600 uppercase mb-3">ขั้นตอนอนุมัติ</h3>
                     <div className="grid grid-cols-4 gap-2">
                       {/* Bureau */}
                       <div className={`p-3 rounded-lg text-center ${selectedBooking.bureau_result === 'ผ่าน' ? 'bg-emerald-50 border border-emerald-200' : 'bg-slate-50'}`}>
@@ -2844,17 +2674,17 @@ export default function Home() {
                   {/* ═══════════════════════════════════════════════════════════════ */}
                   {/* GROUP D: ตรวจบ้าน & โอน */}
                   {/* ═══════════════════════════════════════════════════════════════ */}
-                  <div className="border-l-4 border-amber-500 pl-3 mb-1 mt-4">
-                    <h2 className="text-sm font-bold text-amber-700">ตรวจบ้าน & โอน</h2>
+                  <div className="border-l-4 border-emerald-500 pl-3 mb-1 mt-4">
+                    <h2 className="text-sm font-bold text-emerald-700">ตรวจบ้าน & โอน</h2>
                   </div>
 
                   {/* Inspection */}
-                  <div className="bg-amber-50 rounded-xl border border-amber-200 p-4">
+                  <div className="bg-emerald-50/50 rounded-xl border border-emerald-100 p-4">
                     <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-xs font-bold text-amber-700 uppercase">ตรวจบ้าน / Inspection</h3>
+                      <h3 className="text-xs font-bold text-emerald-600 uppercase">ตรวจบ้าน / Inspection</h3>
                       <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
                         selectedBooking.inspection_status === 'ผ่านแล้ว' || selectedBooking.inspection_status === 'โอนแล้ว'
-                          ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                          ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'
                       }`}>{selectedBooking.inspection_status}</span>
                     </div>
 
@@ -2865,14 +2695,14 @@ export default function Home() {
                     </div>
 
                     {/* Inspection Rounds Table */}
-                    <div className="bg-white rounded-lg overflow-hidden">
+                    <div className="bg-emerald-50 rounded-lg overflow-hidden">
                       <table className="w-full text-xs">
-                        <thead className="bg-amber-100">
+                        <thead className="bg-emerald-100">
                           <tr>
-                            <th className="px-2 py-1.5 text-left text-amber-700">ครั้งที่</th>
-                            <th className="px-2 py-1.5 text-left text-amber-700">นัด</th>
-                            <th className="px-2 py-1.5 text-left text-amber-700">ตรวจจริง</th>
-                            <th className="px-2 py-1.5 text-left text-amber-700">พร้อมส่งมอบ</th>
+                            <th className="px-2 py-1.5 text-left text-emerald-700">ครั้งที่</th>
+                            <th className="px-2 py-1.5 text-left text-emerald-700">นัด</th>
+                            <th className="px-2 py-1.5 text-left text-emerald-700">ตรวจจริง</th>
+                            <th className="px-2 py-1.5 text-left text-emerald-700">พร้อมส่งมอบ</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -2900,20 +2730,20 @@ export default function Home() {
                   </div>
 
                   {/* Transfer */}
-                  <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-4">
+                  <div className="bg-emerald-50/50 rounded-xl border border-emerald-100 p-4">
                     <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-xs font-bold text-emerald-700 uppercase">การโอน / Transfer</h3>
+                      <h3 className="text-xs font-bold text-emerald-600 uppercase">การโอน / Transfer</h3>
                       {selectedBooking.transferred_actual_flag && (
-                        <span className="text-xs font-semibold px-2 py-1 rounded-full bg-emerald-500 text-white">โอนแล้ว ✓</span>
+                        <span className="text-xs font-semibold px-2 py-1 rounded-full bg-slate-700 text-white">โอนแล้ว ✓</span>
                       )}
                     </div>
                     <div className="grid grid-cols-3 gap-2 text-sm">
                       <div><span className="text-slate-500">สัญญา Bank:</span> <span className="font-medium">{selectedBooking.bank_contract_date || '-'}</span></div>
                       <div><span className="text-slate-500">ส่งชุดโอน:</span> <span className="font-medium">{selectedBooking.transfer_package_sent_date || '-'}</span></div>
                       <div><span className="text-slate-500">ปลอดโฉนด:</span> <span className="font-medium">{selectedBooking.title_clear_date || '-'}</span></div>
-                      <div><span className="text-slate-500">เป้าโอน:</span> <span className="font-semibold text-amber-600">{selectedBooking.transfer_target_date || '-'}</span></div>
+                      <div><span className="text-slate-500">เป้าโอน:</span> <span className="font-semibold text-slate-700">{selectedBooking.transfer_target_date || '-'}</span></div>
                       <div><span className="text-slate-500">นัดโอน:</span> <span className="font-medium">{selectedBooking.transfer_appointment_date || '-'}</span></div>
-                      <div><span className="text-slate-500">โอนจริง:</span> <span className="font-bold text-emerald-600">{selectedBooking.transfer_actual_date || '-'}</span></div>
+                      <div><span className="text-slate-500">โอนจริง:</span> <span className="font-bold text-slate-700">{selectedBooking.transfer_actual_date || '-'}</span></div>
                     </div>
                     {selectedBooking.cancel_flag && (
                       <div className="mt-3 p-2 bg-red-100 rounded-lg border border-red-300 text-sm text-red-700">
@@ -2923,51 +2753,103 @@ export default function Home() {
                   </div>
 
                   {/* ═══════════════════════════════════════════════════════════════ */}
-                  {/* GROUP E: After Sales */}
+                  {/* GROUP E: LivNex / RentNex */}
                   {/* ═══════════════════════════════════════════════════════════════ */}
-                  <div className="border-l-4 border-purple-500 pl-3 mb-1 mt-4">
-                    <h2 className="text-sm font-bold text-purple-700">After Sales</h2>
+                  <div className="border-l-4 border-orange-500 pl-3 mb-1 mt-4">
+                    <h2 className="text-sm font-bold text-orange-700">LivNex / RentNex</h2>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    {/* LivNex/RentNex */}
-                    <div className="bg-purple-50 rounded-xl border border-purple-200 p-4">
-                      <h3 className="text-xs font-bold text-purple-700 uppercase mb-3">LivNex / RentNex</h3>
-                      <div className="space-y-1.5 text-sm">
-                        <div className="flex justify-between"><span className="text-slate-500">Livnex Able:</span> <span className="font-medium">{selectedBooking.livnex_able_status}</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">ผล:</span> <span className="font-medium">{selectedBooking.livnex_able_completion_result || '-'}</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">Sale เสนอ:</span> <span className="font-medium">{selectedBooking.sale_offer_livnex_flag ? '✓' : '-'}</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">สัญญา Livnex:</span> <span className="font-medium">{selectedBooking.livnex_contract_actual_date || '-'}</span></div>
-                      </div>
-                      {(selectedBooking.livnex_cancel_date || selectedBooking.rentnex_cancel_date) && (
-                        <div className="mt-2 text-xs text-red-600">
-                          {selectedBooking.livnex_cancel_date && <div>ยกเลิก: {selectedBooking.livnex_cancel_reason}</div>}
-                        </div>
-                      )}
+                  {/* LivNex Full Section */}
+                  <div className="bg-orange-50/50 rounded-xl border border-orange-100 p-4">
+                    <h3 className="text-xs font-bold text-orange-600 uppercase mb-3">LivNex ติดตาม</h3>
+
+                    {/* LivNex Table */}
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-orange-100">
+                            <th className="border border-orange-200 px-2 py-1.5 text-left font-semibold text-orange-700">Livnex Able</th>
+                            <th className="border border-orange-200 px-2 py-1.5 text-left font-semibold text-orange-700">วันที่ รับ CASE</th>
+                            <th className="border border-orange-200 px-2 py-1.5 text-left font-semibold text-orange-700">สถานะสินเชื่อ</th>
+                            <th className="border border-orange-200 px-2 py-1.5 text-left font-semibold text-orange-700">วันที่นัดเซ็นสัญญา</th>
+                            <th className="border border-orange-200 px-2 py-1.5 text-left font-semibold text-orange-700">วันที่เข้าอยู่</th>
+                            <th className="border border-orange-200 px-2 py-1.5 text-left font-semibold text-orange-700">เหตุผล Livnex Able</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className="bg-white">
+                            <td className="border border-orange-200 px-2 py-1.5 font-medium">{selectedBooking.livnex_able_status || '-'}</td>
+                            <td className="border border-orange-200 px-2 py-1.5">{selectedBooking.livnex_case_receive_date || '-'}</td>
+                            <td className={`border border-orange-200 px-2 py-1.5 ${
+                              selectedBooking.livnex_credit_status?.includes('เซ็นสัญญา') ? 'text-emerald-600 font-semibold' :
+                              selectedBooking.livnex_credit_status?.includes('ไม่อนุมัติ') ? 'text-red-600 font-semibold' :
+                              ''
+                            }`}>{selectedBooking.livnex_credit_status || '-'}</td>
+                            <td className={`border border-orange-200 px-2 py-1.5 ${
+                              selectedBooking.livnex_contract_sign_status?.includes('เซ็นสัญญาแล้ว') ? 'text-emerald-600 font-semibold' : ''
+                            }`}>{selectedBooking.livnex_contract_sign_status || '-'}</td>
+                            <td className="border border-orange-200 px-2 py-1.5">{selectedBooking.livnex_move_in_date || '-'}</td>
+                            <td className={`border border-orange-200 px-2 py-1.5 ${
+                              selectedBooking.livnex_able_reason?.includes('อนุมัติ') && !selectedBooking.livnex_able_reason?.includes('ไม่') ? 'text-emerald-600' :
+                              selectedBooking.livnex_able_reason?.includes('ไม่อนุมัติ') ? 'text-red-600' :
+                              ''
+                            }`}>{selectedBooking.livnex_able_reason || '-'}</td>
+                          </tr>
+                        </tbody>
+                      </table>
                     </div>
 
-                    {/* Finance */}
-                    <div className="bg-cyan-50 rounded-xl border border-cyan-200 p-4">
-                      <h3 className="text-xs font-bold text-cyan-700 uppercase mb-3">Finance</h3>
-                      <div className="space-y-1.5 text-sm">
-                        <div className="flex justify-between"><span className="text-slate-500">เงินทอน:</span> <span className="font-medium">{selectedBooking.refund_status || '-'}</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">จำนวนทอน:</span> <span className="font-medium">{selectedBooking.refund_amount ? `฿${formatMoney(selectedBooking.refund_amount)}` : '-'}</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">มิเตอร์น้ำ:</span> <span className="font-medium">{selectedBooking.water_meter_change_date || '-'}</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">มิเตอร์ไฟ:</span> <span className="font-medium">{selectedBooking.electricity_meter_change_date || '-'}</span></div>
+                    {/* Follow-up Note */}
+                    {selectedBooking.livnex_followup_note && (
+                      <div className="mt-3 p-2 bg-orange-50 rounded-lg border border-orange-200">
+                        <div className="text-xs font-semibold text-orange-700 mb-1">เหตุผล ติดตาม LIVNEX</div>
+                        <div className="text-xs text-orange-600">{selectedBooking.livnex_followup_note}</div>
                       </div>
+                    )}
+
+                    {/* Additional LivNex Info */}
+                    <div className="mt-3 grid grid-cols-4 gap-2 text-xs">
+                      <div className="flex justify-between"><span className="text-slate-500">ผล:</span> <span className="font-medium">{selectedBooking.livnex_able_completion_result || '-'}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Sale เสนอ:</span> <span className="font-medium">{selectedBooking.sale_offer_livnex_flag ? '✓' : '-'}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">สัญญา Livnex:</span> <span className="font-medium">{selectedBooking.livnex_contract_actual_date || '-'}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Complete:</span> <span className="font-medium">{selectedBooking.livnex_complete_date || '-'}</span></div>
+                    </div>
+
+                    {(selectedBooking.livnex_cancel_date || selectedBooking.rentnex_cancel_date) && (
+                      <div className="mt-2 p-2 bg-red-50 rounded-lg border border-red-200 text-xs text-red-700">
+                        {selectedBooking.livnex_cancel_date && <div><span className="font-semibold">LivNex ยกเลิก:</span> {selectedBooking.livnex_cancel_date} - {selectedBooking.livnex_cancel_reason}</div>}
+                        {selectedBooking.rentnex_cancel_date && <div><span className="font-semibold">RentNex ยกเลิก:</span> {selectedBooking.rentnex_cancel_date} - {selectedBooking.rentnex_cancel_reason}</div>}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ═══════════════════════════════════════════════════════════════ */}
+                  {/* GROUP E2: Finance (After Transfer) */}
+                  {/* ═══════════════════════════════════════════════════════════════ */}
+                  <div className="border-l-4 border-teal-500 pl-3 mb-1 mt-4">
+                    <h2 className="text-sm font-bold text-teal-700">Finance</h2>
+                  </div>
+
+                  {/* Finance */}
+                  <div className="bg-teal-50/50 rounded-xl border border-teal-100 p-4">
+                    <div className="grid grid-cols-4 gap-2 text-sm">
+                      <div className="flex justify-between"><span className="text-slate-500">เงินทอน:</span> <span className="font-medium">{selectedBooking.refund_status || '-'}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">จำนวนทอน:</span> <span className="font-medium">{selectedBooking.refund_amount ? `฿${formatMoney(selectedBooking.refund_amount)}` : '-'}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">มิเตอร์น้ำ:</span> <span className="font-medium">{selectedBooking.water_meter_change_date || '-'}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">มิเตอร์ไฟ:</span> <span className="font-medium">{selectedBooking.electricity_meter_change_date || '-'}</span></div>
                     </div>
                   </div>
 
                   {/* ═══════════════════════════════════════════════════════════════ */}
                   {/* GROUP F: การติดตาม & KPI */}
                   {/* ═══════════════════════════════════════════════════════════════ */}
-                  <div className="border-l-4 border-slate-500 pl-3 mb-1 mt-4">
-                    <h2 className="text-sm font-bold text-slate-700">การติดตาม & KPI</h2>
+                  <div className="border-l-4 border-violet-500 pl-3 mb-1 mt-4">
+                    <h2 className="text-sm font-bold text-violet-700">การติดตาม & KPI</h2>
                   </div>
 
                   {/* KPI Cards */}
-                  <div className="bg-white rounded-xl border border-slate-200 p-4">
-                    <h3 className="text-xs font-bold text-slate-600 uppercase mb-3">KPI</h3>
+                  <div className="bg-violet-50/50 rounded-xl border border-violet-100 p-4">
+                    <h3 className="text-xs font-bold text-violet-600 uppercase mb-3">KPI</h3>
                     <div className="grid grid-cols-5 gap-2">
                       <div className={`p-2 rounded-lg text-center ${selectedBooking.call_customer_within_2_days === 'PASS' ? 'bg-emerald-50' : 'bg-red-50'}`}>
                         <div className="text-[10px] text-slate-500">โทรแจ้ง 2 วัน</div>
@@ -2995,8 +2877,8 @@ export default function Home() {
                   {/* Management & Backlog */}
                   <div className="grid grid-cols-2 gap-3">
                     {/* Management */}
-                    <div className="bg-white rounded-xl border border-slate-200 p-4">
-                      <h3 className="text-xs font-bold text-slate-600 uppercase mb-3">Management</h3>
+                    <div className="bg-violet-50/50 rounded-xl border border-violet-100 p-4">
+                      <h3 className="text-xs font-bold text-violet-600 uppercase mb-3">Management</h3>
                       <div className="space-y-1.5 text-sm">
                         <div className="flex justify-between"><span className="text-slate-500">Team:</span> <span className="font-semibold" style={{ color: TEAM_CONFIG[selectedBooking.current_owner_team]?.color }}>{TEAM_CONFIG[selectedBooking.current_owner_team]?.label}</span></div>
                         <div className="flex justify-between"><span className="text-slate-500">สถานะเป้าโอน:</span> <span className="font-medium">{selectedBooking.transfer_target_status || '-'}</span></div>
@@ -3015,8 +2897,8 @@ export default function Home() {
                     </div>
 
                     {/* Backlog Info */}
-                    <div className="bg-white rounded-xl border border-slate-200 p-4">
-                      <h3 className="text-xs font-bold text-slate-600 uppercase mb-3">Backlog</h3>
+                    <div className="bg-violet-50/50 rounded-xl border border-violet-100 p-4">
+                      <h3 className="text-xs font-bold text-violet-600 uppercase mb-3">Backlog</h3>
                       <div className="space-y-1.5 text-sm">
                         <div className="flex justify-between"><span className="text-slate-500">สถานะ:</span> <span className="font-medium">{selectedBooking.backlog_status}</span></div>
                         <div className="flex justify-between"><span className="text-slate-500">ขายใหม่/Re-sale:</span> <span className="font-medium">{selectedBooking.sale_type_flag}</span></div>
@@ -3029,8 +2911,6 @@ export default function Home() {
                       </div>
                     </div>
                   </div>
-                </>
-              )}
 
             </div>
           </div>
