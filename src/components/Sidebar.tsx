@@ -33,7 +33,7 @@ export type View =
   | 'cancel'
   | 'cancel-onprocess'
   | 'cancel-livnex'
-  | 'cancel-rentnex'
+  | 'cancel-pre-livnex'
   | 'cancel-actual'
   | 'after-transfer'
   | 'refund'

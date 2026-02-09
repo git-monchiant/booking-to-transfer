@@ -1,7 +1,22 @@
 // ===============================================
-// SENA BOOKING TO TRANSFER - FULL DATA MODEL
-// ครบทั้ง 13 Sections ตาม Requirement
+// SENA BOOKING TO TRANSFER - TRANSACTION DATA
+// Master data อยู่ใน masters.ts
 // ===============================================
+
+// Re-export master data เพื่อ backward compatibility
+export {
+  STAGES, STAGE_CONFIG, TEAMS, TEAM_CONFIG, BANKS_LIST,
+  PROJECTS, SALE_TYPES, CREDIT_REQUEST_TYPES, CUSTOMER_OCCUPATIONS,
+  BUREAU_RESULTS, BANK_PREAPPROVE_RESULTS, BANK_FINAL_RESULTS, JD_RESULTS,
+  APPROVAL_COMBINED_RESULTS, PURCHASE_OBJECTIVES, SALE_TYPE_FLAGS,
+  INSPECTION_METHODS, BACKLOG_STATUSES, TRANSFER_STATUSES, MGMT_STATUSES,
+  type Stage, type Team, type Grade, type KPIResult, type BankCode, type BankSubmission,
+  type SaleType, type CreditRequestType, type CustomerOccupation, type BureauResult,
+  type BankPreapproveResult, type BankFinalResult, type JDResult, type Project,
+} from './masters';
+
+import type { Stage, Grade, KPIResult, BankCode, BankSubmission, Team } from './masters';
+import { STAGES, TEAMS } from './masters';
 
 // ===== SEEDED RANDOM (เพื่อให้ Server และ Client ได้ค่าเดียวกัน) =====
 class SeededRandom {
@@ -25,57 +40,6 @@ class SeededRandom {
 
 // Global seeded random instance - ใช้ seed คงที่เพื่อ deterministic
 const seededRandom = new SeededRandom(12345);
-
-// ===== ENUMS & CONSTANTS =====
-export const STAGES = {
-  BOOKING: 'booking',
-  CONTRACT: 'contract',
-  CREDIT: 'credit',
-  INSPECTION: 'inspection',
-  READY: 'ready',
-  TRANSFERRED: 'transferred',
-  CANCELLED: 'cancelled',
-} as const;
-
-export type Stage = typeof STAGES[keyof typeof STAGES];
-
-export const STAGE_CONFIG: Record<Stage, { label: string; color: string; bg: string }> = {
-  booking: { label: 'Booking', color: '#6366f1', bg: '#eef2ff' },
-  contract: { label: 'Contract', color: '#8b5cf6', bg: '#f5f3ff' },
-  credit: { label: 'Credit', color: '#f59e0b', bg: '#fffbeb' },
-  inspection: { label: 'Inspection', color: '#06b6d4', bg: '#ecfeff' },
-  ready: { label: 'Ready', color: '#22c55e', bg: '#f0fdf4' },
-  transferred: { label: 'Transferred', color: '#10b981', bg: '#ecfdf5' },
-  cancelled: { label: 'Cancelled', color: '#ef4444', bg: '#fef2f2' },
-};
-
-export const TEAMS = ['Sale', 'CO', 'CS', 'Construction', 'Legal', 'Finance'] as const;
-export type Team = typeof TEAMS[number];
-
-export const TEAM_CONFIG: Record<Team, { label: string; color: string }> = {
-  Sale: { label: 'ฝ่ายขาย', color: '#3b82f6' },
-  CO: { label: 'CO', color: '#8b5cf6' },
-  CS: { label: 'CS', color: '#10b981' },
-  Construction: { label: 'ก่อสร้าง', color: '#f59e0b' },
-  Legal: { label: 'นิติกรรม', color: '#ef4444' },
-  Finance: { label: 'การเงิน', color: '#06b6d4' },
-};
-
-export type Grade = 'A' | 'B' | 'C' | 'D' | 'F';
-export type KPIResult = 'PASS' | 'FAIL' | 'N/A';
-
-// Bank types - รวม Internal Bank "เงินสดใจดี"
-export const BANKS_LIST = ['SCB', 'KBANK', 'BBL', 'KTB', 'TTB', 'UOB', 'BAY', 'TBANK', 'GSB', 'GHB', 'เงินสดใจดี', 'CASH'] as const;
-export type BankCode = typeof BANKS_LIST[number];
-
-// Bank submission tracking - per bank
-export interface BankSubmission {
-  bank: BankCode;
-  submit_date: string | null;        // วันที่ส่ง
-  result: 'อนุมัติ' | 'ไม่อนุมัติ' | 'รอผล' | null;
-  approved_amount: number | null;    // วงเงินอนุมัติ
-  remark: string | null;
-}
 
 // ===============================================
 // BOOKING INTERFACE - ครบ 13 Sections
@@ -137,10 +101,12 @@ export interface Booking {
   // 5. SALE INFORMATION
   // ─────────────────────────────────────────────
   sale_name: string;
+  booking_type: string | null;      // ประเภทการจอง e.g., "ผ่อนดาวน์" | "เงินสด" | "จองพิเศษ"
   sale_type: string;                // "ผ่อนดาวน์" | "เงินสด"
   down_payment_complete_date: string | null;
   credit_request_type: string;      // "โอนสด" | "สินเชื่อธนาคาร"
-  banks_submitted: BankSubmission[]; // ธนาคารที่ส่ง 1-3 แห่ง (รวม เงินสดใจดี)
+  banks_submitted: BankSubmission[]; // ธนาคารที่ส่ง 1-3 แห่ง (รวม Proptiane)
+  selected_bank: string | null;      // ธนาคารที่ลูกค้าเลือก (bank code) e.g. 'KBANK', 'SCB', 'Proptiane'
 
   // ─────────────────────────────────────────────
   // 6. CREDIT / BANK PROCESS (CO)
@@ -148,30 +114,35 @@ export interface Booking {
   credit_status: string;            // "โอนสด" | "รอผล Bureau" | "อนุมัติแล้ว"
   credit_owner: string | null;      // "1.2) วิลาวัณย์ (อุ๊)"
 
-  // Document Tracking
-  doc_submit_date: string | null;
-  doc_complete_bank_jd_date: string | null;
-  doc_complete_jd_date: string | null;
-  bank_request_more_doc_date: string | null;
-  jd_request_more_doc_date: string | null;
+  // Document Tracking (วันที่ยื่นเอกสาร)
+  doc_submit_date: string | null;           // เช็คบูโร
+  doc_complete_bank_jd_date: string | null; // เอกสารครบ Bank
+  doc_complete_jd_date: string | null;      // เอกสารครบ JD
+  bank_request_more_doc_date: string | null; // เอกสารขอเพิ่ม Bank
+  jd_request_more_doc_date: string | null;   // เอกสารขอเพิ่ม JD
 
-  // Bureau
-  bureau_target_result_date: string | null;
-  bureau_actual_result_date: string | null;
-  bureau_result: string | null;     // "ผ่าน" | "ไม่ผ่าน" | null
+  // Bureau (บูโร)
+  bureau_target_result_date: string | null;           // Target (นับ Sat-Sun)
+  bureau_target_result_date_biz: string | null;       // Target (ไม่นับ Sat-Sun)
+  bureau_actual_result_date: string | null;           // วันที่ได้ผล Actual
+  bureau_result: string | null;                       // ผลบูโร "ผ่าน" | "ไม่ผ่าน"
 
-  // Bank Approval
-  bank_preapprove_target_date: string | null;
-  bank_preapprove_actual_date: string | null;
-  bank_preapprove_result: string | null;
-  bank_final_target_date: string | null;
-  bank_final_actual_date: string | null;
-  bank_final_result: string | null; // "อนุมัติ 3,600,000"
+  // Bank อนุมัติเบื้องต้น (Pre-approve)
+  bank_preapprove_target_date: string | null;         // Target (นับ Sat-Sun)
+  bank_preapprove_target_date_biz: string | null;     // Target (ไม่นับ Sat-Sun)
+  bank_preapprove_actual_date: string | null;         // วันที่ได้ผล Actual
+  bank_preapprove_result: string | null;              // ผลการอนุมัติ
 
-  // JD Approval
-  jd_final_target_date: string | null;
-  jd_final_actual_date: string | null;
-  jd_final_result: string | null;
+  // Bank อนุมัติจริง (Final)
+  bank_final_target_date: string | null;              // Target (นับ Sat-Sun)
+  bank_final_target_date_biz: string | null;          // Target (ไม่นับ Sat-Sun)
+  bank_final_actual_date: string | null;              // วันที่ได้ผล Actual
+  bank_final_result: string | null;                   // ผลการอนุมัติ
+
+  // JD อนุมัติจริง
+  jd_final_target_date: string | null;                // Target (ไม่นับ Sat-Sun)
+  jd_final_actual_date: string | null;                // วันที่ได้ผล Actual
+  jd_final_result: string | null;                     // ผลการอนุมัติ
 
   co_remark: string | null;
 
@@ -186,24 +157,34 @@ export interface Booking {
   notify_customer_date: string | null; // แจ้งลูกค้า
   cs_notify_target_date: string | null;
 
-  // Round 1
+  // Round 1 (ตรวจ 1)
+  inspect1_notify_target_date: string | null;     // Target แจ้งลูกค้า (นับ Sat-Sun)
+  inspect1_notify_target_date_biz: string | null; // Target แจ้งลูกค้า (ไม่นับ Sat-Sun)
   inspect1_notify_date: string | null;
-  inspect1_appointment_date: string | null;
-  inspect1_actual_date: string | null;
+  inspect1_appointment_date: string | null;       // วันที่นัดลูกค้าเข้าตรวจ
+  inspect1_actual_date: string | null;            // วันที่ลูกค้าเข้าตรวจจริง
+  inspect1_result: string | null;                 // ผลการตรวจ "ผ่าน" | "ไม่ผ่าน"
   inspect1_ready_date: string | null;
 
-  // Round 2
-  inspect2_appointment_date: string | null;
-  inspect2_actual_date: string | null;
-  inspect2_ready_date: string | null;
+  // Round 2 (ตรวจ 2)
+  inspect2_ready_target_date: string | null;      // Target พร้อม (นับ Sat-Sun)
+  inspect2_ready_target_date_biz: string | null;  // Target พร้อม (ไม่นับ Sat-Sun)
+  inspect2_ready_date: string | null;             // วันที่ห้องพร้อม CS ตรวจผ่าน
+  inspect2_appointment_date: string | null;       // วันที่นัดลูกค้าเข้าตรวจ
+  inspect2_actual_date: string | null;            // วันที่ลูกค้าเข้าตรวจจริง
+  inspect2_result: string | null;                 // ผลการตรวจ
 
-  // Round 3
-  inspect3_appointment_date: string | null;
-  inspect3_actual_date: string | null;
+  // Round 3 (ตรวจ 3)
+  inspect3_ready_target_date: string | null;      // Target พร้อม (นับ Sat-Sun)
+  inspect3_ready_target_date_biz: string | null;  // Target พร้อม (ไม่นับ Sat-Sun)
+  inspect3_ready_date: string | null;             // วันที่ห้องพร้อม CS ตรวจผ่าน
+  inspect3_appointment_date: string | null;       // วันที่นัดลูกค้าเข้าตรวจ
+  inspect3_actual_date: string | null;            // วันที่ลูกค้าเข้าตรวจจริง
+  inspect3_result: string | null;                 // ผลการตรวจ
 
-  handover_accept_date: string | null;
-  inspection_officer: string | null;
-  cs_owner: string | null;
+  handover_accept_date: string | null;            // วันที่รับห้อง
+  inspection_officer: string | null;              // ชื่อ CON
+  cs_owner: string | null;                        // ชื่อ CS
 
   // ─────────────────────────────────────────────
   // 8. TRANSFER / LEGAL / CO SUPPORT
@@ -212,9 +193,10 @@ export interface Booking {
   transfer_package_sent_date: string | null;
   title_clear_date: string | null;
   title_clear_notify_date: string | null;
-  transfer_target_date: string | null;
+  transfer_target_date: string | null;      // เป้าโอน
+  transfer_upside_flag: string | null;      // Upside Flag
+  transfer_appointment_date: string | null; // นัดโอนจริง
   transfer_actual_date: string | null;
-  transfer_appointment_date: string | null;
   transfer_status: string;          // "In process" | "Transferred"
 
   // Cancellation
@@ -235,13 +217,15 @@ export interface Booking {
   livnex_able_completion_result: string | null;
   livnex_complete_date: string | null;
   sale_offer_livnex_flag: boolean;
-  livnex_contract_appointment_date: string | null;
-  livnex_contract_actual_date: string | null;
+  livnex_present_date: string | null;                 // วันที่นำเสนอ LivNex
+  livnex_contract_appointment_date: string | null;    // วันที่นัดทำสัญญา
+  livnex_contract_actual_date: string | null;         // วันที่ทำสัญญาจริง (เซ็นต์)
   livnex_cancel_date: string | null;
   livnex_cancel_reason: string | null;
-  rentnex_contract_appointment_date: string | null;
-  rentnex_cancel_date: string | null;
-  rentnex_cancel_reason: string | null;
+  pre_livnex_present_date: string | null;                // วันที่นำเสนอ Pre-LivNex
+  pre_livnex_contract_appointment_date: string | null;   // วันที่ทำสัญญา
+  pre_livnex_cancel_date: string | null;
+  pre_livnex_cancel_reason: string | null;
 
   // ─────────────────────────────────────────────
   // 10. FOLLOW-UP / ACTION / ADMIN
@@ -293,6 +277,13 @@ export interface Booking {
   product_status: string;           // "พร้อมโอน" | "รอแก้งาน"
   contract_transfer_due_date: string | null;
   transferred_actual_flag: boolean;
+
+  // ─────────────────────────────────────────────
+  // 14. MANAGEMENT WEEKLY TRACKING (BY-CA)
+  // ─────────────────────────────────────────────
+  mgmt_status: string | null;           // BY: สถานะปัจจุบัน
+  mgmt_responsible: string | null;      // BZ: งานอยู่ที่ (ผู้รับผิดชอบ)
+  mgmt_remark: string | null;           // CA: หมายเหตุ (สรุปรายสัปดาห์)
 
   // ─────────────────────────────────────────────
   // COMPUTED / HELPER FIELDS
@@ -354,12 +345,14 @@ export const bookings: Booking[] = [
 
     // 5. Sale
     sale_name: 'สกุลกาญจน์ ชินพราหมณ์',
+    booking_type: 'เงินสด',
     sale_type: 'ผ่อนดาวน์',
     down_payment_complete_date: '25/05/2026',
     credit_request_type: 'โอนสด',
     banks_submitted: [
-      { bank: 'CASH', submit_date: null, result: 'อนุมัติ', approved_amount: 1830000, remark: 'โอนสด' }
+      { bank: 'CASH', submit_date: null, preapprove_date: null, preapprove_result: null, result: 'อนุมัติ - เงินสด', result_date: null, approved_amount: 1830000, remark: 'โอนสด' }
     ],
+    selected_bank: 'CASH',
 
     // 6. Credit
     credit_status: 'โอนสด',
@@ -370,12 +363,15 @@ export const bookings: Booking[] = [
     bank_request_more_doc_date: null,
     jd_request_more_doc_date: null,
     bureau_target_result_date: null,
+    bureau_target_result_date_biz: null,
     bureau_actual_result_date: null,
     bureau_result: null,
     bank_preapprove_target_date: null,
+    bank_preapprove_target_date_biz: null,
     bank_preapprove_actual_date: null,
     bank_preapprove_result: null,
     bank_final_target_date: null,
+    bank_final_target_date_biz: null,
     bank_final_actual_date: null,
     bank_final_result: null,
     jd_final_target_date: null,
@@ -391,15 +387,25 @@ export const bookings: Booking[] = [
     hired_inspector: null,
     unit_ready_inspection_date: '07/01/2026',
     cs_notify_target_date: null,
+    inspect1_notify_target_date: '22/12/2025',
+    inspect1_notify_target_date_biz: '20/12/2025',
     inspect1_notify_date: '24/12/2025',
     inspect1_appointment_date: '15/05/2026',
     inspect1_actual_date: null,
+    inspect1_result: null,
     inspect1_ready_date: null,
+    inspect2_ready_target_date: null,
+    inspect2_ready_target_date_biz: null,
+    inspect2_ready_date: null,
     inspect2_appointment_date: null,
     inspect2_actual_date: null,
-    inspect2_ready_date: null,
+    inspect2_result: null,
+    inspect3_ready_target_date: null,
+    inspect3_ready_target_date_biz: null,
+    inspect3_ready_date: null,
     inspect3_appointment_date: null,
     inspect3_actual_date: null,
+    inspect3_result: null,
     handover_accept_date: null,
     inspection_officer: 'สุรสิทธิ์ (โต้ง)',
     cs_owner: 'สุรศักดิ์ / กาญจนา',
@@ -410,6 +416,7 @@ export const bookings: Booking[] = [
     title_clear_date: null,
     title_clear_notify_date: null,
     transfer_target_date: '30/06/2026',
+    transfer_upside_flag: null,
     transfer_actual_date: null,
     transfer_appointment_date: null,
     transfer_status: 'In process',
@@ -428,13 +435,15 @@ export const bookings: Booking[] = [
     livnex_able_completion_result: null,
     livnex_complete_date: null,
     sale_offer_livnex_flag: false,
+    livnex_present_date: null,
     livnex_contract_appointment_date: null,
     livnex_contract_actual_date: null,
     livnex_cancel_date: null,
     livnex_cancel_reason: null,
-    rentnex_contract_appointment_date: null,
-    rentnex_cancel_date: null,
-    rentnex_cancel_reason: null,
+    pre_livnex_present_date: null,
+    pre_livnex_contract_appointment_date: null,
+    pre_livnex_cancel_date: null,
+    pre_livnex_cancel_reason: null,
 
     // 10. Follow-up
     followup_bank: 'โอน มิ.ย. 69',
@@ -478,6 +487,11 @@ export const bookings: Booking[] = [
     product_status: 'พร้อมโอน',
     contract_transfer_due_date: '30 วันหลังทำสัญญา',
     transferred_actual_flag: false,
+
+    // 14. Management Weekly Tracking
+    mgmt_status: 'in process',
+    mgmt_responsible: 'Sale - สกุลกาญจน์',
+    mgmt_remark: 'WK4: ลูกค้าดูฤกษ์หลังสงกรานต์ นัดโทรติดตาม 28/1',
 
     // Computed
     stage: 'inspection',
@@ -533,14 +547,16 @@ export const bookings: Booking[] = [
 
     // 5. Sale
     sale_name: 'นภาพร วงศ์สกุล',
+    booking_type: 'ผ่อนดาวน์',
     sale_type: 'ผ่อนดาวน์',
     down_payment_complete_date: '05/03/2026',
     credit_request_type: 'สินเชื่อธนาคาร',
     banks_submitted: [
-      { bank: 'SCB', submit_date: '15/01/2026', result: 'รอผล', approved_amount: null, remark: null },
-      { bank: 'KBANK', submit_date: '15/01/2026', result: 'รอผล', approved_amount: null, remark: null },
-      { bank: 'เงินสดใจดี', submit_date: '15/01/2026', result: 'รอผล', approved_amount: null, remark: null }
+      { bank: 'SCB', submit_date: '15/01/2026', preapprove_date: '27/01/2026', preapprove_result: 'อนุมัติ - ไม่มีเงื่อนไข', result: 'รอผล', result_date: null, approved_amount: null, remark: null },
+      { bank: 'KBANK', submit_date: '15/01/2026', preapprove_date: '28/01/2026', preapprove_result: 'อนุมัติ - มีหนี้', result: 'รอผล', result_date: null, approved_amount: null, remark: 'มีสินเชื่อรถ 8,000/เดือน' },
+      { bank: 'Proptiane', submit_date: '15/01/2026', preapprove_date: null, preapprove_result: null, result: 'รอผล', result_date: null, approved_amount: null, remark: null }
     ],
+    selected_bank: null,
 
     // 6. Credit
     credit_status: 'รอผล Bureau',
@@ -551,12 +567,15 @@ export const bookings: Booking[] = [
     bank_request_more_doc_date: null,
     jd_request_more_doc_date: null,
     bureau_target_result_date: '25/01/2026',
+    bureau_target_result_date_biz: '23/01/2026',
     bureau_actual_result_date: null,
     bureau_result: 'รอผล',
     bank_preapprove_target_date: '01/02/2026',
+    bank_preapprove_target_date_biz: '30/01/2026',
     bank_preapprove_actual_date: null,
     bank_preapprove_result: null,
     bank_final_target_date: '15/02/2026',
+    bank_final_target_date_biz: '13/02/2026',
     bank_final_actual_date: null,
     bank_final_result: null,
     jd_final_target_date: null,
@@ -572,15 +591,25 @@ export const bookings: Booking[] = [
     hired_inspector: null,
     unit_ready_inspection_date: '20/01/2026',
     cs_notify_target_date: '22/01/2026',
+    inspect1_notify_target_date: null,
+    inspect1_notify_target_date_biz: null,
     inspect1_notify_date: null,
     inspect1_appointment_date: null,
     inspect1_actual_date: null,
+    inspect1_result: null,
     inspect1_ready_date: null,
+    inspect2_ready_target_date: null,
+    inspect2_ready_target_date_biz: null,
+    inspect2_ready_date: null,
     inspect2_appointment_date: null,
     inspect2_actual_date: null,
-    inspect2_ready_date: null,
+    inspect2_result: null,
+    inspect3_ready_target_date: null,
+    inspect3_ready_target_date_biz: null,
+    inspect3_ready_date: null,
     inspect3_appointment_date: null,
     inspect3_actual_date: null,
+    inspect3_result: null,
     handover_accept_date: null,
     inspection_officer: 'ประวิทย์ (เอ็ม)',
     cs_owner: 'มานพ / ศิริพร',
@@ -591,6 +620,7 @@ export const bookings: Booking[] = [
     title_clear_date: null,
     title_clear_notify_date: null,
     transfer_target_date: '28/02/2026',
+    transfer_upside_flag: 'Upside',
     transfer_actual_date: null,
     transfer_appointment_date: null,
     transfer_status: 'In process',
@@ -609,13 +639,15 @@ export const bookings: Booking[] = [
     livnex_able_completion_result: 'สนใจ',
     livnex_complete_date: null,
     sale_offer_livnex_flag: true,
+    livnex_present_date: '20/01/2026',
     livnex_contract_appointment_date: null,
     livnex_contract_actual_date: null,
     livnex_cancel_date: null,
     livnex_cancel_reason: null,
-    rentnex_contract_appointment_date: null,
-    rentnex_cancel_date: null,
-    rentnex_cancel_reason: null,
+    pre_livnex_present_date: null,
+    pre_livnex_contract_appointment_date: null,
+    pre_livnex_cancel_date: null,
+    pre_livnex_cancel_reason: null,
 
     // 10. Follow-up
     followup_bank: 'รอผล Bureau 25 ม.ค.',
@@ -659,6 +691,11 @@ export const bookings: Booking[] = [
     product_status: 'พร้อมโอน',
     contract_transfer_due_date: '30 วันหลังทำสัญญา',
     transferred_actual_flag: false,
+
+    // 14. Management Weekly Tracking
+    mgmt_status: 'in process',
+    mgmt_responsible: 'CO - วิลาวัณย์',
+    mgmt_remark: 'WK4: รอผล Bureau ธ.กสิกร คาดได้ 25/1',
 
     // Computed
     stage: 'credit',
@@ -714,13 +751,15 @@ export const bookings: Booking[] = [
 
     // 5. Sale
     sale_name: 'ธนพล ศรีสุข',
+    booking_type: 'ผ่อนดาวน์',
     sale_type: 'ผ่อนดาวน์',
     down_payment_complete_date: '10/02/2026',
     credit_request_type: 'สินเชื่อธนาคาร',
     banks_submitted: [
-      { bank: 'KBANK', submit_date: '20/12/2025', result: 'อนุมัติ', approved_amount: 3600000, remark: null },
-      { bank: 'เงินสดใจดี', submit_date: '20/12/2025', result: 'ไม่อนุมัติ', approved_amount: null, remark: 'วงเงินไม่พอ' }
+      { bank: 'KBANK', submit_date: '20/12/2025', preapprove_date: '28/12/2025', preapprove_result: 'อนุมัติ - ไม่มีเงื่อนไข', result: 'อนุมัติ - เต็มวงเงิน', result_date: '10/01/2026', approved_amount: 3600000, remark: null },
+      { bank: 'Proptiane', submit_date: '20/12/2025', preapprove_date: null, preapprove_result: null, result: 'ไม่อนุมัติ - มีประวัติ', result_date: '30/12/2025', approved_amount: null, remark: null }
     ],
+    selected_bank: 'KBANK',
 
     // 6. Credit
     credit_status: 'อนุมัติแล้ว',
@@ -731,17 +770,20 @@ export const bookings: Booking[] = [
     bank_request_more_doc_date: null,
     jd_request_more_doc_date: null,
     bureau_target_result_date: '27/12/2025',
+    bureau_target_result_date_biz: '25/12/2025',
     bureau_actual_result_date: '26/12/2025',
-    bureau_result: 'ผ่าน',
+    bureau_result: 'บูโรปกติ - ไม่มีหนี้',
     bank_preapprove_target_date: '03/01/2026',
+    bank_preapprove_target_date_biz: '02/01/2026',
     bank_preapprove_actual_date: '02/01/2026',
-    bank_preapprove_result: 'อนุมัติ',
+    bank_preapprove_result: 'อนุมัติ - ไม่มีเงื่อนไข',
     bank_final_target_date: '10/01/2026',
+    bank_final_target_date_biz: '09/01/2026',
     bank_final_actual_date: '08/01/2026',
-    bank_final_result: 'อนุมัติ 3,600,000',
+    bank_final_result: 'อนุมัติ - เต็มวงเงิน',
     jd_final_target_date: '15/01/2026',
     jd_final_actual_date: '12/01/2026',
-    jd_final_result: 'อนุมัติ',
+    jd_final_result: 'อนุมัติ - ไม่มีเงื่อนไข',
     co_remark: 'ลูกค้าประวัติดีมาก อนุมัติเร็ว',
 
     // 7. Inspection
@@ -752,15 +794,25 @@ export const bookings: Booking[] = [
     hired_inspector: 'บ.ตรวจบ้านมืออาชีพ',
     unit_ready_inspection_date: '05/01/2026',
     cs_notify_target_date: '07/01/2026',
+    inspect1_notify_target_date: '05/01/2026',
+    inspect1_notify_target_date_biz: '03/01/2026',
     inspect1_notify_date: '07/01/2026',
     inspect1_appointment_date: '12/01/2026',
     inspect1_actual_date: '12/01/2026',
+    inspect1_result: 'ไม่ผ่าน',
     inspect1_ready_date: null,
+    inspect2_ready_target_date: '22/01/2026',
+    inspect2_ready_target_date_biz: '20/01/2026',
+    inspect2_ready_date: null,
     inspect2_appointment_date: '25/01/2026',
     inspect2_actual_date: null,
-    inspect2_ready_date: null,
+    inspect2_result: null,
+    inspect3_ready_target_date: null,
+    inspect3_ready_target_date_biz: null,
+    inspect3_ready_date: null,
     inspect3_appointment_date: null,
     inspect3_actual_date: null,
+    inspect3_result: null,
     handover_accept_date: null,
     inspection_officer: 'สุรสิทธิ์ (โต้ง)',
     cs_owner: 'สุรศักดิ์ / กาญจนา',
@@ -771,6 +823,7 @@ export const bookings: Booking[] = [
     title_clear_date: '20/01/2026',
     title_clear_notify_date: '20/01/2026',
     transfer_target_date: '31/01/2026',
+    transfer_upside_flag: null,
     transfer_actual_date: null,
     transfer_appointment_date: null,
     transfer_status: 'In process',
@@ -789,13 +842,15 @@ export const bookings: Booking[] = [
     livnex_able_completion_result: 'ทำสัญญาแล้ว',
     livnex_complete_date: '15/01/2026',
     sale_offer_livnex_flag: true,
+    livnex_present_date: '10/12/2025',
     livnex_contract_appointment_date: '14/01/2026',
     livnex_contract_actual_date: '15/01/2026',
     livnex_cancel_date: null,
     livnex_cancel_reason: null,
-    rentnex_contract_appointment_date: null,
-    rentnex_cancel_date: null,
-    rentnex_cancel_reason: null,
+    pre_livnex_present_date: '08/12/2025',
+    pre_livnex_contract_appointment_date: null,
+    pre_livnex_cancel_date: null,
+    pre_livnex_cancel_reason: null,
 
     // 10. Follow-up
     followup_bank: 'รอตรวจรอบ 2',
@@ -839,6 +894,11 @@ export const bookings: Booking[] = [
     product_status: 'รอแก้งาน',
     contract_transfer_due_date: '30 วันหลังทำสัญญา',
     transferred_actual_flag: false,
+
+    // 14. Management Weekly Tracking
+    mgmt_status: 'LivNex',
+    mgmt_responsible: 'CS - สมชาย',
+    mgmt_remark: 'WK4: แก้งาน 5 รายการ รอช่าง คาดเสร็จ 23/1',
 
     // Computed
     stage: 'inspection',
@@ -894,14 +954,16 @@ export const bookings: Booking[] = [
 
     // 5. Sale
     sale_name: 'รัตนา เพชรดี',
+    booking_type: 'เงินสด',
     sale_type: 'เงินสด',
     down_payment_complete_date: '01/12/2025',
     credit_request_type: 'สินเชื่อธนาคาร',
     banks_submitted: [
-      { bank: 'BBL', submit_date: '10/12/2025', result: 'อนุมัติ', approved_amount: 1785000, remark: 'ข้าราชการ อนุมัติไว' },
-      { bank: 'SCB', submit_date: '10/12/2025', result: 'อนุมัติ', approved_amount: 1700000, remark: null },
-      { bank: 'เงินสดใจดี', submit_date: '10/12/2025', result: 'อนุมัติ', approved_amount: 1500000, remark: null }
+      { bank: 'BBL', submit_date: '10/12/2025', preapprove_date: '18/12/2025', preapprove_result: 'อนุมัติ - ไม่มีเงื่อนไข', result: 'อนุมัติ - เต็มวงเงิน', result_date: '25/12/2025', approved_amount: 1785000, remark: 'ข้าราชการ อนุมัติไว' },
+      { bank: 'SCB', submit_date: '10/12/2025', preapprove_date: '20/12/2025', preapprove_result: 'อนุมัติ - ไม่เต็มจำนวน', result: 'อนุมัติ - ไม่เต็มวงเงิน', result_date: '28/12/2025', approved_amount: 1700000, remark: 'วงเงินต่ำกว่า BBL เล็กน้อย' },
+      { bank: 'Proptiane', submit_date: '10/12/2025', preapprove_date: null, preapprove_result: null, result: 'อนุมัติ - ไม่มีเงื่อนไข', result_date: '22/12/2025', approved_amount: null, remark: null }
     ],
+    selected_bank: 'BBL',
 
     // 6. Credit
     credit_status: 'อนุมัติแล้ว',
@@ -912,17 +974,20 @@ export const bookings: Booking[] = [
     bank_request_more_doc_date: null,
     jd_request_more_doc_date: null,
     bureau_target_result_date: '17/12/2025',
+    bureau_target_result_date_biz: '16/12/2025',
     bureau_actual_result_date: '16/12/2025',
-    bureau_result: 'ผ่าน',
+    bureau_result: 'บูโรปกติ - ไม่มีหนี้',
     bank_preapprove_target_date: '22/12/2025',
+    bank_preapprove_target_date_biz: '19/12/2025',
     bank_preapprove_actual_date: '20/12/2025',
-    bank_preapprove_result: 'อนุมัติ',
+    bank_preapprove_result: 'อนุมัติ - ไม่มีเงื่อนไข',
     bank_final_target_date: '28/12/2025',
+    bank_final_target_date_biz: '26/12/2025',
     bank_final_actual_date: '26/12/2025',
-    bank_final_result: 'อนุมัติ 1,785,000',
+    bank_final_result: 'อนุมัติ - เต็มวงเงิน',
     jd_final_target_date: '02/01/2026',
     jd_final_actual_date: '30/12/2025',
-    jd_final_result: 'อนุมัติ',
+    jd_final_result: 'อนุมัติ - ไม่มีเงื่อนไข',
     co_remark: 'ข้าราชการ ประวัติดี อนุมัติไว',
 
     // 7. Inspection
@@ -933,15 +998,25 @@ export const bookings: Booking[] = [
     hired_inspector: null,
     unit_ready_inspection_date: '15/12/2025',
     cs_notify_target_date: '16/12/2025',
+    inspect1_notify_target_date: '14/12/2025',
+    inspect1_notify_target_date_biz: '12/12/2025',
     inspect1_notify_date: '16/12/2025',
     inspect1_appointment_date: '22/12/2025',
     inspect1_actual_date: '22/12/2025',
+    inspect1_result: 'ผ่าน',
     inspect1_ready_date: '05/01/2026',
+    inspect2_ready_target_date: null,
+    inspect2_ready_target_date_biz: null,
+    inspect2_ready_date: null,
     inspect2_appointment_date: null,
     inspect2_actual_date: null,
-    inspect2_ready_date: null,
+    inspect2_result: null,
+    inspect3_ready_target_date: null,
+    inspect3_ready_target_date_biz: null,
+    inspect3_ready_date: null,
     inspect3_appointment_date: null,
     inspect3_actual_date: null,
+    inspect3_result: null,
     handover_accept_date: '05/01/2026',
     inspection_officer: 'ประวิทย์ (เอ็ม)',
     cs_owner: 'มานพ / ศิริพร',
@@ -952,6 +1027,7 @@ export const bookings: Booking[] = [
     title_clear_date: '15/01/2026',
     title_clear_notify_date: '15/01/2026',
     transfer_target_date: '25/01/2026',
+    transfer_upside_flag: 'Upside',
     transfer_actual_date: null,
     transfer_appointment_date: '25/01/2026',
     transfer_status: 'In process',
@@ -970,13 +1046,15 @@ export const bookings: Booking[] = [
     livnex_able_completion_result: 'ปฏิเสธ',
     livnex_complete_date: null,
     sale_offer_livnex_flag: true,
+    livnex_present_date: '08/01/2026',
     livnex_contract_appointment_date: null,
     livnex_contract_actual_date: null,
     livnex_cancel_date: null,
     livnex_cancel_reason: 'ลูกค้าไม่สนใจ',
-    rentnex_contract_appointment_date: null,
-    rentnex_cancel_date: null,
-    rentnex_cancel_reason: null,
+    pre_livnex_present_date: null,
+    pre_livnex_contract_appointment_date: null,
+    pre_livnex_cancel_date: null,
+    pre_livnex_cancel_reason: null,
 
     // 10. Follow-up
     followup_bank: 'นัดโอน 25 ม.ค.',
@@ -1020,6 +1098,11 @@ export const bookings: Booking[] = [
     product_status: 'พร้อมโอน',
     contract_transfer_due_date: '30 วันหลังทำสัญญา',
     transferred_actual_flag: false,
+
+    // 14. Management Weekly Tracking
+    mgmt_status: 'in process',
+    mgmt_responsible: 'Legal - นิติกรรม',
+    mgmt_remark: 'WK4: นัดโอน 25/1 ลูกค้ายืนยันแล้ว',
 
     // Computed
     stage: 'ready',
@@ -1075,14 +1158,16 @@ export const bookings: Booking[] = [
 
     // 5. Sale
     sale_name: 'อรุณี แสงทอง',
+    booking_type: 'ผ่อนดาวน์',
     sale_type: 'เงินสด',
     down_payment_complete_date: '15/11/2025',
     credit_request_type: 'สินเชื่อธนาคาร',
     banks_submitted: [
-      { bank: 'TTB', submit_date: '25/11/2025', result: 'อนุมัติ', approved_amount: 4160000, remark: 'VIP ผู้บริหาร' },
-      { bank: 'KBANK', submit_date: '25/11/2025', result: 'อนุมัติ', approved_amount: 4000000, remark: null },
-      { bank: 'เงินสดใจดี', submit_date: '25/11/2025', result: 'อนุมัติ', approved_amount: 3500000, remark: 'backup option' }
+      { bank: 'TTB', submit_date: '25/11/2025', preapprove_date: '03/12/2025', preapprove_result: 'อนุมัติ - ไม่มีเงื่อนไข', result: 'อนุมัติ - เต็มวงเงิน', result_date: '12/12/2025', approved_amount: 4160000, remark: 'VIP ผู้บริหาร' },
+      { bank: 'KBANK', submit_date: '25/11/2025', preapprove_date: '04/12/2025', preapprove_result: 'อนุมัติ - ไม่เต็มจำนวน', result: 'อนุมัติ - ไม่เต็มวงเงิน', result_date: '13/12/2025', approved_amount: 4000000, remark: null },
+      { bank: 'Proptiane', submit_date: '25/11/2025', preapprove_date: null, preapprove_result: null, result: 'อนุมัติ - ไม่มีเงื่อนไข', result_date: '14/12/2025', approved_amount: null, remark: null }
     ],
+    selected_bank: 'TTB',
 
     // 6. Credit
     credit_status: 'โอนแล้ว',
@@ -1093,17 +1178,20 @@ export const bookings: Booking[] = [
     bank_request_more_doc_date: null,
     jd_request_more_doc_date: null,
     bureau_target_result_date: '02/12/2025',
+    bureau_target_result_date_biz: '01/12/2025',
     bureau_actual_result_date: '01/12/2025',
-    bureau_result: 'ผ่าน',
+    bureau_result: 'บูโรปกติ - ไม่มีหนี้',
     bank_preapprove_target_date: '07/12/2025',
+    bank_preapprove_target_date_biz: '05/12/2025',
     bank_preapprove_actual_date: '05/12/2025',
-    bank_preapprove_result: 'อนุมัติ',
+    bank_preapprove_result: 'อนุมัติ - ไม่มีเงื่อนไข',
     bank_final_target_date: '15/12/2025',
+    bank_final_target_date_biz: '12/12/2025',
     bank_final_actual_date: '12/12/2025',
-    bank_final_result: 'อนุมัติ 4,160,000',
+    bank_final_result: 'อนุมัติ - เต็มวงเงิน',
     jd_final_target_date: '20/12/2025',
     jd_final_actual_date: '18/12/2025',
-    jd_final_result: 'อนุมัติ',
+    jd_final_result: 'อนุมัติ - ไม่มีเงื่อนไข',
     co_remark: 'ลูกค้า VIP ผู้บริหาร ประวัติดีเยี่ยม',
 
     // 7. Inspection
@@ -1114,15 +1202,25 @@ export const bookings: Booking[] = [
     hired_inspector: 'คุณสมชาย (ช่างอิสระ)',
     unit_ready_inspection_date: '01/12/2025',
     cs_notify_target_date: '02/12/2025',
+    inspect1_notify_target_date: '30/11/2025',
+    inspect1_notify_target_date_biz: '28/11/2025',
     inspect1_notify_date: '02/12/2025',
     inspect1_appointment_date: '08/12/2025',
     inspect1_actual_date: '08/12/2025',
+    inspect1_result: 'ผ่าน',
     inspect1_ready_date: '20/12/2025',
+    inspect2_ready_target_date: null,
+    inspect2_ready_target_date_biz: null,
+    inspect2_ready_date: null,
     inspect2_appointment_date: null,
     inspect2_actual_date: null,
-    inspect2_ready_date: null,
+    inspect2_result: null,
+    inspect3_ready_target_date: null,
+    inspect3_ready_target_date_biz: null,
+    inspect3_ready_date: null,
     inspect3_appointment_date: null,
     inspect3_actual_date: null,
+    inspect3_result: null,
     handover_accept_date: '20/12/2025',
     inspection_officer: 'สุรสิทธิ์ (โต้ง)',
     cs_owner: 'สุรศักดิ์ / กาญจนา',
@@ -1133,6 +1231,7 @@ export const bookings: Booking[] = [
     title_clear_date: '27/12/2025',
     title_clear_notify_date: '27/12/2025',
     transfer_target_date: '30/12/2025',
+    transfer_upside_flag: null,
     transfer_actual_date: '28/12/2025',
     transfer_appointment_date: '28/12/2025',
     transfer_status: 'Transferred',
@@ -1151,13 +1250,15 @@ export const bookings: Booking[] = [
     livnex_able_completion_result: 'ทำสัญญาแล้ว',
     livnex_complete_date: '25/12/2025',
     sale_offer_livnex_flag: true,
+    livnex_present_date: '20/12/2025',
     livnex_contract_appointment_date: '24/12/2025',
     livnex_contract_actual_date: '25/12/2025',
     livnex_cancel_date: null,
     livnex_cancel_reason: null,
-    rentnex_contract_appointment_date: null,
-    rentnex_cancel_date: null,
-    rentnex_cancel_reason: null,
+    pre_livnex_present_date: '18/12/2025',
+    pre_livnex_contract_appointment_date: null,
+    pre_livnex_cancel_date: null,
+    pre_livnex_cancel_reason: null,
 
     // 10. Follow-up
     followup_bank: 'โอนแล้ว',
@@ -1202,6 +1303,11 @@ export const bookings: Booking[] = [
     contract_transfer_due_date: '30 วันหลังทำสัญญา',
     transferred_actual_flag: true,
 
+    // 14. Management Weekly Tracking
+    mgmt_status: 'โอน',
+    mgmt_responsible: 'Finance',
+    mgmt_remark: 'WK4: โอนเรียบร้อย 28/12 เร็วกว่ากำหนด',
+
     // Computed
     stage: 'transferred',
     current_owner_team: 'Finance',
@@ -1234,56 +1340,91 @@ const CUSTOMER_NAMES = [
 ];
 
 const SALE_NAMES = ['สกุลกาญจน์ ชินพราหมณ์', 'นภาพร วงศ์สกุล', 'ศิริพร แก้วใส', 'มานพ ดีเด่น', 'พัชรี สุขสันต์'];
-const GEN_BANKS: BankCode[] = ['SCB', 'KBANK', 'BBL', 'KTB', 'TTB', 'UOB', 'เงินสดใจดี'];
+const GEN_BANKS: BankCode[] = ['SCB', 'KBANK', 'BBL', 'KTB', 'TTB', 'UOB', 'Proptiane'];
 const STAGES_LIST: Stage[] = ['booking', 'contract', 'credit', 'inspection', 'ready'];
 const GRADES: Grade[] = ['A', 'B', 'C', 'D', 'F'];
 const TEAMS_LIST: Team[] = ['Sale', 'CO', 'CS', 'Construction', 'Legal', 'Finance'];
 
-// Helper function to generate random banks (1-3) - always includes เงินสดใจดี
+// Helper function to generate random banks (1-3) - always includes Proptiane
 function generateBankSubmissions(price: number, hasBankFinal: boolean, hasBureauResult: boolean): BankSubmission[] {
-  // Generate exactly 5 banks (not including เงินสดใจดี)
+  // Generate exactly 5 banks (not including Proptiane)
   const numberOfBanks = 5;
   const selectedBanks: BankCode[] = [];
 
   // Randomly select 5 banks without duplicates
-  const availableBanks = [...GEN_BANKS].filter(b => b !== 'เงินสดใจดี');
+  const availableBanks = [...GEN_BANKS].filter(b => b !== 'Proptiane');
   for (let i = 0; i < numberOfBanks && availableBanks.length > 0; i++) {
     const idx = Math.floor(seededRandom.next() * availableBanks.length);
     selectedBanks.push(availableBanks.splice(idx, 1)[0]);
   }
 
-  // Always add เงินสดใจดี at the end
-  selectedBanks.push('เงินสดใจดี');
+  // Always add Proptiane at the end
+  selectedBanks.push('Proptiane');
 
   return selectedBanks.map((bank, index) => {
     // First bank is primary - most likely to be approved
     const isPrimary = index === 0;
-    const isJaidee = bank === 'เงินสดใจดี';
-    let result: BankSubmission['result'] = 'รอผล';
+    const isJaidee = bank === 'Proptiane';
+    let result: string | null = 'รอผล';
     let approvedAmount: number | null = null;
 
+    const APPROVE_RESULTS = ['อนุมัติ - เต็มวงเงิน', 'อนุมัติ - ไม่เต็มวงเงิน', 'อนุมัติ - ต้องซื้อพ่วง', 'อนุมัติ - มีประวัติค้างชำระ'];
+    const REJECT_RESULTS = ['ไม่อนุมัติ - DSR เกิน', 'ไม่อนุมัติ - รายได้ไม่เพียงพอ', 'ไม่อนุมัติ - ขอธนาคารอื่น', 'ไม่อนุมัติ - ขอยก case'];
+
     if (hasBankFinal && isPrimary) {
-      result = 'อนุมัติ';
+      result = APPROVE_RESULTS[Math.floor(seededRandom.next() * APPROVE_RESULTS.length)];
       approvedAmount = Math.round(price * (0.85 + seededRandom.next() * 0.1));
     } else if (hasBureauResult) {
-      result = seededRandom.next() > 0.3 ? 'อนุมัติ' : (seededRandom.next() > 0.5 ? 'ไม่อนุมัติ' : 'รอผล');
-      if (result === 'อนุมัติ') {
+      const r = seededRandom.next();
+      if (r > 0.3) {
+        result = APPROVE_RESULTS[Math.floor(seededRandom.next() * APPROVE_RESULTS.length)];
         approvedAmount = Math.round(price * (0.75 + seededRandom.next() * 0.15));
+      } else if (r > 0.15) {
+        result = REJECT_RESULTS[Math.floor(seededRandom.next() * REJECT_RESULTS.length)];
+      } else {
+        result = 'รอผล';
       }
     }
 
-    // Jaidee typically approves at lower amounts
+    // Jaidee (JD): ไม่มีวงเงิน — อนุมัติเข้าโครงการ LivNex/Pre-LivNex
     if (isJaidee && hasBureauResult) {
-      result = seededRandom.next() > 0.2 ? 'อนุมัติ' : 'รอผล';
-      if (result === 'อนุมัติ') {
-        approvedAmount = Math.round(price * (0.6 + seededRandom.next() * 0.15));
+      const JD_APPROVE = ['อนุมัติ - ไม่มีเงื่อนไข', 'อนุมัติ - แต่ต้องเพิ่มเงินหาร', 'อนุมัติ - แต่ต้องเพิ่มผู้กู้', 'อนุมัติ - แต่ทำกู้ร่วม'];
+      const JD_REJECT = ['ไม่อนุมัติ - DSR ไม่ผ่าน', 'ไม่อนุมัติ - ยื่นซ้ำ', 'ไม่อนุมัติ - มีบัญชีสินเชื่อค้างชำระ 2 บัญชีขึ้นไป', 'ไม่อนุมัติ'];
+      const r = seededRandom.next();
+      if (r > 0.3) {
+        result = JD_APPROVE[Math.floor(seededRandom.next() * JD_APPROVE.length)];
+      } else if (r > 0.15) {
+        result = JD_REJECT[Math.floor(seededRandom.next() * JD_REJECT.length)];
+      } else {
+        result = 'รอผล';
       }
+      approvedAmount = null; // JD ไม่มีวงเงิน
+    }
+
+    // Pre-approve: generate if bureau passed (JD ไม่มีเบื้องต้น)
+    let preapproveDate: string | null = null;
+    let preapproveResult: string | null = null;
+    let resultDate: string | null = null;
+
+    if (hasBureauResult && !isJaidee) {
+      preapproveDate = '25/01/2026';
+      const r = seededRandom.next();
+      preapproveResult = r > 0.25
+        ? ['อนุมัติ - ไม่มีเงื่อนไข', 'อนุมัติ - มีหนี้', 'อนุมัติ - ไม่เต็มจำนวน', 'อนุมัติ'][Math.floor(seededRandom.next() * 4)]
+        : ['ไม่อนุมัติ - ขอธนาคารอื่น', 'ไม่อนุมัติ - ขอยกเลิก'][Math.floor(seededRandom.next() * 2)];
+    }
+
+    if (result && result !== 'รอผล') {
+      resultDate = '02/02/2026';
     }
 
     return {
       bank,
       submit_date: '20/01/2026',
+      preapprove_date: preapproveDate,
+      preapprove_result: preapproveResult,
       result,
+      result_date: resultDate,
       approved_amount: approvedAmount,
       remark: null
     };
@@ -1334,7 +1475,7 @@ function generateBulkBookings(): Booking[] {
     // Generate multi-bank submissions (1-3 banks)
     const isCash = seededRandom.next() > 0.85; // 15% cash
     const banksSubmitted = isCash
-      ? [{ bank: 'CASH' as BankCode, submit_date: null, result: 'อนุมัติ' as const, approved_amount: price, remark: 'โอนสด' }]
+      ? [{ bank: 'CASH' as BankCode, submit_date: null, preapprove_date: null, preapprove_result: null, result: 'อนุมัติ - เงินสด', result_date: null, approved_amount: price, remark: 'โอนสด' }]
       : generateBankSubmissions(price, hasBankFinal, hasBureauResult);
 
     // Inspection appointments based on stage
@@ -1389,10 +1530,16 @@ function generateBulkBookings(): Booking[] {
 
       // 5. Sale
       sale_name: saleName,
+      booking_type: isCash ? 'เงินสด' : 'ผ่อนดาวน์',
       sale_type: 'ผ่อนดาวน์',
       down_payment_complete_date: '15/03/2026',
       credit_request_type: isCash ? 'โอนสด' : 'สินเชื่อธนาคาร',
       banks_submitted: banksSubmitted,
+      selected_bank: (() => {
+        const approvedBanks = banksSubmitted.filter(bs => bs.result?.includes('อนุมัติ') && !bs.result?.includes('ไม่อนุมัติ') && bs.bank !== 'Proptiane');
+        if (approvedBanks.length > 0) return approvedBanks[Math.floor(seededRandom.next() * approvedBanks.length)].bank;
+        return null;
+      })(),
 
       // 6. Credit
       credit_status: hasBankFinal ? 'อนุมัติแล้ว' : hasBureauResult ? 'รอผลธนาคาร' : 'รอผล Bureau',
@@ -1403,17 +1550,20 @@ function generateBulkBookings(): Booking[] {
       bank_request_more_doc_date: null,
       jd_request_more_doc_date: null,
       bureau_target_result_date: '28/01/2026',
+      bureau_target_result_date_biz: '27/01/2026',
       bureau_actual_result_date: hasBureauResult ? '27/01/2026' : null,
-      bureau_result: hasBureauResult ? 'ผ่าน' : null,
+      bureau_result: hasBureauResult ? ['บูโรปกติ - ไม่มีหนี้', 'บูโรปกติ - มีหนี้'][Math.floor(seededRandom.next() * 2)] : null,
       bank_preapprove_target_date: '05/02/2026',
+      bank_preapprove_target_date_biz: '04/02/2026',
       bank_preapprove_actual_date: hasBureauResult ? '03/02/2026' : null,
-      bank_preapprove_result: hasBureauResult ? `Pre-approve ${(price * 0.9).toLocaleString()}` : null,
+      bank_preapprove_result: hasBureauResult ? ['อนุมัติ - ไม่มีเงื่อนไข', 'อนุมัติ - มีหนี้', 'อนุมัติ - ต้องมีผู้กู้ร่วม', 'อนุมัติ'][Math.floor(seededRandom.next() * 4)] : null,
       bank_final_target_date: '15/02/2026',
+      bank_final_target_date_biz: '13/02/2026',
       bank_final_actual_date: hasBankFinal ? '12/02/2026' : null,
-      bank_final_result: hasBankFinal ? `อนุมัติ ${(price * 0.9).toLocaleString()}` : null,
+      bank_final_result: hasBankFinal ? ['อนุมัติ - เต็มวงเงิน', 'อนุมัติ - ไม่เต็มวงเงิน', 'อนุมัติ - ต้องซื้อพ่วง'][Math.floor(seededRandom.next() * 3)] : null,
       jd_final_target_date: hasBankFinal ? '20/02/2026' : null,
       jd_final_actual_date: hasBankFinal ? '18/02/2026' : null,
-      jd_final_result: hasBankFinal ? 'อนุมัติ' : null,
+      jd_final_result: hasBankFinal ? ['อนุมัติ - ไม่มีเงื่อนไข', 'อนุมัติ - แต่ต้องเพิ่มเงินหาร', 'อนุมัติ - แต่ทำกู้ร่วม'][Math.floor(seededRandom.next() * 3)] : null,
       co_remark: null,
 
       // 7. Inspection
@@ -1424,15 +1574,25 @@ function generateBulkBookings(): Booking[] {
       hired_inspector: seededRandom.next() > 0.5 ? null : ['บ.ตรวจบ้านมืออาชีพ', 'Home Check Pro', 'คุณวิชัย (ช่างอิสระ)', 'QC House Co.'][Math.floor(seededRandom.next() * 4)],
       unit_ready_inspection_date: '05/02/2026',
       cs_notify_target_date: '07/02/2026',
+      inspect1_notify_target_date: '05/02/2026',
+      inspect1_notify_target_date_biz: '04/02/2026',
       inspect1_notify_date: hasInspect1 ? '07/02/2026' : null,
       inspect1_appointment_date: hasInspect1 ? '12/02/2026' : null,
       inspect1_actual_date: hasInspect1 ? '12/02/2026' : null,
+      inspect1_result: hasInspect1 ? (hasInspect2 ? 'ไม่ผ่าน' : 'ผ่าน') : null,
       inspect1_ready_date: hasInspect2 ? '20/02/2026' : null,
+      inspect2_ready_target_date: hasInspect2 ? '18/02/2026' : null,
+      inspect2_ready_target_date_biz: hasInspect2 ? '17/02/2026' : null,
+      inspect2_ready_date: hasInspect2 ? '20/02/2026' : null,
       inspect2_appointment_date: hasInspect2 ? '25/02/2026' : null,
       inspect2_actual_date: hasInspect2 ? '25/02/2026' : null,
-      inspect2_ready_date: hasInspect3 ? '01/03/2026' : null,
+      inspect2_result: hasInspect2 ? (hasInspect3 ? 'ไม่ผ่าน' : 'ผ่าน') : null,
+      inspect3_ready_target_date: hasInspect3 ? '28/02/2026' : null,
+      inspect3_ready_target_date_biz: hasInspect3 ? '27/02/2026' : null,
+      inspect3_ready_date: hasInspect3 ? '01/03/2026' : null,
       inspect3_appointment_date: hasInspect3 ? '05/03/2026' : null,
       inspect3_actual_date: hasInspect3 ? '05/03/2026' : null,
+      inspect3_result: hasInspect3 ? 'ผ่าน' : null,
       handover_accept_date: stage === 'ready' ? '08/03/2026' : null,
       inspection_officer: 'ประวิทย์ (เอ็ม)',
       cs_owner: 'มานพ / ศิริพร',
@@ -1443,6 +1603,7 @@ function generateBulkBookings(): Booking[] {
       title_clear_date: stage === 'ready' ? '25/02/2026' : null,
       title_clear_notify_date: stage === 'ready' ? '26/02/2026' : null,
       transfer_target_date: '15/03/2026',
+      transfer_upside_flag: stage === 'ready' ? 'Upside' : null,
       transfer_actual_date: null,
       transfer_appointment_date: stage === 'ready' ? '12/03/2026' : null,
       transfer_status: 'In process',
@@ -1463,13 +1624,15 @@ function generateBulkBookings(): Booking[] {
       livnex_able_completion_result: seededRandom.next() > 0.5 ? 'สนใจ' : 'ไม่สนใจ',
       livnex_complete_date: null,
       sale_offer_livnex_flag: seededRandom.next() > 0.3,
+      livnex_present_date: seededRandom.next() > 0.5 ? '15/01/2026' : null,
       livnex_contract_appointment_date: null,
       livnex_contract_actual_date: null,
       livnex_cancel_date: null,
       livnex_cancel_reason: null,
-      rentnex_contract_appointment_date: null,
-      rentnex_cancel_date: null,
-      rentnex_cancel_reason: null,
+      pre_livnex_present_date: seededRandom.next() > 0.6 ? '12/01/2026' : null,
+      pre_livnex_contract_appointment_date: null,
+      pre_livnex_cancel_date: null,
+      pre_livnex_cancel_reason: null,
 
       // 10. Follow-up
       followup_bank: seededRandom.next() > 0.5 ? 'รอผล' : null,
@@ -1513,6 +1676,11 @@ function generateBulkBookings(): Booking[] {
       product_status: stage === 'ready' ? 'พร้อมโอน' : hasInspect1 ? 'รอแก้งาน' : 'รอตรวจ',
       contract_transfer_due_date: '30 วันหลังทำสัญญา',
       transferred_actual_flag: false,
+
+      // 14. Management Weekly Tracking
+      mgmt_status: stage === 'transferred' ? 'โอน' : 'in process',
+      mgmt_responsible: stage === 'credit' ? 'CO, Sale' : (stage === 'inspection' ? 'CON, CS, CO' : 'Sale'),
+      mgmt_remark: seededRandom.next() > 0.4 ? `WK4: ติดตามงาน ${stage === 'credit' ? 'รอผลธนาคาร' : 'รอนัดลูกค้า'}` : null,
 
       // Computed
       stage: stage,

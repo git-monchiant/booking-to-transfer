@@ -21,18 +21,18 @@ interface PerformanceChartsProps {
 
 // Simulated monthly data - realistic: ~9000 yearly booking, ~5000 yearly transfer
 const SIMULATED_DATA = [
-  { month: 'Jan', target: 700, booking: 682, livnex: 28, rentnex: 18, contract: 620, cancel: 85, transfer: 380 },
-  { month: 'Feb', target: 750, booking: 798, livnex: 35, rentnex: 22, contract: 710, cancel: 92, transfer: 425 },
-  { month: 'Mar', target: 850, booking: 892, livnex: 42, rentnex: 28, contract: 780, cancel: 105, transfer: 485 },
-  { month: 'Apr', target: 700, booking: 658, livnex: 25, rentnex: 16, contract: 590, cancel: 78, transfer: 365 },
-  { month: 'May', target: 750, booking: 771, livnex: 32, rentnex: 21, contract: 680, cancel: 88, transfer: 410 },
-  { month: 'Jun', target: 800, booking: 835, livnex: 38, rentnex: 25, contract: 740, cancel: 95, transfer: 455 },
-  { month: 'Jul', target: 750, booking: 745, livnex: 30, rentnex: 19, contract: 660, cancel: 82, transfer: 395 },
-  { month: 'Aug', target: 750, booking: 762, livnex: 33, rentnex: 22, contract: 685, cancel: 86, transfer: 420 },
-  { month: 'Sep', target: 800, booking: 812, livnex: 36, rentnex: 24, contract: 720, cancel: 90, transfer: 445 },
-  { month: 'Oct', target: 800, booking: 825, livnex: 38, rentnex: 26, contract: 735, cancel: 94, transfer: 460 },
-  { month: 'Nov', target: 800, booking: 788, livnex: 34, rentnex: 23, contract: 700, cancel: 88, transfer: 435 },
-  { month: 'Dec', target: 650, booking: 632, livnex: 24, rentnex: 15, contract: 560, cancel: 72, transfer: 350 },
+  { month: 'Jan', target: 700, booking: 682, livnex: 28, preLivnex: 18, contract: 620, cancel: 85, transfer: 380 },
+  { month: 'Feb', target: 750, booking: 798, livnex: 35, preLivnex: 22, contract: 710, cancel: 92, transfer: 425 },
+  { month: 'Mar', target: 850, booking: 892, livnex: 42, preLivnex: 28, contract: 780, cancel: 105, transfer: 485 },
+  { month: 'Apr', target: 700, booking: 658, livnex: 25, preLivnex: 16, contract: 590, cancel: 78, transfer: 365 },
+  { month: 'May', target: 750, booking: 771, livnex: 32, preLivnex: 21, contract: 680, cancel: 88, transfer: 410 },
+  { month: 'Jun', target: 800, booking: 835, livnex: 38, preLivnex: 25, contract: 740, cancel: 95, transfer: 455 },
+  { month: 'Jul', target: 750, booking: 745, livnex: 30, preLivnex: 19, contract: 660, cancel: 82, transfer: 395 },
+  { month: 'Aug', target: 750, booking: 762, livnex: 33, preLivnex: 22, contract: 685, cancel: 86, transfer: 420 },
+  { month: 'Sep', target: 800, booking: 812, livnex: 36, preLivnex: 24, contract: 720, cancel: 90, transfer: 445 },
+  { month: 'Oct', target: 800, booking: 825, livnex: 38, preLivnex: 26, contract: 735, cancel: 94, transfer: 460 },
+  { month: 'Nov', target: 800, booking: 788, livnex: 34, preLivnex: 23, contract: 700, cancel: 88, transfer: 435 },
+  { month: 'Dec', target: 650, booking: 632, livnex: 24, preLivnex: 15, contract: 560, cancel: 72, transfer: 350 },
 ];
 
 // Format value for axis - using centralized formatMoney from bookings.ts
