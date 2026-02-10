@@ -1,23 +1,29 @@
-# dependencies
+# Dependencies
 node_modules/
 
-# next.js
+# Next.js
 .next/
 out/
 
-# production
+# Production
 build/
+dist/
 
-# misc
+# Debug
+npm-debug.log*
+
+# Local env files
+.env*.local
+.env
+
+# IDE
+.idea/
+.vscode/
+
+# OS
 .DS_Store
 *.pem
 
-# debug
-npm-debug.log*
-
-# env
-.env*.local
-
-# typescript
+# TypeScript
 *.tsbuildinfo
 next-env.d.ts
