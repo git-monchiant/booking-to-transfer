@@ -66,7 +66,6 @@ export interface Booking {
   // ─────────────────────────────────────────────
   project_code: string;             // e.g., "1800"
   project_name: string;             // e.g., "01800 - เสนา เวล่า สิริโสธร"
-  row_no: number;                   // row number in sheet
   building_zone: string;            // e.g., "E"
   unit_no: string;                  // e.g., "1"
   house_reg_no: string;             // e.g., "123/1"
@@ -79,7 +78,6 @@ export interface Booking {
   contract_date: string | null;     // "25/12/2025"
   net_contract_value: number;       // 1830000
   aging_days: number;               // จำนวนวันตั้งแต่จอง
-  aging_N_minus_U: number;          // 39
   pro_transfer_bonus: number;       // 15794
   reason_not_transfer_this_month: string | null;
 
@@ -231,7 +229,6 @@ export interface Booking {
   followup_note: string | null;
   pm_fast_sent_date: string | null;
   cs_review_date: string | null;
-  qc_result: string | null;         // "QC.Pass" | "แก้งาน 5 รายการ"
   con_review_result: string | null; // "Pass" | "รอแก้ไข"
 
   // ─────────────────────────────────────────────
@@ -287,7 +284,6 @@ export const bookings: Booking[] = [
     // 2. Project
     project_code: '1800',
     project_name: '01800 - เสนา เวล่า สิริโสธร',
-    row_no: 1,
     building_zone: 'E',
     unit_no: '1',
     house_reg_no: '123/1',
@@ -297,7 +293,6 @@ export const bookings: Booking[] = [
     booking_date: '18/12/2025',
     contract_date: '25/12/2025',
     net_contract_value: 1830000,
-    aging_N_minus_U: 39,
     pro_transfer_bonus: 15794,
     reason_not_transfer_this_month: 'ลูกค้าดูฤกษ์โอน',
 
@@ -419,7 +414,6 @@ export const bookings: Booking[] = [
     followup_note: 'ลูกค้าขอดูฤกษ์หลังสงกรานต์',
     pm_fast_sent_date: '01/07/2026',
     cs_review_date: null,
-    qc_result: 'QC.Pass',
     con_review_result: 'Pass',
 
     // 11. Finance
@@ -466,7 +460,6 @@ export const bookings: Booking[] = [
     // 2. Project
     project_code: '1801',
     project_name: '01801 - เสนา พาร์ค แกรนด์ รามอินทรา',
-    row_no: 2,
     building_zone: 'A',
     unit_no: '45',
     house_reg_no: '45/12',
@@ -476,7 +469,6 @@ export const bookings: Booking[] = [
     booking_date: '05/01/2026',
     contract_date: '12/01/2026',
     net_contract_value: 3250000,
-    aging_N_minus_U: 22,
     pro_transfer_bonus: 28500,
     reason_not_transfer_this_month: 'รอผลอนุมัติธนาคาร',
 
@@ -599,7 +591,6 @@ export const bookings: Booking[] = [
     followup_note: 'ลูกค้าพร้อมโอนทันทีหลังอนุมัติ',
     pm_fast_sent_date: null,
     cs_review_date: null,
-    qc_result: 'รอตรวจ',
     con_review_result: 'Pass',
 
     // 11. Finance
@@ -646,7 +637,6 @@ export const bookings: Booking[] = [
     // 2. Project
     project_code: '1802',
     project_name: '01802 - เสนา วิลล์ บางนา กม.7',
-    row_no: 3,
     building_zone: 'B',
     unit_no: '78',
     house_reg_no: '78/5',
@@ -656,7 +646,6 @@ export const bookings: Booking[] = [
     booking_date: '10/12/2025',
     contract_date: '17/12/2025',
     net_contract_value: 4500000,
-    aging_N_minus_U: 53,
     pro_transfer_bonus: 38500,
     reason_not_transfer_this_month: 'รอแก้งาน ตรวจรอบ 2',
 
@@ -778,7 +767,6 @@ export const bookings: Booking[] = [
     followup_note: 'งานแก้ไข 5 รายการ รอช่างเสร็จ 23 ม.ค.',
     pm_fast_sent_date: null,
     cs_review_date: '13/01/2026',
-    qc_result: 'แก้งาน 5 รายการ',
     con_review_result: 'รอแก้ไข',
 
     // 11. Finance
@@ -825,7 +813,6 @@ export const bookings: Booking[] = [
     // 2. Project
     project_code: '1800',
     project_name: '01800 - เสนา เวล่า สิริโสธร',
-    row_no: 4,
     building_zone: 'C',
     unit_no: '25',
     house_reg_no: '25/3',
@@ -835,7 +822,6 @@ export const bookings: Booking[] = [
     booking_date: '01/12/2025',
     contract_date: '08/12/2025',
     net_contract_value: 2100000,
-    aging_N_minus_U: 62,
     pro_transfer_bonus: 18200,
     reason_not_transfer_this_month: null,
 
@@ -958,7 +944,6 @@ export const bookings: Booking[] = [
     followup_note: 'ลูกค้ายืนยันมาโอนแน่นอน',
     pm_fast_sent_date: null,
     cs_review_date: '06/01/2026',
-    qc_result: 'QC.Pass',
     con_review_result: 'Pass',
 
     // 11. Finance
@@ -1005,7 +990,6 @@ export const bookings: Booking[] = [
     // 2. Project
     project_code: '1801',
     project_name: '01801 - เสนา พาร์ค แกรนด์ รามอินทรา',
-    row_no: 5,
     building_zone: 'D',
     unit_no: '102',
     house_reg_no: '102/8',
@@ -1015,7 +999,6 @@ export const bookings: Booking[] = [
     booking_date: '15/11/2025',
     contract_date: '22/11/2025',
     net_contract_value: 5200000,
-    aging_N_minus_U: 0,
     pro_transfer_bonus: 45000,
     reason_not_transfer_this_month: null,
 
@@ -1138,7 +1121,6 @@ export const bookings: Booking[] = [
     followup_note: 'โอนเรียบร้อย เร็วกว่ากำหนด',
     pm_fast_sent_date: null,
     cs_review_date: '21/12/2025',
-    qc_result: 'QC.Pass',
     con_review_result: 'Pass',
 
     // 11. Finance
@@ -1354,7 +1336,6 @@ function generateBulkBookings(): Booking[] {
       // 2. Project
       project_code: project.split(' - ')[0].replace('0', ''),
       project_name: project,
-      row_no: id,
       building_zone: ['A', 'B', 'C', 'D', 'E'][Math.floor(seededRandom.next() * 5)],
       unit_no: String(Math.floor(seededRandom.next() * 200) + 1),
       house_reg_no: `${Math.floor(seededRandom.next() * 200) + 1}/${Math.floor(seededRandom.next() * 50) + 1}`,
@@ -1364,7 +1345,6 @@ function generateBulkBookings(): Booking[] {
       booking_date: '15/01/2026',
       contract_date: stage !== 'booking' ? '22/01/2026' : null,
       net_contract_value: price,
-      aging_N_minus_U: Math.floor(seededRandom.next() * 60) + 10,
       pro_transfer_bonus: Math.round(price * 0.008),
       reason_not_transfer_this_month: seededRandom.next() > 0.5 ? 'รอผลอนุมัติธนาคาร' : null,
 
@@ -1490,7 +1470,6 @@ function generateBulkBookings(): Booking[] {
       followup_note: null,
       pm_fast_sent_date: null,
       cs_review_date: null,
-      qc_result: hasInspect1 ? 'QC.Pass' : null,
       con_review_result: hasInspect1 ? 'Pass' : null,
 
       // 11. Finance

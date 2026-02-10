@@ -35,6 +35,36 @@ function bankDisplayName(code: string): string {
   return code === 'Proptiane' ? 'Jaidee (JD)' : code;
 }
 
+// Bank brand colors — chip bg + white text
+const BANK_CHIP: Record<string, string> = {
+  KBANK: 'bg-green-600',
+  SCB: 'bg-violet-700',
+  KTB: 'bg-sky-600',
+  BBL: 'bg-blue-800',
+  BAY: 'bg-yellow-500',
+  GHB: 'bg-orange-500',
+  GSB: 'bg-pink-500',
+  TTB: 'bg-orange-400',
+  LH: 'bg-lime-600',
+  UOB: 'bg-blue-600',
+  CIMB: 'bg-red-600',
+  KKP: 'bg-teal-600',
+  iBank: 'bg-emerald-600',
+  TISCO: 'bg-cyan-700',
+  CASH: 'bg-slate-600',
+  'สหกรณ์': 'bg-stone-500',
+  Proptiane: 'bg-green-500',
+};
+
+function BankChip({ code }: { code: string }) {
+  const bg = BANK_CHIP[code] || 'bg-slate-500';
+  return (
+    <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold text-white ${bg}`}>
+      {bankDisplayName(code)}
+    </span>
+  );
+}
+
 // ─── Tiny UI atoms ───
 function Val({ v, green, red }: { v: string | null | undefined; green?: boolean; red?: boolean }) {
   if (!v) return <span className="text-slate-300">—</span>;
@@ -510,7 +540,7 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange }: 
                   </button>
 
                   {banksOpen && (
-                    <div className="p-2 space-y-1.5">
+                    <div className="border-t border-slate-100">
                       {[...b.banks_submitted]
                         .sort((a, _b) => a.bank === 'Proptiane' ? 1 : _b.bank === 'Proptiane' ? -1 : 0)
                         .map((bs, i) => {
@@ -524,33 +554,38 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange }: 
                             { label: 'อนุมัติจริง', target: b.bank_final_target_date_biz, actual: bs.result_date, result: bs.result },
                           ];
                           return (
-                            <div key={i} className="rounded-lg border border-slate-200 overflow-hidden text-[11px]">
-                              <div className="flex items-center gap-3 px-3 py-1.5 bg-slate-50 border-b border-slate-200">
-                                <span className="font-semibold text-slate-700 text-xs">{bankDisplayName(bs.bank)}</span>
+                            <div key={i} className={i > 0 ? 'border-t border-slate-100' : ''}>
+                              <div className="flex items-center gap-3 px-3 py-1.5 bg-slate-50/60">
+                                <BankChip code={bs.bank} />
                                 <span className="text-slate-400 text-[10px]">ยื่น {bs.submit_date || '—'}</span>
                                 {!isJD && bs.approved_amount ? <span className="ml-auto font-semibold text-emerald-600">฿{formatMoney(bs.approved_amount)}</span> : null}
                               </div>
-                              <table className="w-full text-[11px]">
-                                <thead>
-                                  <tr className="text-[9px] uppercase tracking-wider text-slate-400 border-b border-slate-100">
-                                    <th className="text-left font-medium px-3 py-1 w-[25%]">ขั้นตอน</th>
-                                    <th className="text-left font-medium px-2 py-1 w-[20%]">กำหนด</th>
-                                    <th className="text-left font-medium px-2 py-1 w-[20%]">จริง</th>
-                                    <th className="text-left font-medium px-2 py-1">ผล</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {steps.map((s, si) => (
-                                    <tr key={si} className={si < steps.length - 1 ? 'border-b border-slate-50' : ''}>
-                                      <td className="px-3 py-1.5 font-medium text-slate-600">{s.label}</td>
-                                      <td className="px-2 py-1.5 text-slate-400">{s.target || '—'}</td>
-                                      <td className="px-2 py-1.5 text-slate-700">{s.actual || <span className="text-slate-300">—</span>}</td>
-                                      <td className="px-2 py-1.5"><ResultBadge value={s.result} /></td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                              {bs.remark && <div className="text-[10px] text-slate-500 px-3 py-1 border-t border-slate-100 bg-slate-50/50 italic">{bs.remark}</div>}
+                              <div className="grid divide-x divide-slate-100 grid-cols-3" style={isJD ? { gridTemplateColumns: '1fr 2fr' } : undefined}>
+                                {steps.map((step, si) => {
+                                  const isFail = !!step.result && (step.result.includes('ไม่อนุมัติ') || step.result.includes('ค้างชำระ') || step.result === 'อาณัติ' || step.result === 'ยกเลิก' || step.result === 'ปฏิเสธ');
+                                  const isPass = !!step.result && !isFail && (step.result.includes('อนุมัติ') || step.result.includes('บูโรปกติ') || step.result === 'ผ่าน');
+                                  const stepBg = isPass ? 'bg-emerald-50' : isFail ? 'bg-red-50' : '';
+                                  return (
+                                  <div key={si} className={`px-3 py-2 space-y-1 ${stepBg}`}>
+                                    <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{si + 1}. {step.label}</div>
+                                    <div className="space-y-0.5 text-[10px]">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-slate-400">กำหนด</span>
+                                        <span className="text-slate-500 tabular-nums">{step.target || '—'}</span>
+                                      </div>
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-slate-400">จริง</span>
+                                        <span className={`tabular-nums ${step.actual ? 'text-slate-700 font-medium' : 'text-slate-300'}`}>{step.actual || '—'}</span>
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <ResultChip value={step.result} />
+                                    </div>
+                                  </div>
+                                  );
+                                })}
+                              </div>
+                              {bs.remark && <div className="text-[10px] text-slate-500 px-3 py-1 italic">{bs.remark}</div>}
                             </div>
                           );
                         })}
