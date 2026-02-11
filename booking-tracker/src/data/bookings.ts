@@ -6,13 +6,15 @@
 // Re-export master data เพื่อ backward compatibility
 export {
   STAGES, STAGE_CONFIG, TEAMS, TEAM_CONFIG, BANKS_LIST,
-  PROJECTS, SALE_TYPES, CREDIT_REQUEST_TYPES, CUSTOMER_OCCUPATIONS,
+  PROJECTS, COMPANIES, OPM_LIST, BUD_LIST, PROJECT_TYPES,
+  SALE_TYPES, CREDIT_REQUEST_TYPES, CUSTOMER_OCCUPATIONS,
   BUREAU_RESULTS, BANK_PREAPPROVE_RESULTS, BANK_FINAL_RESULTS, JD_RESULTS,
   APPROVAL_COMBINED_RESULTS, PURCHASE_OBJECTIVES, SALE_TYPE_FLAGS,
   INSPECTION_METHODS, BACKLOG_STATUSES, TRANSFER_STATUSES, MGMT_STATUSES,
   type Stage, type Team, type BankCode, type BankSubmission,
   type SaleType, type CreditRequestType, type CustomerOccupation, type BureauResult,
   type BankPreapproveResult, type BankFinalResult, type JDResult, type Project,
+  type Company, type OPMCode, type BUDCode,
 } from './masters';
 
 import type { Stage, BankCode, BankSubmission, Team } from './masters';

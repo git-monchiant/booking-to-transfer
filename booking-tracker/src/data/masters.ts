@@ -236,30 +236,59 @@ export const APPROVAL_COMBINED_RESULTS = [
 export type ApprovalCombinedResult = typeof APPROVAL_COMBINED_RESULTS[number];
 
 // ─────────────────────────────────────────────
-// โครงการ (Projects) — รวม OPM, BUD, head_co, house_type
+// บริษัท (Company)
+// ─────────────────────────────────────────────
+export const COMPANIES = ['SENA', 'SENX', 'SENA-JV'] as const;
+export type Company = typeof COMPANIES[number];
+
+// ─────────────────────────────────────────────
+// ประเภทโครงการ (Project Type)
+// ─────────────────────────────────────────────
+export const PROJECT_TYPES = ['แนวราบ', 'แนวสูง'] as const;
+export type ProjectType = typeof PROJECT_TYPES[number];
+
+// ─────────────────────────────────────────────
+// Project Status
+// ─────────────────────────────────────────────
+export const PROJECT_STATUSES = ['House', 'Condo'] as const;
+export type ProjectStatus = typeof PROJECT_STATUSES[number];
+
+// ─────────────────────────────────────────────
+// OPM (Operation Manager)
+// ─────────────────────────────────────────────
+export const OPM_LIST = ['OPM CH1', 'OPM H1'] as const;
+export type OPMCode = typeof OPM_LIST[number];
+
+// ─────────────────────────────────────────────
+// BUD (Business Unit Director)
+// ─────────────────────────────────────────────
+export const BUD_LIST = ['BUD H2'] as const;
+export type BUDCode = typeof BUD_LIST[number];
+
+// ─────────────────────────────────────────────
+// โครงการ (Projects) — รวม Company, OPM, BUD, Type
 // ─────────────────────────────────────────────
 export interface Project {
   code: string;
   name: string;
-  full_name: string;         // "code - name"
-  opm: string;               // Operation Manager
-  bud: string;               // Business Unit Director
-  head_co: string;           // Head CO
-  house_types: string[];     // ประเภทบ้านที่มีในโครงการ
-  building_zones: string[];  // โซนที่มีในโครงการ
+  company: Company;
+  project_status: string;
+  opm: string;
+  bud: string;
+  type: string;
 }
 
 export const PROJECTS: Project[] = [
-  { code: '1800', name: 'เสนา เวล่า สิริโสธร', full_name: '01800 - เสนา เวล่า สิริโสธร', opm: 'CH1 - คุณธานินทร์', bud: 'H2 - คุณเอกกฤษณ์', head_co: 'ภาวิณีย์', house_types: ['Euro', 'Modern'], building_zones: ['C', 'D', 'E'] },
-  { code: '1801', name: 'เสนา พาร์ค แกรนด์ รามอินทรา', full_name: '01801 - เสนา พาร์ค แกรนด์ รามอินทรา', opm: 'CH2 - คุณสมชาย', bud: 'H1 - คุณวิชัย', head_co: 'ภาวิณีย์', house_types: ['Modern', 'Contemporary'], building_zones: ['A', 'B', 'D'] },
-  { code: '1802', name: 'เสนา วิลล์ บางนา กม.7', full_name: '01802 - เสนา วิลล์ บางนา กม.7', opm: 'CH1 - คุณธานินทร์', bud: 'H2 - คุณเอกกฤษณ์', head_co: 'ภาวิณีย์', house_types: ['Contemporary', 'Classic'], building_zones: ['A', 'B'] },
-  { code: '1803', name: 'เสนา เอโค่ บางนา', full_name: '01803 - เสนา เอโค่ บางนา', opm: 'CH3 - คุณสุภา', bud: 'H1 - คุณวิชัย', head_co: 'ภาวิณีย์', house_types: ['Euro', 'Classic'], building_zones: ['A', 'B', 'C'] },
-  { code: '1804', name: 'เสนา คอนโด วงเวียนใหญ่', full_name: '01804 - เสนา คอนโด วงเวียนใหญ่', opm: 'CH2 - คุณสมชาย', bud: 'H2 - คุณเอกกฤษณ์', head_co: 'ภาวิณีย์', house_types: ['Modern'], building_zones: ['A'] },
-  { code: '1805', name: 'เสนา ทาวน์ รังสิต', full_name: '01805 - เสนา ทาวน์ รังสิต', opm: 'CH1 - คุณธานินทร์', bud: 'H1 - คุณวิชัย', head_co: 'ภาวิณีย์', house_types: ['Euro', 'Modern', 'Classic'], building_zones: ['A', 'B', 'C', 'D'] },
-  { code: '1806', name: 'เสนา วิลล่า สุขุมวิท', full_name: '01806 - เสนา วิลล่า สุขุมวิท', opm: 'CH3 - คุณสุภา', bud: 'H2 - คุณเอกกฤษณ์', head_co: 'ภาวิณีย์', house_types: ['Contemporary', 'Modern'], building_zones: ['A', 'B'] },
-  { code: '1807', name: 'เสนา เพลส ลาดพร้าว', full_name: '01807 - เสนา เพลส ลาดพร้าว', opm: 'CH2 - คุณสมชาย', bud: 'H1 - คุณวิชัย', head_co: 'ภาวิณีย์', house_types: ['Euro', 'Contemporary'], building_zones: ['A', 'B', 'C'] },
-  { code: '1808', name: 'เสนา ไลฟ์ บางปู', full_name: '01808 - เสนา ไลฟ์ บางปู', opm: 'CH1 - คุณธานินทร์', bud: 'H2 - คุณเอกกฤษณ์', head_co: 'ภาวิณีย์', house_types: ['Euro', 'Classic'], building_zones: ['A', 'B', 'C', 'D', 'E'] },
-  { code: '1809', name: 'เสนา เรสซิเดนซ์ อารีย์', full_name: '01809 - เสนา เรสซิเดนซ์ อารีย์', opm: 'CH3 - คุณสุภา', bud: 'H1 - คุณวิชัย', head_co: 'ภาวิณีย์', house_types: ['Modern', 'Contemporary'], building_zones: ['A', 'B'] },
+  { code: '00601', name: 'เสนา อเวนิว บางปะกง - บ้านโพธิ์', company: 'SENX', project_status: 'House', opm: 'OPM CH1', bud: 'BUD H2', type: 'แนวราบ' },
+  { code: '00602', name: 'J Town Execlusive บางปะกง', company: 'SENX', project_status: 'House', opm: 'OPM CH1', bud: 'BUD H2', type: 'แนวราบ' },
+  { code: '10301', name: 'เสนา วิลเลจ บางปะกง - บ้านโพธิ์', company: 'SENX', project_status: 'House', opm: 'OPM CH1', bud: 'BUD H2', type: 'แนวราบ' },
+  { code: '01800', name: 'เสนา เวล่า สิริโสธร', company: 'SENX', project_status: 'House', opm: 'OPM CH1', bud: 'BUD H2', type: 'แนวราบ' },
+  { code: '70401', name: 'เสนา วีว่า ศรีราชา - อัสสัมชัญ', company: 'SENX', project_status: 'House', opm: 'OPM CH1', bud: 'BUD H2', type: 'แนวราบ' },
+  { code: 'BPSN', name: 'บ้านบูรพา', company: 'SENA', project_status: 'House', opm: 'OPM CH1', bud: 'BUD H2', type: 'แนวราบ' },
+  { code: '00300', name: 'เสนา ช็อปเฮ้าส์ สุขุมวิท - แพรกษา', company: 'SENX', project_status: 'House', opm: 'OPM CH1', bud: 'BUD H2', type: 'แนวราบ' },
+  { code: '20100', name: 'เสนา วิลเลจ สุขุมวิท - แพรกษา 1', company: 'SENX', project_status: 'House', opm: 'OPM CH1', bud: 'BUD H2', type: 'แนวราบ' },
+  { code: 'BPU', name: 'เสนา เวล่า สุขุมวิท-บางปู', company: 'SENA-JV', project_status: 'House', opm: 'OPM H1', bud: 'BUD H2', type: 'แนวราบ' },
+  { code: 'TRAK1', name: 'เสนา เวล่า เทพารักษ์ - บางบ่อ', company: 'SENA-JV', project_status: 'House', opm: 'OPM H1', bud: 'BUD H2', type: 'แนวราบ' },
 ];
 
 // ─────────────────────────────────────────────

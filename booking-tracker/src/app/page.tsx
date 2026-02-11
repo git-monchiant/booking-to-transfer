@@ -15,9 +15,11 @@ import {
   Booking,
   Stage,
   Team,
+  OPM_LIST,
+  BUD_LIST,
 } from '@/data/bookings';
 import { Sidebar, View } from '@/components/Sidebar';
-import { SearchableSelect } from '@/components/SearchableSelect';
+import { MultiSelect } from '@/components/MultiSelect';
 import { PerformanceCharts } from '@/components/PerformanceCharts';
 import { BookingDetailPanel } from '@/components/BookingDetailPanel';
 import {
@@ -38,7 +40,6 @@ import {
   Banknote,
   ChevronRight,
   Search,
-  Filter,
   X,
   Phone,
   User,
@@ -59,13 +60,15 @@ export default function Home() {
 
   // Global Filters
   const [globalFilters, setGlobalFilters] = useState({
-    bu: 'all' as string,
-    project: 'all' as string,
+    bu: [] as string[],
+    opm: [] as string[],
+    project: [] as string[],
+    status: [] as string[],
+    responsible: [] as string[],
     datePreset: 'all' as string,
     dateFrom: '' as string,
     dateTo: '' as string,
   });
-  const [showGlobalFilter, setShowGlobalFilter] = useState(true);
 
   // Date preset helper
   const getDatePresetRange = (preset: string): { from: string; to: string } => {
@@ -105,20 +108,46 @@ export default function Home() {
     }));
   };
 
-  // Get unique values for filters
-  const uniqueBUs = useMemo(() => Array.from(new Set(bookings.map(b => b.BUD).filter(Boolean))).sort(), []);
-  const uniqueProjects = useMemo(() => Array.from(new Set(bookings.map(b => b.project_name))).sort(), []);
+  // Get unique values for filters — OPM/BUD from master data, others from booking data
+  const uniqueProjectNames = useMemo(() => Array.from(new Set(bookings.map(b => b.project_name))).sort(), []);
+
+  // Extract clean person names from booking fields
+  const cleanName = (v: string) => v.replace(/^\d+\.\d+\)\s*/, '').trim();
+  const extractNames = (b: Booking): string[] => {
+    const names: string[] = [];
+    if (b.sale_name) names.push(b.sale_name);
+    if (b.credit_owner) names.push(cleanName(b.credit_owner));
+    if (b.cs_owner) b.cs_owner.split(/\s*\/\s*/).forEach(n => { if (n.trim()) names.push(n.trim()); });
+    return names;
+  };
+  const uniqueResponsibles = useMemo(() => Array.from(new Set(
+    bookings.flatMap(b => extractNames(b))
+  )).sort(), []);
 
   const summary = useMemo(() => getSummary(), []);
 
   // Apply global filters first, then local filters
   const globalFilteredBookings = useMemo(() => {
     let result = [...bookings];
-    if (globalFilters.bu !== 'all') {
-      result = result.filter(b => b.BUD === globalFilters.bu);
+    if (globalFilters.bu.length > 0) {
+      const budCodes = globalFilters.bu.map(v => v.replace('BUD ', ''));
+      result = result.filter(b => budCodes.some(code => b.BUD?.startsWith(code)));
     }
-    if (globalFilters.project !== 'all') {
-      result = result.filter(b => b.project_name === globalFilters.project);
+    if (globalFilters.opm.length > 0) {
+      const opmCodes = globalFilters.opm.map(v => v.replace('OPM ', ''));
+      result = result.filter(b => opmCodes.some(code => b.OPM?.startsWith(code)));
+    }
+    if (globalFilters.project.length > 0) {
+      result = result.filter(b => globalFilters.project.includes(b.project_name));
+    }
+    if (globalFilters.status.length > 0) {
+      result = result.filter(b => globalFilters.status.includes(b.stage));
+    }
+    if (globalFilters.responsible.length > 0) {
+      result = result.filter(b => {
+        const names = extractNames(b);
+        return names.some(n => globalFilters.responsible.includes(n));
+      });
     }
     if (globalFilters.dateFrom) {
       const fromDate = new Date(globalFilters.dateFrom);
@@ -164,6 +193,7 @@ export default function Home() {
     } else if (currentView === 'pending-work') {
       result = result.filter(b => b.stage === 'transferred' && !b.handover_document_received_date);
     } else if (stageFilter !== 'all') {
+      // Sidebar stage filter — works together with global filters (AND logic)
       if (stageFilter === 'credit') {
         result = result.filter(b => b.stage !== 'cancelled' && b.stage !== 'transferred' && b.credit_status !== 'อนุมัติแล้ว' && b.credit_status !== 'โอนสด');
       } else if (stageFilter === 'inspection') {
@@ -280,120 +310,147 @@ export default function Home() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6">
-          <div>
-            <h1 className="text-xl font-bold text-slate-900">
+        <header className="h-12 bg-white border-b border-slate-200 flex items-center justify-between px-6">
+          <div className="flex items-center gap-3">
+            <h1 className="text-base font-bold text-slate-900">
               {(currentView === 'dashboard' || currentView === 'dashboard-performance') && 'Dashboard - Performance'}
               {currentView === 'dashboard-tracking' && 'Dashboard - Tracking'}
               {currentView === 'pipeline' && 'Pipeline'}
-              {currentView === 'list' && (stageFilter === 'all' ? 'รายการ Booking ทั้งหมด' : `Booking - ${STAGE_CONFIG[stageFilter]?.label}`)}
+              {currentView === 'list' && (stageFilter === 'all' ? 'All Bookings' : STAGE_CONFIG[stageFilter]?.label)}
               {currentView === 'blocked' && 'รายการติดปัญหา'}
               {currentView === 'team' && `ทีม ${TEAM_CONFIG[selectedTeam]?.label}`}
-              {currentView === 'after-transfer' && 'After Transfer - ภาพรวม'}
-              {currentView === 'refund' && 'คืนเงิน / Refund'}
-              {currentView === 'meter' && 'เปลี่ยนมิเตอร์'}
+              {currentView === 'after-transfer' && 'After Transfer'}
+              {currentView === 'refund' && 'เงินทอน'}
+              {currentView === 'meter' && 'มิเตอร์น้ำ-ไฟ'}
               {currentView === 'freebie' && 'ของแถม'}
               {currentView === 'pending-work' && 'งานค้าง'}
               {currentView === 'cancel-onprocess' && 'Cancel - Onprocess'}
-              {currentView === 'cancel-livnex' && 'Cancel - ไป LivNex'}
-              {currentView === 'cancel-pre-livnex' && 'Cancel - ไป Pre-LivNex'}
+              {currentView === 'cancel-livnex' && 'Cancel - LivNex'}
+              {currentView === 'cancel-pre-livnex' && 'Cancel - Pre-LivNex'}
               {currentView === 'cancel-actual' && 'Cancel - ยกเลิกจริง'}
             </h1>
+            <span className="text-xs text-slate-400 font-medium">{filteredBookings.length} รายการ</span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
               <input
                 type="text"
                 placeholder="ค้นหา ID, ชื่อ, โครงการ..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-56 pl-9 pr-4 py-2 bg-slate-100 border-0 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-52 pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               />
-            </div>
-            <button
-              onClick={() => setShowGlobalFilter(!showGlobalFilter)}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition ${
-                showGlobalFilter || Object.values(globalFilters).some(v => v !== 'all')
-                  ? 'bg-indigo-100 text-teal-700 border border-teal-300'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              <Filter className="w-4 h-4" />
-              Filter
-              {Object.values(globalFilters).filter(v => v !== 'all').length > 0 && (
-                <span className="bg-indigo-500 text-white text-xs px-1.5 py-0.5 rounded-full">
-                  {Object.values(globalFilters).filter(v => v !== 'all').length}
-                </span>
-              )}
-            </button>
-            <div className="text-sm text-slate-500">
-              {new Date().toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' })}
             </div>
           </div>
         </header>
 
-        {/* Global Filter Panel */}
-        {showGlobalFilter && (
-          <div className="bg-white border-b border-slate-200 px-6 py-4">
-            <div className="flex items-center gap-4 flex-wrap">
-              <div className="flex items-center gap-2">
-                <label className="text-xs font-medium text-slate-500 uppercase">BU</label>
-                <SearchableSelect
-                  value={globalFilters.bu}
-                  onChange={(value) => setGlobalFilters(prev => ({ ...prev, bu: value }))}
-                  options={[
-                    { value: 'all', label: 'ทั้งหมด' },
-                    ...uniqueBUs.map(bu => ({ value: bu, label: bu })),
-                  ]}
-                  placeholder="เลือก BU"
-                  className="w-48"
+        {/* Global Filter Panel — always visible */}
+          <div className="bg-white border-b border-slate-200 px-6 py-3">
+            <div className="flex items-end gap-3 flex-wrap">
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-semibold text-slate-400 uppercase">BUD</label>
+                <MultiSelect
+                  values={globalFilters.bu}
+                  onChange={(values) => setGlobalFilters(prev => ({ ...prev, bu: values }))}
+                  options={BUD_LIST.map(b => ({ value: b, label: b }))}
+                  placeholder="ทั้งหมด"
+                  className="w-36"
                 />
               </div>
-              <div className="flex items-center gap-2">
-                <label className="text-xs font-medium text-slate-500 uppercase">โครงการ</label>
-                <SearchableSelect
-                  value={globalFilters.project}
-                  onChange={(value) => setGlobalFilters(prev => ({ ...prev, project: value }))}
-                  options={[
-                    { value: 'all', label: 'ทั้งหมด' },
-                    ...uniqueProjects.map(p => ({ value: p, label: p })),
-                  ]}
-                  placeholder="เลือกโครงการ"
-                  className="w-72"
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-semibold text-slate-400 uppercase">OPM</label>
+                <MultiSelect
+                  values={globalFilters.opm}
+                  onChange={(values) => setGlobalFilters(prev => ({ ...prev, opm: values }))}
+                  options={OPM_LIST.map(o => ({ value: o, label: o }))}
+                  placeholder="ทั้งหมด"
+                  className="w-36"
                 />
               </div>
-              <div className="flex items-center gap-2">
-                <label className="text-xs font-medium text-slate-500 uppercase">ช่วงวันที่</label>
-                <input
-                  type="date"
-                  value={globalFilters.dateFrom}
-                  onChange={(e) => setGlobalFilters(prev => ({ ...prev, datePreset: 'custom', dateFrom: e.target.value }))}
-                  className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                />
-                <span className="text-slate-400">-</span>
-                <input
-                  type="date"
-                  value={globalFilters.dateTo}
-                  onChange={(e) => setGlobalFilters(prev => ({ ...prev, datePreset: 'custom', dateTo: e.target.value }))}
-                  className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-semibold text-slate-400 uppercase">โครงการ</label>
+                <MultiSelect
+                  values={globalFilters.project}
+                  onChange={(values) => setGlobalFilters(prev => ({ ...prev, project: values }))}
+                  options={uniqueProjectNames.map(p => ({ value: p, label: p }))}
+                  placeholder="ทั้งหมด"
+                  className="w-56"
                 />
               </div>
-              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-semibold text-slate-400 uppercase">สถานะงาน</label>
+                <MultiSelect
+                  values={globalFilters.status}
+                  onChange={(values) => setGlobalFilters(prev => ({ ...prev, status: values }))}
+                  options={Object.entries(STAGE_CONFIG).map(([key, config]) => ({
+                    value: key,
+                    label: config.label,
+                    color: config.color,
+                    bg: config.bg,
+                  }))}
+                  placeholder="ทั้งหมด"
+                  className="w-44"
+                  renderOption={(opt) => (
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: opt.color }} />
+                      {opt.label}
+                    </span>
+                  )}
+                  renderSelected={(selected) => (
+                    <span className="flex items-center gap-1 overflow-hidden">
+                      {selected.map(s => (
+                        <span key={s.value} className="px-1.5 py-0.5 rounded text-[10px] font-semibold shrink-0" style={{ backgroundColor: s.bg, color: s.color }}>
+                          {s.label}
+                        </span>
+                      ))}
+                    </span>
+                  )}
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-semibold text-slate-400 uppercase">ผู้รับผิดชอบ</label>
+                <MultiSelect
+                  values={globalFilters.responsible}
+                  onChange={(values) => setGlobalFilters(prev => ({ ...prev, responsible: values }))}
+                  options={uniqueResponsibles.map(r => ({ value: r, label: r }))}
+                  placeholder="ทั้งหมด"
+                  className="w-40"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-semibold text-slate-400 uppercase">วันที่</label>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="date"
+                    value={globalFilters.dateFrom}
+                    onChange={(e) => setGlobalFilters(prev => ({ ...prev, datePreset: 'custom', dateFrom: e.target.value }))}
+                    className="px-2 py-1 bg-white border border-slate-200 rounded text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                  <span className="text-slate-300 text-xs">–</span>
+                  <input
+                    type="date"
+                    value={globalFilters.dateTo}
+                    onChange={(e) => setGlobalFilters(prev => ({ ...prev, datePreset: 'custom', dateTo: e.target.value }))}
+                    className="px-2 py-1 bg-white border border-slate-200 rounded text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-md self-end">
                 {[
                   { value: 'ytd', label: 'YTD' },
-                  { value: '3-months', label: '3 เดือน' },
-                  { value: '6-months', label: '6 เดือน' },
-                  { value: '1-year', label: '1 ปี' },
-                  { value: 'all', label: 'ทั้งหมด' },
+                  { value: '3-months', label: '3m' },
+                  { value: '6-months', label: '6m' },
+                  { value: '1-year', label: '1y' },
+                  { value: 'all', label: 'All' },
                 ].map(preset => (
                   <button
                     key={preset.value}
                     onClick={() => handleDatePresetChange(preset.value)}
-                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
+                    className={`px-2 py-1 rounded text-[11px] font-medium transition ${
                       globalFilters.datePreset === preset.value
-                        ? 'bg-white text-teal-600 shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900'
+                        ? 'bg-white text-indigo-600 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700'
                     }`}
                   >
                     {preset.label}
@@ -401,21 +458,18 @@ export default function Home() {
                 ))}
               </div>
               <div className="flex-1" />
-              {(globalFilters.bu !== 'all' || globalFilters.project !== 'all' || globalFilters.datePreset !== 'all') && (
+              {(globalFilters.bu.length > 0 || globalFilters.opm.length > 0 || globalFilters.project.length > 0 || globalFilters.status.length > 0 || globalFilters.responsible.length > 0 || globalFilters.dateFrom || globalFilters.dateTo) && (
                 <button
-                  onClick={() => setGlobalFilters({ bu: 'all', project: 'all', datePreset: 'all', dateFrom: '', dateTo: '' })}
-                  className="flex items-center gap-1 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition"
+                  onClick={() => setGlobalFilters({ bu: [], opm: [], project: [], status: [], responsible: [], datePreset: 'all', dateFrom: '', dateTo: '' })}
+                  className="flex items-center gap-1 px-2 py-1 text-[11px] text-red-500 hover:bg-red-50 rounded transition self-end"
                 >
-                  <X className="w-4 h-4" />
-                  ล้าง Filter
+                  <X className="w-3 h-3" />
+                  ล้าง
                 </button>
               )}
-              <div className="text-sm text-slate-500">
-                แสดง {globalFilteredBookings.length} จาก {bookings.length} รายการ
-              </div>
+              <span className="text-[11px] text-slate-400 self-end pb-1">{globalFilteredBookings.length}/{bookings.length}</span>
             </div>
           </div>
-        )}
 
         {/* Content */}
         <div className="flex-1 overflow-auto p-6">
@@ -1632,59 +1686,8 @@ export default function Home() {
 
           {/* ========== LIST VIEW ========== */}
           {(currentView === 'list' || currentView === 'after-transfer' || currentView === 'refund' || currentView === 'meter' || currentView === 'freebie' || currentView === 'pending-work') && (
-            <div className="space-y-4">
-              {/* Header with Filters */}
-              <div className="bg-white rounded-xl border border-slate-200 px-6 py-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-lg font-semibold text-slate-800">
-                      {currentView === 'after-transfer' ? 'After Transfer' :
-                       currentView === 'refund' ? 'เงินทอน' :
-                       currentView === 'meter' ? 'มิเตอร์น้ำ-ไฟ' :
-                       currentView === 'freebie' ? 'ของแถม' :
-                       currentView === 'pending-work' ? 'งานค้าง' :
-                       stageFilter === 'all' ? 'All Bookings' : STAGE_CONFIG[stageFilter]?.label}
-                    </h2>
-                    <p className="text-sm text-slate-500">
-                      แสดง {filteredBookings.length} รายการ
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                      <input
-                        type="text"
-                        placeholder="ค้นหา ID, ชื่อ, โครงการ..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-56 pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                      />
-                    </div>
-                    {currentView === 'list' && (
-                      <>
-                        <select
-                          value={stageFilter}
-                          onChange={(e) => setStageFilter(e.target.value as Stage | 'all')}
-                          className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                        >
-                          <option value="all">ทุกสถานะ</option>
-                          {Object.entries(STAGE_CONFIG).map(([key, config]) => (
-                            <option key={key} value={key}>{config.label}</option>
-                          ))}
-                        </select>
-                        <button
-                          onClick={() => { setStageFilter('all'); setSearchQuery(''); }}
-                          className="px-4 py-2 text-sm font-medium text-teal-600 hover:text-teal-700 hover:bg-indigo-50 rounded-lg transition whitespace-nowrap"
-                        >
-                          ดูทั้งหมด
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Booking Cards - Compact */}
+            <div>
+              {/* Booking Cards */}
               <div className="space-y-2">
                 {filteredBookings.map(booking => (
                   <div
@@ -1703,7 +1706,7 @@ export default function Home() {
                             {booking.house_type && <><span className="text-slate-300">|</span><span className="text-xs text-slate-600">{booking.house_type}</span></>}
                           </div>
                           <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-3 text-[10px] text-slate-400">
+                            <div className="flex items-center gap-3 text-[11px] text-slate-400">
                               <span>เป้าโอน: <span className="text-slate-600 font-medium">{booking.transfer_target_date || '-'}</span></span>
                               <span>นัดโอน: <span className="text-slate-600 font-medium">{booking.transfer_appointment_date || '-'}</span></span>
                               {booking.transfer_actual_date && (
@@ -1725,12 +1728,12 @@ export default function Home() {
                         </div>
 
                         {/* Row 1.5: Column Headers */}
-                        <div className="flex text-[10px] text-slate-400 font-bold uppercase mb-0.5">
+                        <div className="flex text-[11px] text-slate-400 font-bold uppercase mb-0.5">
                           <div className="w-[350px] shrink-0 pr-4 mr-5">
                             <span className="text-sm font-semibold text-slate-900 normal-case truncate">{booking.customer_name}</span>
                           </div>
-                          <div className={`flex-1 min-w-0 pr-3 mr-3 flex justify-between ${['refund','meter','freebie','pending-work'].includes(currentView) ? 'hidden' : ''}`}>
-                            <span>สินเชื่อ</span>
+                          <div className={`flex-1 min-w-0 pr-3 mr-3 flex justify-between bg-slate-50 rounded px-1.5 py-0.5 ${['refund','meter','freebie','pending-work'].includes(currentView) ? 'hidden' : ''}`}>
+                            <span className="text-xs normal-case font-semibold text-slate-900">สินเชื่อ</span>
                             <div className="flex items-center gap-1.5 normal-case">
                               <span className={`font-semibold ${
                                 booking.credit_status === 'อนุมัติแล้ว' || booking.credit_status === 'โอนสด' ? 'text-emerald-600' :
@@ -1745,8 +1748,8 @@ export default function Home() {
                               </>)}
                             </div>
                           </div>
-                          <div className={`w-[390px] shrink-0 pr-3 mr-3 flex items-center justify-between gap-2 ${['refund','meter','freebie','pending-work'].includes(currentView) ? 'hidden' : ''}`}>
-                            <span>ตรวจบ้าน</span>
+                          <div className={`w-[390px] shrink-0 pr-3 mr-3 flex items-center justify-between gap-2 bg-slate-50 rounded px-1.5 py-0.5 ${['refund','meter','freebie','pending-work'].includes(currentView) ? 'hidden' : ''}`}>
+                            <span className="text-xs normal-case font-semibold text-slate-900">ตรวจบ้าน</span>
                             <div className="flex items-center gap-1.5 normal-case">
                               {booking.inspection_status !== 'โอนแล้ว' && (
                                 <span className={`px-1.5 py-0.5 rounded font-semibold ${
@@ -1762,7 +1765,7 @@ export default function Home() {
                         {/* Row 2: Content */}
                         <div className="flex text-[11px]">
                           {/* Col 1: Customer - fixed 300px */}
-                          <div className="w-[350px] shrink-0 leading-snug pr-4 mr-5">
+                          <div className="w-[350px] shrink-0 leading-snug pr-4 mr-5 text-[11px]">
                             <div className="text-slate-600"><span className="text-slate-400">โทร : </span>{booking.customer_tel}</div>
                             <div className="text-slate-600 truncate"><span className="text-slate-400">อาชีพ : </span>{booking.customer_occupation || '-'}</div>
                             <div className="text-slate-600 truncate"><span className="text-slate-400">โครงการ : </span>{booking.project_name}</div>
@@ -1803,7 +1806,7 @@ export default function Home() {
                           </div>
 
                           {/* Col 2: Credit - fixed 570px */}
-                          <div className={`flex-1 min-w-0 leading-snug pr-3 mr-3 flex flex-col ${['refund','meter','freebie','pending-work'].includes(currentView) ? 'hidden' : ''}`}>
+                          <div className={`flex-1 min-w-0 leading-snug pr-3 mr-3 pb-1 flex flex-col ${['refund','meter','freebie','pending-work'].includes(currentView) ? 'hidden' : ''}`}>
                             {/* Credit Pipeline — 2-row inline stepper */}
                             {(() => {
                               const isPass = (v: string | null) => v != null && (v.includes('อนุมัติ') || v.includes('ปกติ')) && !v.includes('ไม่อนุมัติ');
@@ -1831,10 +1834,10 @@ export default function Home() {
                                 <div key={s.label} className="min-w-0">
                                   <div className="flex items-center gap-1">
                                     <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${s.val === 'done' ? 'bg-emerald-500' : dotCls(s.val)}`} />
-                                    <span className={`text-[11px] font-medium truncate ${txtCls(s.val)}`}>{s.label}</span>
-                                    {s.ag ? <span className="text-[9px] text-red-500 shrink-0">+{s.ag}d</span> : null}
+                                    <span className={`text-xs font-medium truncate ${txtCls(s.val)}`}>{s.label}</span>
+                                    {s.ag ? <span className="text-[10px] text-red-500 shrink-0">+{s.ag}d</span> : null}
                                   </div>
-                                  <div className="pl-3 text-[10px] leading-tight">
+                                  <div className="pl-3 text-[11px] leading-tight">
                                     {s.date && <span className="text-slate-400">{s.date}</span>}
                                     {!s.date && s.targetDate && <span className="text-slate-300">{s.targetDate}</span>}
                                     {s.val && s.val !== 'done' && <span className="text-slate-600 ml-1 truncate">{s.val}</span>}
@@ -1863,13 +1866,13 @@ export default function Home() {
                                     <div className="flex items-center gap-1 mt-auto pt-0.5 border-t border-slate-100">
                                       <div className="flex flex-wrap gap-0.5 flex-1 min-w-0">
                                         {booking.banks_submitted.map(bs => (
-                                          <span key={bs.bank} className={`inline-flex px-1 py-px text-[9px] font-bold text-white uppercase ${BCLR2[bs.bank] || 'bg-slate-500'}`} title={[bs.bank, bs.result, bs.approved_amount ? `฿${formatMoney(bs.approved_amount)}` : ''].filter(Boolean).join(' · ')}>
+                                          <span key={bs.bank} className={`inline-flex px-1 py-px text-[10px] font-bold text-white uppercase ${BCLR2[bs.bank] || 'bg-slate-500'}`} title={[bs.bank, bs.result, bs.approved_amount ? `฿${formatMoney(bs.approved_amount)}` : ''].filter(Boolean).join(' · ')}>
                                             {bs.bank}
                                           </span>
                                         ))}
                                       </div>
                                       {booking.credit_owner && (
-                                        <span className="text-[10px] text-slate-400 shrink-0 truncate max-w-[120px]">CO: <span className="text-slate-600">{booking.credit_owner}</span></span>
+                                        <span className="text-[11px] text-slate-400 shrink-0 truncate max-w-[120px]">CO: <span className="text-slate-600">{booking.credit_owner}</span></span>
                                       )}
                                     </div>
                                   );
@@ -1881,7 +1884,7 @@ export default function Home() {
 
                           {/* Col: After Transfer details (transferred only) */}
                           <div className={`flex-1 min-w-0 leading-snug pr-3 mr-3 text-[11px] ${!['refund','meter','freebie','pending-work'].includes(currentView) ? 'hidden' : ''}`}>
-                            <div className="text-[10px] font-bold text-teal-600 uppercase mb-1">
+                            <div className="text-[11px] font-bold text-teal-600 uppercase mb-1">
                               {currentView === 'refund' ? 'รายละเอียดการโอน และเงินทอนลูกค้า' :
                                currentView === 'freebie' ? 'รายละเอียดการโอน และของแถมลูกค้า' :
                                currentView === 'meter' ? 'รายละเอียดการโอน และการเปลี่ยนชื่อมิเตอร์น้ำ-ไฟ' :
@@ -1909,9 +1912,9 @@ export default function Home() {
                           </div>
 
                           {/* Col 4: Inspection - fixed 400px */}
-                          <div className={`w-[390px] shrink-0 leading-snug pr-3 mr-3 flex flex-col ${['refund','meter','freebie','pending-work'].includes(currentView) ? 'hidden' : ''}`}>
+                          <div className={`w-[390px] shrink-0 leading-snug pr-3 mr-3 pb-1 flex flex-col ${['refund','meter','freebie','pending-work'].includes(currentView) ? 'hidden' : ''}`}>
                             {/* QC 5.5 + จ้างตรวจ */}
-                            <div className="flex items-center gap-3 text-[10px] mb-0.5">
+                            <div className="flex items-center gap-3 text-[11px] mb-0.5">
                               <span className="text-slate-400">QC(5.5): <span className="text-slate-600">{booking.unit_ready_inspection_date || '-'}</span></span>
                               <span className="text-slate-400">จ้างตรวจ: <span className="text-violet-600">{booking.hired_inspector || '-'}</span></span>
                             </div>
@@ -1929,7 +1932,7 @@ export default function Home() {
                                   <div className="flex items-center gap-2">
                                     <span className="text-slate-400">ตรวจรอบ</span>
                                     <span className="font-semibold text-slate-600">{latest?.round || '-'}</span>
-                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                                    <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold ${
                                       latest?.result === 'ผ่าน' ? 'bg-emerald-50 text-emerald-600' : latest?.result === 'ไม่ผ่าน' ? 'bg-red-50 text-red-500' : 'bg-slate-50 text-slate-400'
                                     }`}>{latest?.result || '-'}</span>
                                   </div>
@@ -1943,7 +1946,7 @@ export default function Home() {
                               );
                             })()}
                             {/* Footer: ลูกค้าตรวจรับห้อง + CS/CON */}
-                            <div className="mt-auto pt-0.5 border-t border-slate-100 flex items-center gap-1 text-[10px]">
+                            <div className="mt-auto pt-0.5 border-t border-slate-100 flex items-center gap-1 text-[11px]">
                               <span className="text-slate-400">ลูกค้าตรวจรับห้อง: <span className={booking.handover_accept_date ? 'text-emerald-700 font-medium' : 'text-slate-400'}>{booking.handover_accept_date || '-'}</span>{booking.inspection_status === 'โอนแล้ว' && <span className="text-emerald-600 font-semibold ml-1">(โอนแล้ว)</span>}</span>
                               <span className="ml-auto text-slate-400 shrink-0 truncate">
                                 CS: <span className="text-slate-600">{booking.cs_owner || '-'}</span> · CON: <span className="text-slate-600">{booking.inspection_officer || '-'}</span>

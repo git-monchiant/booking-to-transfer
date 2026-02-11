@@ -281,14 +281,11 @@ export function Sidebar({
     const Icon = 'icon' in item ? item.icon : undefined;
     const iconColor = 'iconColor' in item ? (item as any).iconColor : undefined;
     const hasColor = 'color' in item && item.color && !Icon;
-    const isIndented = hasColor || item.id.startsWith('stage-') || item.id.startsWith('team-') || iconColor;
-
     return (
       <button
         key={item.id}
         onClick={() => handleMenuItemClick(item)}
-        className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition
-          ${isIndented ? 'pl-6' : ''}
+        className={`w-full flex items-center gap-3 pl-6 pr-3 py-2 rounded-lg text-sm font-medium transition
           ${active ? 'text-white' : 'text-slate-300 hover:bg-slate-800'}`}
         style={getItemStyle(item, active)}
       >
@@ -378,6 +375,16 @@ export function Sidebar({
         ))}
       </nav>
 
+      {/* User Profile */}
+      <div className="mt-auto border-t border-slate-700 px-4 py-3 flex items-center gap-3">
+        <div className="w-9 h-9 rounded-full bg-slate-600 flex items-center justify-center text-white text-xs font-semibold shrink-0">
+          JD
+        </div>
+        <div className="min-w-0">
+          <div className="text-sm font-medium text-white truncate">John Doe</div>
+          <div className="text-[11px] text-slate-400 truncate">Admin</div>
+        </div>
+      </div>
     </aside>
   );
 }
