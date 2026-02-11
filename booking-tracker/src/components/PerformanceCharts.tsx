@@ -94,7 +94,7 @@ export function PerformanceCharts({ bookings }: PerformanceChartsProps) {
             <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="#94a3b8" />
             <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" tickFormatter={formatValue} />
             <Tooltip content={<CustomTooltip />} />
-            <Legend wrapperStyle={{ fontSize: 11 }} iconSize={10} />
+            <Legend wrapperStyle={{ fontSize: 11 }} iconSize={10} align="right" verticalAlign="top" />
             <Bar dataKey="target" name="Target" fill="#d1d5db" radius={[2, 2, 0, 0]}>
               <LabelList dataKey="target" position="top" fontSize={9} fill="#94a3b8" formatter={(v) => typeof v === 'number' ? `${v.toLocaleString()} units` : ''} />
             </Bar>
@@ -118,7 +118,7 @@ export function PerformanceCharts({ bookings }: PerformanceChartsProps) {
             <YAxis yAxisId="left" tick={{ fontSize: 11 }} stroke="#94a3b8" tickFormatter={formatValue} />
             <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} stroke="#94a3b8" tickFormatter={formatValue} />
             <Tooltip content={<CustomTooltip />} />
-            <Legend wrapperStyle={{ fontSize: 11 }} iconSize={10} />
+            <Legend wrapperStyle={{ fontSize: 11 }} iconSize={10} align="right" verticalAlign="top" />
             <Bar yAxisId="left" dataKey="target" name="Target" fill="#d1d5db" radius={[2, 2, 0, 0]}>
               <LabelList dataKey="target" position="top" fontSize={9} fill="#94a3b8" formatter={(v) => typeof v === 'number' ? `${v.toLocaleString()} units` : ''} />
             </Bar>

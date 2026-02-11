@@ -330,7 +330,8 @@ export function Sidebar({
           <div className="px-3 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
             Dashboard
           </div>
-          <button
+          {/* Performance - hidden for now */}
+          {/* <button
             onClick={() => onViewChange('dashboard-performance')}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition pl-6
               ${currentView === 'dashboard-performance' || currentView === 'dashboard' ? 'text-white' : 'text-slate-300 hover:bg-slate-800'}`}
@@ -338,7 +339,7 @@ export function Sidebar({
           >
             <LayoutDashboard className="w-4 h-4" />
             Performance
-          </button>
+          </button> */}
           <button
             onClick={() => onViewChange('dashboard-tracking')}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition pl-6

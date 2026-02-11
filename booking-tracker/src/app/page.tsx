@@ -57,11 +57,12 @@ import {
 } from 'lucide-react';
 
 export default function Home() {
-  const [currentView, setCurrentView] = useState<View>('dashboard-performance');
+  const [currentView, setCurrentView] = useState<View>('dashboard-tracking');
   const [selectedTeam, setSelectedTeam] = useState<Team>('Sale');
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
   const [stageFilter, setStageFilter] = useState<Stage | 'all'>('all');
+  // selectedBudMonth removed — now showing all 12 months at once
 
   // Global Filters
   const [globalFilters, setGlobalFilters] = useState({
@@ -1002,6 +1003,208 @@ export default function Home() {
                 );
               })()}
 
+              {/* ════════ แผนโอน แต่ละเดือน ════════ */}
+              {(() => {
+                // Mock data — แผนโอน stack กับ Upside, เป้าสูง โอนจริงต่ำ
+                const chartData = [
+                  { month: 'ม.ค.',  เป้า: 35, แผนโอน: 18, Upside: 0,  โอนจริง: 18 },
+                  { month: 'ก.พ.',  เป้า: 40, แผนโอน: 22, Upside: 0,  โอนจริง: 20 },
+                  { month: 'มี.ค.', เป้า: 50, แผนโอน: 30, Upside: 8,  โอนจริง: 30 },
+                  { month: 'เม.ย.', เป้า: 35, แผนโอน: 15, Upside: 0,  โอนจริง: 15 },
+                  { month: 'พ.ค.',  เป้า: 40, แผนโอน: 18, Upside: 0,  โอนจริง: 18 },
+                  { month: 'มิ.ย.', เป้า: 50, แผนโอน: 24, Upside: 6,  โอนจริง: 26 },
+                  { month: 'ก.ค.',  เป้า: 45, แผนโอน: 22, Upside: 0,  โอนจริง: 22 },
+                  { month: 'ส.ค.',  เป้า: 45, แผนโอน: 20, Upside: 0,  โอนจริง: 20 },
+                  { month: 'ก.ย.',  เป้า: 50, แผนโอน: 25, Upside: 10, โอนจริง: 0 },
+                  { month: 'ต.ค.',  เป้า: 50, แผนโอน: 24, Upside: 0,  โอนจริง: 0 },
+                  { month: 'พ.ย.',  เป้า: 50, แผนโอน: 26, Upside: 7,  โอนจริง: 0 },
+                  { month: 'ธ.ค.',  เป้า: 35, แผนโอน: 18, Upside: 5,  โอนจริง: 0 },
+                ];
+
+                // คำนวณโอนสะสม
+                let cumActual = 0;
+                const chartDataWithCum = chartData.map(d => {
+                  cumActual += d.โอนจริง;
+                  return { ...d, โอนสะสม: cumActual };
+                });
+
+                const totalTarget = chartData.reduce((s, d) => s + d.เป้า, 0);
+                const totalPlan = chartData.reduce((s, d) => s + d.แผนโอน + d.Upside, 0);
+                const totalActual = chartData.reduce((s, d) => s + d.โอนจริง, 0);
+
+                return (
+                  <div className="bg-white rounded-xl border border-slate-200 p-5">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <h2 className="font-semibold text-slate-900">แผนโอน แต่ละเดือน</h2>
+                        <p className="text-[11px] text-slate-400 mt-0.5">เปรียบเทียบเป้า / แผนโอน / โอนจริง รายเดือน</p>
+                      </div>
+                      <div className="flex items-center gap-4 text-[10px]">
+                        <span className="text-slate-500">เป้าทั้งปี <span className="font-bold text-slate-700">{totalTarget}</span> ราย</span>
+                        <span className="text-slate-500">แผนรวม <span className="font-bold text-indigo-600">{totalPlan}</span> ราย</span>
+                        <span className="text-slate-500">โอนจริง <span className="font-bold text-emerald-600">{totalActual}</span> ราย</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-end gap-4 mb-1 text-[10px] text-slate-500">
+                      <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#d1d5db' }} /> เป้า</span>
+                      <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#93c5fd' }} /> แผนโอน</span>
+                      <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#bfdbfe' }} /> Upside</span>
+                      <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#3b82f6' }} /> โอนจริง</span>
+                      <span className="flex items-center gap-1"><span className="w-6 border-t-2" style={{ borderColor: '#1d4ed8' }} /> โอนสะสม</span>
+                    </div>
+                    <ResponsiveContainer width="100%" height={320}>
+                      <ComposedChart data={chartDataWithCum} margin={{ left: 0, right: 10, top: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="month" tick={{ fontSize: 11, fontWeight: 600 }} />
+                        <YAxis yAxisId="left" tick={{ fontSize: 11 }} allowDecimals={false} />
+                        <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} allowDecimals={false} label={{ value: 'สะสม', angle: 90, position: 'insideRight', style: { fontSize: 10, fill: '#94a3b8' } }} />
+                        <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} formatter={(value: number, name: string) => [`${value} รายการ`, name]} />
+                        <Bar yAxisId="left" dataKey="เป้า" stackId="target" fill="#d1d5db" barSize={24}>
+                          <LabelList dataKey="เป้า" position="top" style={{ fontSize: 9, fontWeight: 700, fill: '#94a3b8' }} />
+                        </Bar>
+                        <Bar yAxisId="left" dataKey="แผนโอน" stackId="plan" fill="#93c5fd" barSize={24} />
+                        <Bar yAxisId="left" dataKey="Upside" stackId="plan" fill="#bfdbfe" barSize={24}>
+                          <LabelList
+                            content={({ x, y, width, index }: { x?: number; y?: number; width?: number; index?: number }) => {
+                              if (x == null || y == null || width == null || index == null) return null;
+                              const d = chartDataWithCum[index];
+                              return (
+                                <text x={x + width / 2} y={y - 5} textAnchor="middle" style={{ fontSize: 9, fontWeight: 700, fill: '#2563eb' }}>
+                                  {d.แผนโอน + d.Upside}
+                                </text>
+                              );
+                            }}
+                          />
+                        </Bar>
+                        <Bar yAxisId="left" dataKey="โอนจริง" stackId="actual" fill="#3b82f6" barSize={24}>
+                          <LabelList dataKey="โอนจริง" position="top" style={{ fontSize: 9, fontWeight: 700, fill: '#2563eb' }} />
+                        </Bar>
+                        <Line yAxisId="right" type="monotone" dataKey="โอนสะสม" stroke="#1d4ed8" strokeWidth={2} dot={{ r: 3, fill: '#1d4ed8' }}>
+                          <LabelList
+                            content={({ x, y, value }: { x?: number; y?: number; value?: number }) => {
+                              if (x == null || y == null || value == null || value === 0) return null;
+                              const pct = Math.round((value / totalTarget) * 100);
+                              return (
+                                <text x={x} y={y - 8} textAnchor="middle" style={{ fontSize: 9, fontWeight: 700 }}>
+                                  <tspan fill="#1d4ed8">{value} </tspan>
+                                  <tspan fill="#16a34a">+{pct}%</tspan>
+                                </text>
+                              );
+                            }}
+                          />
+                        </Line>
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+                );
+              })()}
+
+              {/* ════════ โอนจริง แยก BUD — 12 เดือน ════════ */}
+              {(() => {
+                const budColors: Record<string, string> = {
+                  'Condo 1': '#6366f1', 'Condo 2': '#818cf8', 'Condo 3': '#a5b4fc', 'Condo 4': '#c7d2fe',
+                  'Housing 1': '#f59e0b', 'Housing 2': '#fbbf24',
+                };
+                const budActual: Record<string, number[]> = {
+                  'Condo 1':   [14, 16, 25, 10, 13, 22, 16, 15, 0, 0, 0, 0],
+                  'Condo 2':   [9,  11, 17, 8,  9,  14, 11, 10, 0, 0, 0, 0],
+                  'Condo 3':   [7,  8,  11, 5,  6,  10, 7,  7,  0, 0, 0, 0],
+                  'Condo 4':   [3,  4,  5,  2,  3,  4,  3,  3,  0, 0, 0, 0],
+                  'Housing 1': [13, 15, 22, 12, 14, 20, 16, 15, 0, 0, 0, 0],
+                  'Housing 2': [6,  7,  10, 4,  5,  8,  6,  5,  0, 0, 0, 0],
+                };
+                const budTarget: Record<string, number[]> = {
+                  'Condo 1':   [15, 18, 28, 12, 15, 25, 18, 18, 20, 20, 20, 15],
+                  'Condo 2':   [12, 15, 22, 12, 14, 20, 15, 15, 18, 18, 18, 12],
+                  'Condo 3':   [12, 14, 20, 10, 12, 18, 14, 14, 16, 16, 16, 10],
+                  'Condo 4':   [10, 12, 18, 10, 12, 16, 12, 12, 14, 14, 14, 10],
+                  'Housing 1': [15, 18, 25, 14, 16, 22, 18, 18, 20, 20, 20, 15],
+                  'Housing 2': [14, 16, 24, 14, 16, 20, 18, 18, 18, 18, 18, 14],
+                };
+                const budNames = Object.keys(budActual);
+                const months = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+
+                // grand totals for header
+                const grandActual = budNames.reduce((s, b) => s + budActual[b].reduce((a, v) => a + v, 0), 0);
+                const grandTarget = budNames.reduce((s, b) => s + budTarget[b].reduce((a, v) => a + v, 0), 0);
+
+                return (
+                  <div className="bg-white rounded-xl border border-slate-200 p-5">
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h2 className="font-semibold text-slate-900">โอนจริง แยก BUD</h2>
+                        <p className="text-[11px] text-slate-400 mt-0.5">เปรียบเทียบโอนจริง vs เป้า แต่ละ BUD รายเดือน</p>
+                      </div>
+                      <div className="flex items-center gap-3 text-[10px]">
+                        {budNames.map(b => (
+                          <span key={b} className="flex items-center gap-1">
+                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: budColors[b] }} />
+                            <span className="text-slate-500">{b}</span>
+                          </span>
+                        ))}
+                        <span className="text-slate-500 ml-1">รวม <span className="font-bold text-slate-800">{grandActual}/{grandTarget}</span></span>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-6 gap-3">
+                      {months.map((m, mi) => {
+                        const monthData = budNames.map(b => ({
+                          name: b,
+                          actual: budActual[b][mi],
+                          target: budTarget[b][mi],
+                          color: budColors[b],
+                        }));
+                        const maxVal = Math.max(...monthData.map(d => Math.max(d.actual, d.target)), 1);
+                        const totalActual = monthData.reduce((s, d) => s + d.actual, 0);
+                        const totalTarget = monthData.reduce((s, d) => s + d.target, 0);
+                        const totalPct = totalTarget > 0 ? Math.round((totalActual / totalTarget) * 100) : 0;
+                        const isFuture = totalActual === 0;
+                        return (
+                          <div key={m} className="rounded-lg p-2.5 text-white" style={{ backgroundColor: isFuture ? 'rgba(59,130,246,0.3)' : '#3b82f6' }}>
+                            <div className="flex items-center justify-between mb-2">
+                              <span className={`text-xs font-semibold ${isFuture ? 'text-indigo-300' : 'text-white'}`}>{m}</span>
+                              <span className={`text-[10px] font-bold ${isFuture ? 'text-indigo-300' : totalPct >= 80 ? 'text-emerald-300' : totalPct >= 60 ? 'text-yellow-300' : totalPct >= 40 ? 'text-orange-300' : 'text-red-300'}`}>
+                                {isFuture ? `−/${totalTarget}` : `${totalActual}/${totalTarget} (${totalPct}%)`}
+                              </span>
+                            </div>
+                            <div className="space-y-1.5">
+                              {monthData.map(d => {
+                                const pct = d.target > 0 ? Math.round((d.actual / d.target) * 100) : 0;
+                                return (
+                                  <div key={d.name} className="flex items-center gap-1.5">
+                                    <span className={`text-[9px] truncate w-14 shrink-0 ${isFuture ? 'text-indigo-300' : 'text-indigo-200'}`}>{d.name}</span>
+                                    <div className="relative h-2 bg-white/20 flex-1">
+                                      {!isFuture && (
+                                        <div
+                                          className="absolute inset-y-0 left-0 bg-white"
+                                          style={{
+                                            width: `${Math.min((d.actual / maxVal) * 100, 100)}%`,
+                                          }}
+                                        />
+                                      )}
+                                      <div
+                                        className={`absolute inset-y-0 w-0.5 ${isFuture ? 'bg-indigo-400' : 'bg-indigo-300'}`}
+                                        style={{ left: `${Math.min((d.target / maxVal) * 100, 100)}%` }}
+                                      />
+                                    </div>
+                                    <span className={`text-[8px] font-semibold shrink-0`}>
+                                      {isFuture ? (
+                                        <span className="text-indigo-300">−/{d.target}</span>
+                                      ) : (
+                                        <><span className="text-white">{d.actual}</span><span className="text-indigo-300">/{d.target}</span> <span className={pct >= 80 ? 'text-emerald-300' : pct >= 60 ? 'text-yellow-300' : pct >= 40 ? 'text-orange-300' : 'text-red-300'}>{pct}%</span></>
+                                      )}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* ════════ งานค้างในแต่ละ Process ════════ */}
               {(() => {
                 const notDone = globalFilteredBookings.filter(b => b.stage !== 'transferred' && b.stage !== 'cancelled');
@@ -1111,8 +1314,8 @@ export default function Home() {
                             {g.people.map(p => (
                               <div key={p.name} className="flex items-center gap-2">
                                 <span className="text-[10px] text-slate-600 w-[160px] shrink-0 truncate">{p.name}</span>
-                                <div className="flex-1 h-4 bg-slate-100 rounded overflow-hidden">
-                                  <div className="h-full rounded transition-all" style={{ width: `${(p.count / maxAll) * 100}%`, backgroundColor: g.color, opacity: 0.75 }} />
+                                <div className="flex-1 h-4 bg-slate-100 overflow-hidden">
+                                  <div className="h-full transition-all" style={{ width: `${(p.count / maxAll) * 100}%`, backgroundColor: g.color, opacity: 0.75 }} />
                                 </div>
                                 <span className="text-[10px] font-bold text-slate-700 w-6 text-right tabular-nums">{p.count}</span>
                               </div>
@@ -1243,10 +1446,7 @@ export default function Home() {
                             const txt = `${value}`;
                             const tw = txt.length * 7 + 10;
                             return (
-                              <g key={`${occ}-${stepIdx}`}>
-                                <rect x={x - tw / 2} y={y + dy - 10} width={tw} height={15} rx={4} fill={occColors[occ]} opacity={0.15} />
-                                <text x={x} y={y + dy} textAnchor="middle" fontSize={10} fontWeight={700} fill={occColors[occ]}>{txt}</text>
-                              </g>
+                              <text key={`${occ}-${stepIdx}`} x={x} y={y + dy} textAnchor="middle" fontSize={10} fontWeight={700} fill={occColors[occ]}>{txt}</text>
                             );
                           };
                           return (
@@ -1588,405 +1788,104 @@ export default function Home() {
               </div>
 
 
-              {/* Stage Pipeline - 2 Rows with Backlog spanning both */}
+              {/* Stage Pipeline - 4 Process Columns */}
               <div className="bg-white rounded-xl border border-slate-200 p-5">
                 <h2 className="font-semibold text-slate-900 mb-4">Pipeline</h2>
                 {(() => {
-                  // Calculate Credit sub-steps
-                  const creditBookings = globalFilteredBookings.filter(b => b.stage === 'credit');
-                  const creditDoc = creditBookings.filter(b => !b.bureau_result); // รอเอกสาร
-                  const creditBank = creditBookings.filter(b => b.bureau_result && !b.bank_final_result); // รอธนาคาร
-                  const creditResult = creditBookings.filter(b => b.bank_final_result); // ธนาคารแจ้งผล (อนุมัติ/ไม่อนุมัติ)
-                  const creditDocValue = creditDoc.reduce((sum, b) => sum + (b.net_contract_value || 0), 0);
-                  const creditBankValue = creditBank.reduce((sum, b) => sum + (b.net_contract_value || 0), 0);
-                  const creditResultValue = creditResult.reduce((sum, b) => sum + (b.net_contract_value || 0), 0);
-
-                  // Backlog data
-                  const backlogStageData = filteredSummary.byStage.find(s => s.stage === 'booking');
-                  const backlogCount = backlogStageData?.count ?? 0;
-                  const backlogValue = backlogStageData?.value ?? 0;
-
-                  // Ready & Transferred data
-                  const readyStageData = filteredSummary.byStage.find(s => s.stage === 'ready');
-                  const transferredStageData = filteredSummary.byStage.find(s => s.stage === 'transferred');
-
-                  // Inspection by round (ตรวจ 1, 2, 3)
-                  const activeBookings = globalFilteredBookings.filter(b =>
-                    b.stage !== 'transferred' && b.stage !== 'cancelled' && b.stage !== 'booking'
-                  );
-                  const insp1 = activeBookings.filter(b => b.inspect1_appointment_date && !b.inspect1_actual_date);
-                  const insp2 = activeBookings.filter(b => b.inspect2_appointment_date && !b.inspect2_actual_date);
-                  const insp3 = activeBookings.filter(b => b.inspect3_appointment_date && !b.inspect3_actual_date);
-
-                  // Contract data
-                  const contractStageData = filteredSummary.byStage.find(s => s.stage === 'contract');
-
-                  // Row 1: Credit flow steps - white cards with indigo border
-                  const creditSteps = [
-                    { key: 'credit-doc', label: 'รอเอกสาร', bgClass: 'bg-white', textClass: 'text-teal-700', borderClass: 'border-teal-300', count: creditDoc.length, value: creditDocValue },
-                    { key: 'credit-bank', label: 'รอธนาคาร', bgClass: 'bg-white', textClass: 'text-teal-700', borderClass: 'border-teal-300', count: creditBank.length, value: creditBankValue },
-                    { key: 'credit-result', label: 'ธนาคารแจ้งผล', bgClass: 'bg-white', textClass: 'text-teal-700', borderClass: 'border-teal-300', count: creditResult.length, value: creditResultValue },
+                  const notDonePipe = globalFilteredBookings.filter(b => b.stage !== 'transferred' && b.stage !== 'cancelled');
+                  const pipeGroups = [
+                    {
+                      label: 'เอกสาร', color: '#6366f1', bg: '#eef2ff',
+                      steps: [
+                        { label: 'จอง', count: notDonePipe.filter(b => !b.contract_date).length },
+                        { label: 'เอกสารตรวจบูโร', count: notDonePipe.filter(b => b.contract_date && !b.doc_bureau_date).length },
+                        { label: 'เอกสาร Bank', count: notDonePipe.filter(b => b.contract_date && !b.doc_complete_bank_jd_date).length },
+                        { label: 'เอกสาร JD', count: notDonePipe.filter(b => b.contract_date && !b.doc_complete_jd_date).length },
+                      ],
+                    },
+                    {
+                      label: 'สินเชื่อ', color: '#f59e0b', bg: '#fffbeb',
+                      steps: [
+                        { label: 'ส่งเอกสารธนาคาร', count: notDonePipe.filter(b => (b.doc_bureau_date || b.doc_complete_bank_jd_date) && b.banks_submitted.length === 0).length },
+                        { label: 'ผลบูโร', count: notDonePipe.filter(b => b.banks_submitted.length > 0 && !b.bureau_actual_result_date).length },
+                        { label: 'อนุมัติเบื้องต้น', count: notDonePipe.filter(b => b.bureau_actual_result_date && !b.bank_preapprove_actual_date).length },
+                        { label: 'อนุมัติจริง', count: notDonePipe.filter(b => b.bank_preapprove_actual_date && !b.bank_final_actual_date).length },
+                      ],
+                    },
+                    {
+                      label: 'ตรวจบ้าน', color: '#06b6d4', bg: '#ecfeff',
+                      steps: [
+                        { label: 'ตรวจครั้งที่ 1', count: notDonePipe.filter(b => b.stage === 'inspection' && !b.inspect1_actual_date).length },
+                        { label: 'ตรวจครั้งที่ 2', count: notDonePipe.filter(b => b.stage === 'inspection' && b.inspect1_actual_date && b.inspect1_result?.includes('ไม่') && !b.inspect2_actual_date).length },
+                        { label: 'ตรวจครั้งที่ 3', count: notDonePipe.filter(b => b.stage === 'inspection' && b.inspect2_actual_date && b.inspect2_result?.includes('ไม่') && !b.inspect3_actual_date).length },
+                        { label: 'ตรวจ 3+', count: notDonePipe.filter(b => b.stage === 'inspection' && b.inspect3_actual_date && b.inspect3_result?.includes('ไม่')).length },
+                      ],
+                    },
+                    {
+                      label: 'โอน', color: '#10b981', bg: '#ecfdf5',
+                      steps: [
+                        { label: 'สัญญา Bank', count: notDonePipe.filter(b => b.bank_final_actual_date && !b.bank_contract_date).length },
+                        { label: 'ส่งชุดโอน', count: notDonePipe.filter(b => b.bank_contract_date && !b.transfer_package_sent_date).length },
+                        { label: 'ปลอดโฉนด', count: notDonePipe.filter(b => b.transfer_package_sent_date && !b.title_clear_date).length },
+                        { label: 'นัดโอน', count: notDonePipe.filter(b => b.title_clear_date && !b.transfer_appointment_date).length },
+                        { label: 'โอนจริง', count: notDonePipe.filter(b => b.transfer_appointment_date && !b.transfer_actual_date).length },
+                      ],
+                    },
                   ];
 
-                  // Row 2: Inspection steps - white cards with indigo border
-                  const inspSteps = [
-                    { key: 'insp1', label: 'ตรวจ 1', bgClass: 'bg-white', textClass: 'text-teal-700', borderClass: 'border-teal-300', count: insp1.length, value: insp1.reduce((s, b) => s + (b.net_contract_value || 0), 0) },
-                    { key: 'insp2', label: 'ตรวจ 2', bgClass: 'bg-white', textClass: 'text-teal-700', borderClass: 'border-teal-300', count: insp2.length, value: insp2.reduce((s, b) => s + (b.net_contract_value || 0), 0) },
-                    { key: 'insp3', label: 'ตรวจ 3', bgClass: 'bg-white', textClass: 'text-teal-700', borderClass: 'border-teal-300', count: insp3.length, value: insp3.reduce((s, b) => s + (b.net_contract_value || 0), 0) },
-                  ];
+                  const cancelledCount = globalFilteredBookings.filter(b => b.stage === 'cancelled').length;
+                  const transferredCount = globalFilteredBookings.filter(b => b.stage === 'transferred').length;
 
-                  // Row 3: Cancelled in process
-                  const cancelledData = globalFilteredBookings.filter(b => b.stage === 'cancelled');
-                  const cancelledValue = cancelledData.reduce((sum, b) => sum + (b.net_contract_value || 0), 0);
-
-                  // Row 4: Livnex (เช่าซื้อ) - All steps defined in arrays
-                  const livnexBookings = globalFilteredBookings.filter(b => b.sale_offer_livnex_flag);
-                  const bookLiv = livnexBookings.filter(b => !b.doc_bureau_date);
-                  const bookLivNew = bookLiv.filter(b => b.sale_type_flag === 'ขายใหม่');
-                  const bookLivFromCancel = bookLiv.filter(b => b.sale_type_flag === 'Re-sale');
-                  const livDocWait = livnexBookings.filter(b => b.doc_bureau_date && !b.doc_complete_bank_jd_date);
-                  const livJdWait = livnexBookings.filter(b => b.doc_complete_bank_jd_date && !b.livnex_complete_date);
-                  const livJdResult = livnexBookings.filter(b => b.livnex_complete_date && !b.livnex_contract_appointment_date);
-                  const livContract = livnexBookings.filter(b => b.livnex_contract_appointment_date && !b.livnex_contract_actual_date);
-                  const livPreparing = livnexBookings.filter(b => b.livnex_contract_actual_date && !b.inspect1_appointment_date);
-                  const livInspecting = livnexBookings.filter(b => b.inspect1_appointment_date && !b.handover_accept_date);
-                  const livMoveIn = livnexBookings.filter(b => b.handover_accept_date);
-
-                  // Livnex step arrays - white cards with amber border
-                  const livBookSteps = [
-                    { key: 'liv-new', label: 'เช่าซื้อใหม่', count: bookLivNew.length, value: bookLivNew.reduce((s, b) => s + (b.net_contract_value || 0), 0), bgClass: 'bg-white', textClass: 'text-amber-600', borderClass: 'border-amber-300' },
-                    { key: 'liv-cancel', label: 'จาก Cancel', count: bookLivFromCancel.length, value: bookLivFromCancel.reduce((s, b) => s + (b.net_contract_value || 0), 0), bgClass: 'bg-white', textClass: 'text-amber-500', borderClass: 'border-amber-200' },
-                  ];
-                  // เตรียมเอกสาร - separate step to align with Contract column
-                  const livDocWaitStep = { key: 'liv-doc-wait', label: 'เตรียมเอกสาร', count: livDocWait.length, value: livDocWait.reduce((s, b) => s + (b.net_contract_value || 0), 0), bgClass: 'bg-white', textClass: 'text-amber-600', borderClass: 'border-amber-300' };
-                  const livApprovalSteps = [
-                    { key: 'liv-jd-wait', label: 'รอใจดี', count: livJdWait.length, value: livJdWait.reduce((s, b) => s + (b.net_contract_value || 0), 0), bgClass: 'bg-white', textClass: 'text-amber-600', borderClass: 'border-amber-300' },
-                    { key: 'liv-jd-result', label: 'ใจดีแจ้งผล', count: livJdResult.length, value: livJdResult.reduce((s, b) => s + (b.net_contract_value || 0), 0), bgClass: 'bg-white', textClass: 'text-amber-600', borderClass: 'border-amber-300' },
-                    { key: 'liv-contract', label: 'สัญญา', count: livContract.length, value: livContract.reduce((s, b) => s + (b.net_contract_value || 0), 0), bgClass: 'bg-white', textClass: 'text-amber-700', borderClass: 'border-amber-400' },
-                  ];
-                  const livContractSteps = [
-                    { key: 'liv-preparing', label: 'เตรียมห้อง', count: livPreparing.length, value: livPreparing.reduce((s, b) => s + (b.net_contract_value || 0), 0), bgClass: 'bg-white', textClass: 'text-amber-600', borderClass: 'border-amber-300' },
-                  ];
-                  const livEndSteps = [
-                    { key: 'liv-inspect', label: 'ตรวจรับ', count: livInspecting.length, value: livInspecting.reduce((s, b) => s + (b.net_contract_value || 0), 0), bgClass: 'bg-white', textClass: 'text-amber-600', borderClass: 'border-amber-300' },
-                    { key: 'liv-movein', label: 'เข้าอยู่', count: livMoveIn.length, value: livMoveIn.reduce((s, b) => s + (b.net_contract_value || 0), 0), bgClass: 'bg-white', textClass: 'text-emerald-600', borderClass: 'border-emerald-400' },
-                  ];
-
-                  // Row 5: Pre-LivNex (เช่า) - same structure as Livnex
-                  const preLivnexBookings = globalFilteredBookings.filter(b => b.pre_livnex_contract_appointment_date || b.obj_purchase === 'ลงทุน');
-                  const bookRent = preLivnexBookings.filter(b => !b.doc_bureau_date);
-                  const bookRentNew = bookRent.filter(b => b.sale_type_flag === 'ขายใหม่');
-                  const bookRentFromCancel = bookRent.filter(b => b.sale_type_flag === 'Re-sale');
-                  const rentDocWait = preLivnexBookings.filter(b => b.doc_bureau_date && !b.doc_complete_bank_jd_date);
-                  const rentContract = preLivnexBookings.filter(b => b.pre_livnex_contract_appointment_date && !b.livnex_contract_actual_date);
-                  const rentInspecting = preLivnexBookings.filter(b => b.inspect1_appointment_date && !b.handover_accept_date);
-                  const rentMoveIn = preLivnexBookings.filter(b => b.handover_accept_date);
-
-                  // Pre-LivNex step arrays - white cards with sky border
-                  const rentBookSteps = [
-                    { key: 'rent-new', label: 'เช่าใหม่', count: bookRentNew.length, value: bookRentNew.reduce((s, b) => s + (b.net_contract_value || 0), 0), bgClass: 'bg-white', textClass: 'text-sky-600', borderClass: 'border-sky-300' },
-                    { key: 'rent-cancel', label: 'จาก Cancel', count: bookRentFromCancel.length, value: bookRentFromCancel.reduce((s, b) => s + (b.net_contract_value || 0), 0), bgClass: 'bg-white', textClass: 'text-sky-500', borderClass: 'border-sky-200' },
-                  ];
-                  const rentDocWaitStep = { key: 'rent-doc-wait', label: 'เตรียมเอกสาร', count: rentDocWait.length, value: rentDocWait.reduce((s, b) => s + (b.net_contract_value || 0), 0), bgClass: 'bg-white', textClass: 'text-sky-600', borderClass: 'border-sky-300' };
-                  // Pre-LivNex middle section: สัญญาเช่า (wide) - sky
-                  const rentContractStep = { key: 'rent-contract', label: 'สัญญาเช่า', count: rentContract.length, value: rentContract.reduce((s, b) => s + (b.net_contract_value || 0), 0), bgClass: 'bg-white', textClass: 'text-sky-700', borderClass: 'border-sky-400' };
-                  // Pre-LivNex end steps: ตรวจรับ, เข้าอยู่
-                  const rentEndSteps = [
-                    { key: 'rent-inspect', label: 'ตรวจรับ', count: rentInspecting.length, value: rentInspecting.reduce((s, b) => s + (b.net_contract_value || 0), 0), bgClass: 'bg-white', textClass: 'text-sky-600', borderClass: 'border-sky-300' },
-                    { key: 'rent-movein', label: 'เข้าอยู่', count: rentMoveIn.length, value: rentMoveIn.reduce((s, b) => s + (b.net_contract_value || 0), 0), bgClass: 'bg-white', textClass: 'text-emerald-600', borderClass: 'border-emerald-400' },
-                  ];
-
-                  // Calculate percentages based on total backlog value
-                  const totalBacklogValue = backlogValue || 1;
-                  const getPct = (v: number) => ((v / totalBacklogValue) * 100).toFixed(1);
-
-                  // Sales this month (ขายในเดือน) - filter by dec_period
-                  const currentMonth = new Date().toLocaleString('en-US', { month: 'short' }).toUpperCase();
-                  const salesThisMonth = globalFilteredBookings.filter(b =>
-                    b.dec_period === currentMonth || b.dec_period === 'JAN' || b.dec_period === 'FEB'
-                  );
-                  const salesThisMonthValue = salesThisMonth.reduce((sum, b) => sum + (b.net_contract_value || 0), 0);
+                  const globalMax = Math.max(...pipeGroups.flatMap(g => g.steps.map(s => s.count)), 1);
 
                   return (
                     <>
-                    {/* Main Pipeline Section */}
-                    <div className="bg-teal-200 rounded-lg p-3 border border-teal-400">
-                      <div className="text-xs font-semibold text-teal-900 mb-2 flex items-center gap-2">
-                        <div className="w-2 h-2 bg-teal-600 rounded-full"></div>
-                        สินเชื่อ (Credit)
-                      </div>
-                      <div className="flex gap-2 items-stretch">
-                        {/* Backlog & Sales - 2 rows */}
-                      <div className="flex-1 flex flex-col gap-2">
-                        {/* Row 1: Backlog */}
-                        <div className="flex-1 flex items-center">
-                          <div className="relative flex-1 h-full rounded-lg p-3 text-center bg-white border-2 border-teal-300 flex flex-col justify-center">
-                            <div className="absolute top-1 right-1.5 text-[8px] font-bold text-teal-400">100%</div>
-                            <div className="text-sm font-bold text-teal-700">฿{formatMoney(backlogValue)}</div>
-                            <div className="text-[10px] font-medium text-teal-600">Backlog</div>
-                            <div className="text-[9px] text-teal-500">{backlogCount} หลัง</div>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-teal-400 mx-1 flex-shrink-0" />
-                        </div>
-                        {/* Row 2: Sales This Month */}
-                        <div className="flex-1 flex items-center">
-                          <div className="relative flex-1 h-full rounded-lg p-3 text-center bg-white border-2 border-teal-300 flex flex-col justify-center">
-                            <div className="text-sm font-bold text-teal-600">฿{formatMoney(salesThisMonthValue)}</div>
-                            <div className="text-[10px] font-medium text-teal-600">ขายในเดือน</div>
-                            <div className="text-[9px] text-teal-500">{salesThisMonth.length} หลัง</div>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-teal-400 mx-1 flex-shrink-0" />
-                        </div>
-                      </div>
-
-                      {/* Contract - spans 2 rows (Credit + Inspection) */}
-                      <div className="flex items-center flex-1">
-                        <div className="relative rounded-lg p-4 text-center bg-white border-2 border-teal-400 w-full h-full flex flex-col justify-center">
-                          <div className="absolute top-1 right-1.5 text-[8px] font-bold text-teal-400">{getPct(contractStageData?.value ?? 0)}%</div>
-                          <div className="text-base font-bold text-teal-700">฿{formatMoney(contractStageData?.value ?? 0)}</div>
-                          <div className="text-sm font-medium text-teal-600">Contract</div>
-                          <div className="text-xs text-teal-500">{contractStageData?.count ?? 0} หลัง</div>
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-teal-400 mx-1 flex-shrink-0" />
-                      </div>
-
-                      {/* Two rows section - 3 columns grid, stretch to fill height */}
-                      <div className="flex-[3] flex flex-col gap-2">
-                        {/* Row 1: Credit Flow - flex-1 to stretch */}
-                        <div className="flex-1 flex items-stretch gap-2">
-                          <div className="text-[10px] font-medium text-teal-700 w-12 flex items-center">สินเชื่อ</div>
-                          <div className="flex-1 grid grid-cols-3 gap-2">
-                            {creditSteps.map((step) => {
-                              const count = step.count ?? 0;
-                              const value = step.value ?? 0;
-                              return (
-                                <div key={step.key} className={`relative rounded-lg p-2 text-center border-2 flex flex-col justify-center ${step.bgClass} ${step.borderClass}`}>
-                                  <div className="absolute top-1 right-1.5 text-[8px] font-bold text-teal-400">{getPct(value)}%</div>
-                                  <div className={`text-sm font-bold ${step.textClass}`}>฿{formatMoney(value)}</div>
-                                  <div className="text-[10px] font-medium text-teal-800">{step.label}</div>
-                                  <div className="text-[9px] text-teal-600">{count} หลัง</div>
+                    <div className="grid grid-cols-4 gap-3 items-start">
+                      {pipeGroups.map((group, gi) => {
+                        const total = group.steps.reduce((s, st) => s + st.count, 0);
+                        return (
+                          <div key={group.label} className="flex items-start gap-1">
+                            <div className="flex-1 rounded-lg border p-3" style={{ backgroundColor: group.bg, borderColor: group.color + '40' }}>
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-1.5">
+                                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: group.color }} />
+                                  <span className="text-xs font-semibold" style={{ color: group.color }}>{group.label}</span>
                                 </div>
-                              );
-                            })}
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-teal-400 mx-1 flex-shrink-0 self-center" />
-                        </div>
-
-                        {/* Row 2: Inspection Flow - flex-1 to stretch */}
-                        <div className="flex-1 flex items-stretch gap-2">
-                          <div className="text-[10px] font-medium text-teal-700 w-12 flex items-center">ตรวจรับ</div>
-                          <div className="flex-1 grid grid-cols-3 gap-2">
-                            {inspSteps.map((step) => (
-                              <div key={step.key} className={`relative rounded-lg p-2 text-center border-2 flex flex-col justify-center ${step.bgClass} ${step.borderClass}`}>
-                                <div className="absolute top-1 right-1.5 text-[8px] font-bold text-teal-400">{getPct(step.value)}%</div>
-                                <div className={`text-sm font-bold ${step.textClass}`}>฿{formatMoney(step.value)}</div>
-                                <div className="text-[10px] font-medium text-teal-800">{step.label}</div>
-                                <div className="text-[9px] text-teal-600">{step.count} หลัง</div>
+                                <span className="text-[10px] font-bold" style={{ color: group.color }}>{total}</span>
                               </div>
-                            ))}
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-teal-400 mx-1 flex-shrink-0 self-center" />
-                        </div>
-                      </div>
-
-                      {/* Ready - spans 2 rows - green border for success */}
-                      <div className="flex items-center flex-1">
-                        <div className="relative rounded-lg p-4 text-center bg-white border-2 border-emerald-400 w-full h-full flex flex-col justify-center">
-                          <div className="absolute top-1 right-1.5 text-[8px] font-bold text-slate-400">{getPct(readyStageData?.value ?? 0)}%</div>
-                          <div className="text-base font-bold text-emerald-600">฿{formatMoney(readyStageData?.value ?? 0)}</div>
-                          <div className="text-sm font-medium text-slate-600">Ready</div>
-                          <div className="text-xs text-slate-500">{readyStageData?.count ?? 0} หลัง</div>
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-slate-400 mx-1 flex-shrink-0" />
-                      </div>
-
-                      {/* Transferred - spans 2 rows - green border for success */}
-                      <div className="flex items-center flex-1">
-                        <div className="relative rounded-lg p-4 text-center bg-emerald-50 border-2 border-emerald-500 w-full h-full flex flex-col justify-center">
-                          <div className="absolute top-1 right-1.5 text-[8px] font-bold text-slate-400">{getPct(transferredStageData?.value ?? 0)}%</div>
-                          <div className="text-base font-bold text-emerald-600">฿{formatMoney(transferredStageData?.value ?? 0)}</div>
-                          <div className="text-sm font-medium text-slate-600">Transferred</div>
-                          <div className="text-xs text-slate-500">{transferredStageData?.count ?? 0} หลัง</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Cancelled Row - Matches exact structure above */}
-                    <div className="flex gap-2 items-stretch mt-2">
-                      {/* Spacer for Backlog/Sales column */}
-                      <div className="flex-1" />
-
-                      {/* Spacer for Contract column */}
-                      <div className="flex items-center flex-1">
-                        <div className="w-full" />
-                        <ChevronRight className="w-4 h-4 text-transparent mx-1 flex-shrink-0" />
-                      </div>
-
-                      {/* Cancelled box - same grid structure as above */}
-                      <div className="flex-[3]">
-                        <div className="flex items-stretch gap-2">
-                          <div className="text-[10px] font-medium text-red-500 w-12 flex items-center">ยกเลิก</div>
-                          <div className="flex-1 grid grid-cols-3 gap-2">
-                            {/* Cancelled spans all 3 columns */}
-                            <div className="col-span-3 relative rounded-lg p-2 text-center border-2 border-red-300 bg-white">
-                              <div className="text-sm font-bold text-red-500">฿{formatMoney(cancelledValue)}</div>
-                              <div className="text-[10px] font-medium text-slate-600">Cancelled</div>
-                              <div className="text-[9px] text-slate-500">{cancelledData.length} หลัง</div>
-                            </div>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-transparent mx-1 flex-shrink-0 self-center" />
-                        </div>
-                      </div>
-
-                      {/* Spacer for Ready column */}
-                      <div className="flex items-center flex-1">
-                        <div className="w-full" />
-                        <ChevronRight className="w-4 h-4 text-transparent mx-1 flex-shrink-0" />
-                      </div>
-
-                      {/* Spacer for Transferred column */}
-                      <div className="flex-1" />
-                      </div>
-                    </div>
-
-                    {/* Livnex Section with background */}
-                    <div className="bg-amber-100 rounded-lg p-3 mt-3 border border-amber-300">
-                      <div className="text-xs font-semibold text-amber-800 mb-2 flex items-center gap-2">
-                        <div className="w-2 h-2 bg-amber-600 rounded-full"></div>
-                        Livnex (เช่าซื้อ)
-                      </div>
-                      <div className="flex gap-2 items-stretch">
-                      {/* Book-Liv column - 2 cards stacked, equal height */}
-                      <div className="flex-1 flex items-stretch">
-                        <div className="flex-1 flex flex-col gap-2">
-                          {livBookSteps.map((step) => (
-                            <div key={step.key} className={`relative basis-1/2 rounded-lg p-2 text-center border-2 flex flex-col justify-center ${step.bgClass} ${step.borderClass}`}>
-                              <div className={`text-sm font-bold ${step.textClass}`}>฿{formatMoney(step.value)}</div>
-                              <div className="text-[10px] font-medium text-slate-700">{step.label}</div>
-                              <div className="text-[9px] text-slate-500">{step.count} หลัง</div>
-                            </div>
-                          ))}
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-slate-400 mx-1 flex-shrink-0 self-center" />
-                      </div>
-
-                      {/* รอเอกสาร - aligns with Contract column */}
-                      <div className="flex items-stretch flex-1">
-                        <div className={`relative rounded-lg p-4 text-center border-2 w-full h-full flex flex-col justify-center ${livDocWaitStep.bgClass} ${livDocWaitStep.borderClass}`}>
-                          <div className="absolute top-1 right-1.5 text-[8px] font-bold text-slate-400">{getPct(livDocWaitStep.value)}%</div>
-                          <div className={`text-base font-bold ${livDocWaitStep.textClass}`}>฿{formatMoney(livDocWaitStep.value)}</div>
-                          <div className="text-sm font-medium text-slate-700">{livDocWaitStep.label}</div>
-                          <div className="text-xs text-slate-500">{livDocWaitStep.count} หลัง</div>
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-slate-400 mx-1 flex-shrink-0 self-center" />
-                      </div>
-
-                      {/* Livnex middle - 2 rows */}
-                      <div className="flex-[3] flex flex-col gap-2">
-                        {/* Row 1: ใจดี approval - 2 columns (รอใจดี, ใจดีแจ้งผล) */}
-                        <div className="flex items-stretch gap-2">
-                          <div className="text-[10px] font-medium text-amber-600 w-12 flex items-center">ใจดี</div>
-                          <div className="flex-1 grid grid-cols-3 gap-2">
-                            {livApprovalSteps.map((step) => (
-                              <div key={step.key} className={`relative rounded-lg p-2 text-center border-2 flex flex-col justify-center ${step.bgClass} ${step.borderClass}`}>
-                                <div className="absolute top-1 right-1.5 text-[8px] font-bold text-slate-400">{getPct(step.value)}%</div>
-                                <div className={`text-sm font-bold ${step.textClass}`}>฿{formatMoney(step.value)}</div>
-                                <div className="text-[10px] font-medium text-slate-700">{step.label}</div>
-                                <div className="text-[9px] text-slate-500">{step.count} หลัง</div>
+                              <div className="space-y-1.5">
+                                {group.steps.map(step => (
+                                  <div key={step.label}>
+                                    <div className="flex items-center justify-between mb-0.5">
+                                      <span className="text-[10px] text-slate-600">{step.label}</span>
+                                      <span className="text-[10px] font-bold" style={{ color: group.color }}>{step.count}</span>
+                                    </div>
+                                    <div className="h-1.5 bg-white/60 rounded-full">
+                                      <div className="h-full rounded-full" style={{ width: `${(step.count / globalMax) * 100}%`, backgroundColor: group.color }} />
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
-                            ))}
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-slate-400 mx-1 flex-shrink-0 self-center" />
-                        </div>
-
-                        {/* Row 2: Contract flow */}
-                        <div className="flex items-stretch gap-2">
-                          <div className="text-[10px] font-medium text-amber-700 w-12 flex items-center">Livnex</div>
-                          <div className="flex-1 grid grid-cols-3 gap-2">
-                            {livContractSteps.map((step) => (
-                              <div key={step.key} className={`col-span-3 relative rounded-lg p-2 text-center border-2 flex flex-col justify-center ${step.bgClass} ${step.borderClass}`}>
-                                <div className="absolute top-1 right-1.5 text-[8px] font-bold text-slate-400">{getPct(step.value)}%</div>
-                                <div className={`text-sm font-bold ${step.textClass}`}>฿{formatMoney(step.value)}</div>
-                                <div className="text-[10px] font-medium text-slate-700">{step.label}</div>
-                                <div className="text-[9px] text-slate-500">{step.count} หลัง</div>
-                              </div>
-                            ))}
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-slate-400 mx-1 flex-shrink-0 self-center" />
-                        </div>
-                      </div>
-
-                      {/* End steps: ตรวจรับ, เข้าอยู่ */}
-                      {livEndSteps.map((step, idx) => (
-                        <div key={step.key} className="flex items-stretch flex-1">
-                          <div className={`relative rounded-lg p-2 text-center border-2 w-full flex flex-col justify-center ${step.bgClass} ${step.borderClass}`}>
-                            <div className="absolute top-1 right-1.5 text-[8px] font-bold text-slate-400">{getPct(step.value)}%</div>
-                            <div className={`text-sm font-bold ${step.textClass}`}>฿{formatMoney(step.value)}</div>
-                            <div className="text-[10px] font-medium text-slate-700">{step.label}</div>
-                            <div className="text-[9px] text-slate-500">{step.count} หลัง</div>
-                          </div>
-                          {idx < livEndSteps.length - 1 && <ChevronRight className="w-4 h-4 text-slate-400 mx-1 flex-shrink-0 self-center" />}
-                        </div>
-                      ))}
-                      </div>
-                    </div>
-
-                    {/* Rentnex Section with background */}
-                    <div className="bg-sky-100 rounded-lg p-3 mt-3 border border-sky-300">
-                      <div className="text-xs font-semibold text-sky-800 mb-2 flex items-center gap-2">
-                        <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
-                        Rentnex (เช่า)
-                      </div>
-                      <div className="flex gap-2 items-stretch">
-                        {/* Book-Rent column - 2 cards stacked, equal height */}
-                      <div className="flex-1 flex items-stretch">
-                        <div className="flex-1 flex flex-col gap-2">
-                          {rentBookSteps.map((step) => (
-                            <div key={step.key} className={`relative basis-1/2 rounded-lg p-2 text-center border-2 flex flex-col justify-center ${step.bgClass} ${step.borderClass}`}>
-                              <div className={`text-sm font-bold ${step.textClass}`}>฿{formatMoney(step.value)}</div>
-                              <div className="text-[10px] font-medium text-slate-700">{step.label}</div>
-                              <div className="text-[9px] text-slate-500">{step.count} หลัง</div>
                             </div>
-                          ))}
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-slate-400 mx-1 flex-shrink-0 self-center" />
-                      </div>
-
-                      {/* เตรียมเอกสาร - aligns with Contract column */}
-                      <div className="flex items-stretch flex-1">
-                        <div className={`relative rounded-lg p-4 text-center border-2 w-full h-full flex flex-col justify-center ${rentDocWaitStep.bgClass} ${rentDocWaitStep.borderClass}`}>
-                          <div className="absolute top-1 right-1.5 text-[8px] font-bold text-slate-400">{getPct(rentDocWaitStep.value)}%</div>
-                          <div className={`text-base font-bold ${rentDocWaitStep.textClass}`}>฿{formatMoney(rentDocWaitStep.value)}</div>
-                          <div className="text-sm font-medium text-slate-700">{rentDocWaitStep.label}</div>
-                          <div className="text-xs text-slate-500">{rentDocWaitStep.count} หลัง</div>
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-slate-400 mx-1 flex-shrink-0 self-center" />
-                      </div>
-
-                      {/* Rentnex middle - สัญญาเช่า (wide) */}
-                      <div className="flex-[3] flex items-stretch gap-2">
-                        <div className="text-[10px] font-medium text-sky-600 w-12 flex items-center">Rentnex</div>
-                        <div className={`flex-1 relative rounded-lg p-4 text-center border-2 flex flex-col justify-center ${rentContractStep.bgClass} ${rentContractStep.borderClass}`}>
-                          <div className="absolute top-1 right-1.5 text-[8px] font-bold text-slate-400">{getPct(rentContractStep.value)}%</div>
-                          <div className={`text-base font-bold ${rentContractStep.textClass}`}>฿{formatMoney(rentContractStep.value)}</div>
-                          <div className="text-sm font-medium text-slate-700">{rentContractStep.label}</div>
-                          <div className="text-xs text-slate-500">{rentContractStep.count} หลัง</div>
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-slate-400 mx-1 flex-shrink-0 self-center" />
-                      </div>
-
-                      {/* End steps: ตรวจรับ, เข้าอยู่ (align with Livnex) */}
-                      {rentEndSteps.map((step, idx) => (
-                        <div key={step.key} className="flex items-stretch flex-1">
-                          <div className={`relative rounded-lg p-2 text-center border-2 w-full flex flex-col justify-center ${step.bgClass} ${step.borderClass}`}>
-                            <div className="absolute top-1 right-1.5 text-[8px] font-bold text-slate-400">{getPct(step.value)}%</div>
-                            <div className={`text-sm font-bold ${step.textClass}`}>฿{formatMoney(step.value)}</div>
-                            <div className="text-[10px] font-medium text-slate-700">{step.label}</div>
-                            <div className="text-[9px] text-slate-500">{step.count} หลัง</div>
+                            {gi < pipeGroups.length - 1 && <ChevronRight className="w-4 h-4 text-slate-300 mt-8 shrink-0" />}
                           </div>
-                          {idx < rentEndSteps.length - 1 && <ChevronRight className="w-4 h-4 text-slate-400 mx-1 flex-shrink-0 self-center" />}
+                        );
+                      })}
+                    </div>
+                    <div className="flex gap-3 mt-3">
+                      <div className="flex-1 rounded-lg border border-red-200 bg-red-50 p-3 flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2 h-2 rounded-full bg-red-500" />
+                          <span className="text-xs font-semibold text-red-600">Cancelled</span>
                         </div>
-                      ))}
+                        <span className="text-sm font-bold text-red-600">{cancelledCount}</span>
+                      </div>
+                      <div className="flex-1 rounded-lg border border-emerald-200 bg-emerald-50 p-3 flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                          <span className="text-xs font-semibold text-emerald-600">Transferred</span>
+                        </div>
+                        <span className="text-sm font-bold text-emerald-600">{transferredCount}</span>
                       </div>
                     </div>
                     </>
