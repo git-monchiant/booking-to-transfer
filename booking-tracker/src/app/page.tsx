@@ -25,14 +25,18 @@ import { BookingDetailPanel } from '@/components/BookingDetailPanel';
 import { BookingListItem } from '@/components/BookingListItem';
 import {
   BarChart,
+  ComposedChart,
   Bar,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
+  Legend,
   ResponsiveContainer,
   Cell,
   LabelList,
+  Treemap,
 } from 'recharts';
 import {
   AlertTriangle,
@@ -818,43 +822,771 @@ export default function Home() {
           {/* ========== DASHBOARD TRACKING VIEW ========== */}
           {currentView === 'dashboard-tracking' && (
             <div className="space-y-6">
-              {/* Tracking KPI Cards */}
-              <div className="grid grid-cols-4 gap-4">
-                <div className="bg-white rounded-xl p-5 border border-amber-200 bg-amber-50">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-sm text-amber-700">รอดำเนินการ (Pipeline)</span>
-                    <Clock className="w-5 h-5 text-amber-500" />
+              {/* ════════ KPI Cards ════════ */}
+              {(() => {
+                const active = globalFilteredBookings.filter(b => b.stage !== 'transferred' && b.stage !== 'cancelled');
+                const transferred = globalFilteredBookings.filter(b => b.stage === 'transferred');
+                const cancelled = globalFilteredBookings.filter(b => b.stage === 'cancelled');
+
+                // Stage counts for pipeline breakdown
+                const stageDoc = active.filter(b => b.stage === 'booking' || b.stage === 'contract').length;
+                const stageCredit = active.filter(b => b.stage === 'credit').length;
+                const stageInsp = active.filter(b => b.stage === 'inspection').length;
+                const stageReady = active.filter(b => b.stage === 'ready').length;
+                const pipeTotal = active.length || 1;
+
+                // Credit approval
+                const allBankSubs = active.flatMap(b => b.banks_submitted).filter(bs => bs.bank !== 'JD' && bs.bank !== 'CASH');
+                const submitted = allBankSubs.length;
+                const approved = allBankSubs.filter(bs => bs.result?.includes('อนุมัติ') && !bs.result?.includes('ไม่')).length;
+                const rejected = allBankSubs.filter(bs => bs.result?.includes('ไม่อนุมัติ')).length;
+                const approvalRate = submitted > 0 ? Math.round((approved / submitted) * 100) : 0;
+
+                // Aging
+                const agingArr = active.map(b => b.aging_days);
+                const avgAging = agingArr.length > 0 ? Math.round(agingArr.reduce((s, d) => s + d, 0) / agingArr.length) : 0;
+                const maxAging = agingArr.length > 0 ? Math.max(...agingArr) : 0;
+                const overSla = active.filter(b => b.aging_days > 90).length;
+
+                // Values
+                const activeValue = active.reduce((s, b) => s + b.net_contract_value, 0);
+                const transferredValue = transferred.reduce((s, b) => s + b.net_contract_value, 0);
+
+                return (
+                  <div className="space-y-4">
+                    {/* Row 1: Hero Cards */}
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Pipeline Card */}
+                      <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl p-5 text-white">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-medium text-indigo-100">Pipeline ทั้งหมด</span>
+                          <Layers className="w-5 h-5 text-indigo-200" />
+                        </div>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-4xl font-bold">{active.length}</span>
+                          <span className="text-sm text-indigo-200">รายการ</span>
+                        </div>
+                        <div className="text-sm text-indigo-200 mt-0.5">฿{formatMoney(activeValue)}</div>
+                        {/* Stage breakdown bar */}
+                        <div className="mt-4 flex h-2.5 rounded-full overflow-hidden bg-indigo-400/30">
+                          {stageDoc > 0 && <div className="h-full bg-indigo-200" style={{ width: `${(stageDoc / pipeTotal) * 100}%` }} />}
+                          {stageCredit > 0 && <div className="h-full bg-amber-300" style={{ width: `${(stageCredit / pipeTotal) * 100}%` }} />}
+                          {stageInsp > 0 && <div className="h-full bg-cyan-300" style={{ width: `${(stageInsp / pipeTotal) * 100}%` }} />}
+                          {stageReady > 0 && <div className="h-full bg-emerald-300" style={{ width: `${(stageReady / pipeTotal) * 100}%` }} />}
+                        </div>
+                        <div className="flex justify-between mt-1.5 text-[10px] text-indigo-200">
+                          <span>เอกสาร {stageDoc}</span>
+                          <span>สินเชื่อ {stageCredit}</span>
+                          <span>ตรวจบ้าน {stageInsp}</span>
+                          <span>พร้อมโอน {stageReady}</span>
+                        </div>
+                      </div>
+
+                      {/* Transfer Card */}
+                      <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl p-5 text-white">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-medium text-emerald-100">โอนแล้ว</span>
+                          <CheckCircle2 className="w-5 h-5 text-emerald-200" />
+                        </div>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-4xl font-bold">{transferred.length}</span>
+                          <span className="text-sm text-emerald-200">รายการ</span>
+                        </div>
+                        <div className="text-sm text-emerald-200 mt-0.5">฿{formatMoney(transferredValue)}</div>
+                        {/* Cancelled sub-stat */}
+                        <div className="mt-4 pt-3 border-t border-emerald-400/30 flex gap-6">
+                          <div>
+                            <div className="text-[10px] text-emerald-300">ยกเลิก</div>
+                            <div className="text-lg font-bold">{cancelled.length} <span className="text-[10px] font-normal text-emerald-200">รายการ</span></div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] text-emerald-300">อัตรายกเลิก</div>
+                            <div className="text-lg font-bold">{globalFilteredBookings.length > 0 ? Math.round((cancelled.length / globalFilteredBookings.length) * 100) : 0}%</div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] text-emerald-300">อัตราโอน</div>
+                            <div className="text-lg font-bold">{globalFilteredBookings.length > 0 ? Math.round((transferred.length / globalFilteredBookings.length) * 100) : 0}%</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Row 2: Detail Cards */}
+                    <div className="grid grid-cols-4 gap-4">
+                      {/* สินเชื่อ */}
+                      <div className="bg-white rounded-xl border border-slate-200 p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-medium text-slate-500">อัตราอนุมัติสินเชื่อ</span>
+                          <Banknote className="w-4 h-4 text-amber-400" />
+                        </div>
+                        <div className="text-3xl font-bold text-amber-600">{approvalRate}<span className="text-lg">%</span></div>
+                        <div className="mt-2 flex h-2 rounded-full overflow-hidden bg-slate-100">
+                          <div className="h-full bg-emerald-500 rounded-l-full" style={{ width: `${submitted > 0 ? (approved / submitted) * 100 : 0}%` }} />
+                          <div className="h-full bg-red-400" style={{ width: `${submitted > 0 ? (rejected / submitted) * 100 : 0}%` }} />
+                        </div>
+                        <div className="flex justify-between mt-1.5 text-[10px] text-slate-400">
+                          <span className="text-emerald-600 font-medium">อนุมัติ {approved}</span>
+                          <span className="text-red-500 font-medium">ไม่อนุมัติ {rejected}</span>
+                          <span>ส่ง {submitted}</span>
+                        </div>
+                      </div>
+
+                      {/* Aging */}
+                      <div className="bg-white rounded-xl border border-slate-200 p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-medium text-slate-500">Aging เฉลี่ย</span>
+                          <Clock className="w-4 h-4 text-slate-400" />
+                        </div>
+                        <div className="flex items-baseline gap-1">
+                          <span className={`text-3xl font-bold ${avgAging > 60 ? 'text-red-600' : avgAging > 30 ? 'text-amber-600' : 'text-slate-900'}`}>{avgAging}</span>
+                          <span className="text-sm text-slate-400">วัน</span>
+                        </div>
+                        <div className="mt-2 text-[10px] text-slate-400">
+                          <div className="flex justify-between">
+                            <span>สูงสุด <span className="font-bold text-slate-600">{maxAging}</span> วัน</span>
+                            <span>เกิน 90d <span className={`font-bold ${overSla > 0 ? 'text-red-500' : 'text-emerald-500'}`}>{overSla}</span> ราย</span>
+                          </div>
+                        </div>
+                        <div className="mt-1.5 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                          <div className={`h-full rounded-full ${avgAging > 60 ? 'bg-red-400' : avgAging > 30 ? 'bg-amber-400' : 'bg-emerald-400'}`} style={{ width: `${Math.min((avgAging / 120) * 100, 100)}%` }} />
+                        </div>
+                      </div>
+
+                      {/* ติดปัญหา */}
+                      <div className={`bg-white rounded-xl border p-4 ${blockedBookings.length > 0 ? 'border-red-200 bg-red-50/50' : 'border-slate-200'}`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-medium text-slate-500">ติดปัญหา</span>
+                          <AlertTriangle className={`w-4 h-4 ${blockedBookings.length > 0 ? 'text-red-400' : 'text-slate-300'}`} />
+                        </div>
+                        <div className={`text-3xl font-bold ${blockedBookings.length > 0 ? 'text-red-600' : 'text-slate-300'}`}>{blockedBookings.length}</div>
+                        <div className="text-[10px] text-slate-400 mt-1">
+                          {blockedBookings.length > 0 ? (
+                            (() => {
+                              const reasons: Record<string, number> = {};
+                              blockedBookings.forEach(b => {
+                                const r = b.current_blocker || 'อื่นๆ';
+                                reasons[r] = (reasons[r] || 0) + 1;
+                              });
+                              const top = Object.entries(reasons).sort((a, b) => b[1] - a[1])[0];
+                              return <span>Top: <span className="font-medium text-red-500">{top[0]}</span> ({top[1]})</span>;
+                            })()
+                          ) : 'ไม่มีรายการติดปัญหา'}
+                        </div>
+                      </div>
+
+                      {/* Stage Pipeline Mini */}
+                      <div className="bg-white rounded-xl border border-slate-200 p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-medium text-slate-500">Stage Distribution</span>
+                          <TrendingUp className="w-4 h-4 text-slate-400" />
+                        </div>
+                        <div className="space-y-1.5 mt-1">
+                          {[
+                            { label: 'เอกสาร', count: stageDoc, color: 'bg-indigo-500' },
+                            { label: 'สินเชื่อ', count: stageCredit, color: 'bg-amber-500' },
+                            { label: 'ตรวจบ้าน', count: stageInsp, color: 'bg-cyan-500' },
+                            { label: 'พร้อมโอน', count: stageReady, color: 'bg-emerald-500' },
+                          ].map(s => (
+                            <div key={s.label} className="flex items-center gap-1.5">
+                              <span className="text-[10px] text-slate-500 w-14 shrink-0">{s.label}</span>
+                              <div className="flex-1 h-3 bg-slate-100 rounded overflow-hidden">
+                                <div className={`h-full ${s.color} rounded`} style={{ width: `${pipeTotal > 0 ? (s.count / pipeTotal) * 100 : 0}%` }} />
+                              </div>
+                              <span className="text-[10px] font-bold text-slate-600 w-5 text-right">{s.count}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-3xl font-bold text-amber-600">{filteredSummary.activeBookings}</div>
-                  <div className="text-sm text-amber-600 mt-1">รายการ</div>
-                </div>
-                <div className="bg-white rounded-xl p-5 border border-red-200 bg-red-50">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-sm text-red-700">ติดปัญหา</span>
-                    <AlertTriangle className="w-5 h-5 text-red-500" />
+                );
+              })()}
+
+              {/* ════════ งานค้างในแต่ละ Process ════════ */}
+              {(() => {
+                const notDone = globalFilteredBookings.filter(b => b.stage !== 'transferred' && b.stage !== 'cancelled');
+                const processes = [
+                  { key: 'booking', label: 'จอง', count: notDone.filter(b => !b.contract_date).length },
+                  { key: 'doc_bureau', label: 'เอกสารตรวจบูโร', count: notDone.filter(b => b.contract_date && !b.doc_bureau_date).length },
+                  { key: 'doc_bank', label: 'เตรียมเอกสารธนาคาร', count: notDone.filter(b => b.contract_date && !b.doc_complete_bank_jd_date).length },
+                  { key: 'doc_jd', label: 'เตรียมเอกสาร JD', count: notDone.filter(b => b.contract_date && !b.doc_complete_jd_date).length },
+                  // สินเชื่อ
+                  { key: 'submit_bank', label: 'ส่งเอกสารให้ธนาคาร', count: notDone.filter(b => (b.doc_bureau_date || b.doc_complete_bank_jd_date) && b.banks_submitted.length === 0).length },
+                  { key: 'bureau', label: 'ผลบูโร', count: notDone.filter(b => b.banks_submitted.length > 0 && !b.bureau_actual_result_date).length },
+                  { key: 'preapprove', label: 'อนุมัติเบื้องต้น', count: notDone.filter(b => b.bureau_actual_result_date && !b.bank_preapprove_actual_date).length },
+                  { key: 'final', label: 'อนุมัติจริง', count: notDone.filter(b => b.bank_preapprove_actual_date && !b.bank_final_actual_date).length },
+                  // ตรวจบ้าน
+                  { key: 'inspect1', label: 'ตรวจครั้งที่ 1', count: notDone.filter(b => b.stage === 'inspection' && !b.inspect1_actual_date).length },
+                  { key: 'inspect2', label: 'ตรวจครั้งที่ 2', count: notDone.filter(b => b.stage === 'inspection' && b.inspect1_actual_date && b.inspect1_result?.includes('ไม่') && !b.inspect2_actual_date).length },
+                  { key: 'inspect3', label: 'ตรวจครั้งที่ 3', count: notDone.filter(b => b.stage === 'inspection' && b.inspect2_actual_date && b.inspect2_result?.includes('ไม่') && !b.inspect3_actual_date).length },
+                  { key: 'inspect3plus', label: 'ตรวจมากกว่า 3', count: notDone.filter(b => b.stage === 'inspection' && b.inspect3_actual_date && b.inspect3_result?.includes('ไม่')).length },
+                  // โอน
+                  { key: 'contract_bank', label: 'สัญญา Bank', count: notDone.filter(b => b.bank_final_actual_date && !b.bank_contract_date).length },
+                  { key: 'transfer_pkg', label: 'ส่งชุดโอน', count: notDone.filter(b => b.bank_contract_date && !b.transfer_package_sent_date).length },
+                  { key: 'title_clear', label: 'ปลอดโฉนด', count: notDone.filter(b => b.transfer_package_sent_date && !b.title_clear_date).length },
+                  { key: 'transfer_appt', label: 'นัดโอน', count: notDone.filter(b => b.title_clear_date && !b.transfer_appointment_date).length },
+                  { key: 'transfer_actual', label: 'โอนจริง', count: notDone.filter(b => b.transfer_appointment_date && !b.transfer_actual_date).length },
+                ];
+
+                const groupColor: Record<string, string> = {
+                  booking: '#6366f1', doc_bureau: '#6366f1', doc_bank: '#6366f1', doc_jd: '#6366f1',
+                  submit_bank: '#f59e0b', bureau: '#f59e0b', preapprove: '#f59e0b', final: '#f59e0b',
+                  inspect1: '#06b6d4', inspect2: '#06b6d4', inspect3: '#06b6d4', inspect3plus: '#06b6d4',
+                  contract_bank: '#10b981', transfer_pkg: '#10b981', title_clear: '#10b981', transfer_appt: '#10b981', transfer_actual: '#10b981',
+                };
+                const barData = processes.map(p => ({ process: p.label, count: p.count, color: groupColor[p.key] }));
+
+                return (
+                  <div className="bg-white rounded-xl border border-slate-200 p-5">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <h2 className="font-semibold text-slate-900">งานค้างในแต่ละ Process</h2>
+                        <p className="text-[11px] text-slate-400 mt-0.5">จำนวน Booking ที่ค้างอยู่ในแต่ละขั้นตอน</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-1 text-[10px] text-slate-600"><span className="w-3 h-3 rounded-sm bg-indigo-500" /> เอกสาร</div>
+                        <div className="flex items-center gap-1 text-[10px] text-slate-600"><span className="w-3 h-3 rounded-sm bg-amber-500" /> สินเชื่อ</div>
+                        <div className="flex items-center gap-1 text-[10px] text-slate-600"><span className="w-3 h-3 rounded-sm bg-cyan-500" /> ตรวจบ้าน</div>
+                        <div className="flex items-center gap-1 text-[10px] text-slate-600"><span className="w-3 h-3 rounded-sm bg-emerald-500" /> โอน</div>
+                      </div>
+                    </div>
+                    <ResponsiveContainer width="100%" height={320}>
+                      <BarChart data={barData} margin={{ left: 0, right: 10, top: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="process" tick={{ fontSize: 9, fontWeight: 600 }} interval={0} angle={-30} textAnchor="end" height={50} />
+                        <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                        <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} formatter={(value) => [`${value} รายการ`, 'งานค้าง']} />
+                        <Bar dataKey="count" name="งานค้าง">
+                          {barData.map((d, i) => <Cell key={i} fill={d.color} />)}
+                          <LabelList dataKey="count" position="top" style={{ fontSize: 10, fontWeight: 700, fill: '#334155' }} />
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
                   </div>
-                  <div className="text-3xl font-bold text-red-600">{blockedBookings.length}</div>
-                  <div className="text-sm text-red-500 mt-1">รายการ</div>
-                </div>
-                <div className="bg-white rounded-xl p-5 border border-blue-200 bg-blue-50">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-sm text-blue-700">รอโอนจริง (After Transfer)</span>
-                    <ArrowUpRight className="w-5 h-5 text-blue-500" />
+                );
+              })()}
+
+              {/* ════════ Workload List — Progress Bar รายคน ════════ */}
+              {(() => {
+                const notDone2 = globalFilteredBookings.filter(b => b.stage !== 'transferred' && b.stage !== 'cancelled');
+
+                // นับงานค้างต่อคน แยกตามหมวดหมู่ process
+                const countPeople = (bks: typeof notDone2, getter: (b: typeof notDone2[0]) => string | null) => {
+                  const map: Record<string, number> = {};
+                  bks.forEach(b => {
+                    const owner = getter(b);
+                    if (owner) map[owner] = (map[owner] || 0) + 1;
+                  });
+                  return Object.entries(map).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
+                };
+
+                const docBookings = notDone2.filter(b => b.stage === 'booking' || b.stage === 'contract' || (!b.doc_bureau_date && b.stage === 'credit') || (!b.doc_complete_bank_jd_date && b.stage === 'credit'));
+                const creditBookings = notDone2.filter(b => b.stage === 'credit');
+                const inspBookings = notDone2.filter(b => b.stage === 'inspection');
+                const transferBookings = notDone2.filter(b => b.stage === 'ready');
+
+                const catGroups = [
+                  { cat: 'เอกสาร', color: '#6366f1', people: countPeople(docBookings, b => b.credit_owner || b.sale_name) },
+                  { cat: 'สินเชื่อ', color: '#f59e0b', people: countPeople(creditBookings, b => b.credit_owner) },
+                  { cat: 'ตรวจบ้าน', color: '#06b6d4', people: countPeople(inspBookings, b => b.cs_owner) },
+                  { cat: 'โอน', color: '#10b981', people: countPeople(transferBookings, b => b.credit_owner || b.sale_name) },
+                ];
+                const maxAll = Math.max(...catGroups.flatMap(g => g.people.map(p => p.count)), 1);
+
+                return (
+                  <div className="bg-white rounded-xl border border-slate-200 p-5">
+                    <div className="mb-3">
+                      <h2 className="font-semibold text-slate-900">Workload — งานค้างรายคน</h2>
+                      <p className="text-[11px] text-slate-400 mt-0.5">จำนวน Booking ค้างในแต่ละหมวด แยกตามผู้รับผิดชอบ</p>
+                    </div>
+                    <div className="space-y-4">
+                      {catGroups.map(g => (
+                        <div key={g.cat}>
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: g.color }} />
+                            <span className="text-[11px] font-bold text-slate-700">{g.cat}</span>
+                            <span className="text-[10px] text-slate-400 ml-1">{g.people.reduce((s, p) => s + p.count, 0)} รายการ</span>
+                          </div>
+                          <div className="space-y-1">
+                            {g.people.map(p => (
+                              <div key={p.name} className="flex items-center gap-2">
+                                <span className="text-[10px] text-slate-600 w-[160px] shrink-0 truncate">{p.name}</span>
+                                <div className="flex-1 h-4 bg-slate-100 rounded overflow-hidden">
+                                  <div className="h-full rounded transition-all" style={{ width: `${(p.count / maxAll) * 100}%`, backgroundColor: g.color, opacity: 0.75 }} />
+                                </div>
+                                <span className="text-[10px] font-bold text-slate-700 w-6 text-right tabular-nums">{p.count}</span>
+                              </div>
+                            ))}
+                            {g.people.length === 0 && (
+                              <div className="text-[10px] text-slate-300 pl-4">— ไม่มีงานค้าง</div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="text-3xl font-bold text-blue-600">
-                    {globalFilteredBookings.filter(b => b.stage === 'transferred').length}
+                );
+              })()}
+
+              {/* ════════ เวลาเฉลี่ย ตามอาชีพลูกค้า (จาก Booking Data) ════════ */}
+              {(() => {
+                const parseD = (d: string) => { const [dd,mm,yy] = d.split('/'); return new Date(+yy, +mm-1, +dd); };
+                const daysDiff = (a: string | null, b: string | null) => {
+                  if (!a || !b) return null;
+                  return Math.round((parseD(b).getTime() - parseD(a).getTime()) / 86400000);
+                };
+
+                // Group bookings by occupation category
+                const occMap: Record<string, string> = {
+                  'พนักงานบริษัท': 'พนักงาน', 'ผู้บริหาร': 'พนักงาน', 'วิศวกร': 'พนักงาน',
+                  'ค้าขาย': 'เจ้าของกิจการ', 'ธุรกิจส่วนตัว': 'เจ้าของกิจการ', 'เจ้าของกิจการ': 'เจ้าของกิจการ',
+                  'ข้าราชการ': 'ข้าราชการ',
+                };
+                const occGroup = (occ: string | null) => occ ? (occMap[occ] || 'อื่นๆ') : 'อื่นๆ';
+
+                const occupations = ['พนักงาน', 'เจ้าของกิจการ', 'ข้าราชการ'];
+                const occColors: Record<string, string> = { 'พนักงาน': '#3b82f6', 'เจ้าของกิจการ': '#f59e0b', 'ข้าราชการ': '#8b5cf6' };
+
+                type B = typeof globalFilteredBookings[0];
+                const firstSubmitDate = (b: B) => {
+                  const dates = b.banks_submitted.map(x => x.submit_date).filter(Boolean) as string[];
+                  return dates.length ? dates.sort((a, c) => parseD(a).getTime() - parseD(c).getTime())[0] : null;
+                };
+                const lastInspDate = (b: B) => b.inspect3_actual_date || b.inspect2_actual_date || b.inspect1_actual_date;
+                const stepDefs: { name: string; note: string; from: (b: B) => string | null; to: (b: B) => string | null }[] = [
+                  // ── Root ──
+                  { name: 'สัญญา', note: 'จากจอง', from: b => b.booking_date, to: b => b.contract_date },
+                  { name: 'เช็คบูโร', note: 'จากสัญญา', from: b => b.contract_date || b.booking_date, to: b => b.doc_bureau_date },
+                  { name: 'เอกสารครบ Bank', note: 'จากจอง', from: b => b.booking_date, to: b => b.doc_complete_bank_jd_date },
+                  { name: 'เอกสารครบ JD', note: 'จากจอง', from: b => b.booking_date, to: b => b.doc_complete_jd_date },
+                  // ── สินเชื่อ ──
+                  { name: 'ส่งเอกสาร', note: 'จากเอกสารครบ', from: b => b.doc_complete_bank_jd_date || b.doc_bureau_date, to: b => firstSubmitDate(b) },
+                  { name: 'บูโร', note: 'จากส่งเอกสาร', from: b => firstSubmitDate(b) || b.doc_bureau_date, to: b => b.bureau_actual_result_date },
+                  { name: 'อนุมัติเบื้องต้น', note: 'จากผลบูโร', from: b => b.bureau_actual_result_date, to: b => b.bank_preapprove_actual_date },
+                  { name: 'อนุมัติจริง', note: 'จาก Pre-approve', from: b => b.bank_preapprove_actual_date, to: b => b.bank_final_actual_date },
+                  // ── ตรวจบ้าน ──
+                  { name: 'นัดลูกค้าตรวจ', note: 'จาก QC', from: b => b.unit_ready_inspection_date, to: b => b.inspect1_appointment_date },
+                  { name: 'ลูกค้ารับมอบ', note: 'จากตรวจ', from: b => lastInspDate(b), to: b => b.handover_accept_date },
+                  // ── โอน ──
+                  { name: 'สัญญา Bank', note: 'จากอนุมัติ', from: b => b.bank_final_actual_date, to: b => b.bank_contract_date },
+                  { name: 'ส่งชุดโอน', note: 'จากสัญญา Bank', from: b => b.bank_contract_date, to: b => b.transfer_package_sent_date },
+                  { name: 'ปลอดโฉนด', note: 'จากส่งชุดโอน', from: b => b.transfer_package_sent_date, to: b => b.title_clear_date },
+                  { name: 'นัดโอน', note: 'จากปลอดโฉนด', from: b => b.title_clear_date, to: b => b.transfer_appointment_date },
+                  { name: 'โอนจริง', note: 'จากนัดโอน', from: b => b.transfer_appointment_date, to: b => b.transfer_actual_date },
+                ];
+
+                const slaData = stepDefs.map(step => {
+                  const row: Record<string, unknown> = { step: step.name, note: step.note };
+                  occupations.forEach(occ => {
+                    const matched = globalFilteredBookings
+                      .filter(b => occGroup(b.customer_occupation) === occ)
+                      .map(b => daysDiff(step.from(b), step.to(b)))
+                      .filter((d): d is number => d !== null && d >= 0);
+                    row[occ] = matched.length > 0 ? Math.round(matched.reduce((s, d) => s + d, 0) / matched.length) : undefined;
+                  });
+                  // ค่าเฉลี่ยรวมทุกอาชีพ
+                  const allMatched = globalFilteredBookings
+                    .map(b => daysDiff(step.from(b), step.to(b)))
+                    .filter((d): d is number => d !== null && d >= 0);
+                  row['เฉลี่ยรวม'] = allMatched.length > 0 ? Math.round(allMatched.reduce((s, d) => s + d, 0) / allMatched.length) : undefined;
+                  return row;
+                });
+
+                return (
+                  <div className="bg-white rounded-xl border border-slate-200 p-5">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <h2 className="font-semibold text-slate-900">เวลาเฉลี่ย — ตามอาชีพลูกค้า</h2>
+                        <p className="text-[11px] text-slate-400 mt-0.5">คำนวณจากข้อมูล Booking จริง</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {occupations.map(occ => (
+                          <div key={occ} className="flex items-center gap-1.5 text-xs text-slate-600">
+                            <div className="w-4 h-0.5 rounded" style={{ backgroundColor: occColors[occ] }} />
+                            {occ}
+                          </div>
+                        ))}
+                        <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                          <div className="w-4 h-0 border-t-2 border-dashed border-slate-400 rounded" />
+                          เฉลี่ยรวม
+                        </div>
+                      </div>
+                    </div>
+                    <ResponsiveContainer width="100%" height={360}>
+                      <ComposedChart data={slaData} margin={{ left: 0, right: 10, top: 35, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="step" tick={{ fontSize: 9 }} interval={0} angle={-30} textAnchor="end" height={70} />
+                        <YAxis unit=" วัน" tick={{ fontSize: 11 }} domain={[0, 'auto']} />
+                        <Tooltip
+                          contentStyle={{ fontSize: 13, borderRadius: 8 }}
+                          formatter={(value, name) => [`${value} วัน`, name]}
+                          labelFormatter={(label, payload) => {
+                            const item = payload?.[0]?.payload as Record<string, unknown> | undefined;
+                            return item ? `${label} (${item.note})` : String(label);
+                          }}
+                        />
+                        {occupations.map((occ, idx) => {
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          const renderLabel = (props: any) => {
+                            const { x, y, value, index: stepIdx } = props;
+                            if (x == null || y == null || value == null || stepIdx == null) return null;
+                            const stepRow = slaData[stepIdx];
+                            const vals = occupations.map((o, i) => ({ idx: i, val: stepRow[o] as number | undefined }));
+                            const close = vals.filter(v => v.val !== undefined && Math.abs(v.val - value) <= 1);
+                            let dy: number;
+                            if (close.length <= 1) {
+                              dy = -14;
+                            } else {
+                              const rank = close.findIndex(v => v.idx === idx);
+                              dy = -14 - (close.length - 1 - rank) * 15;
+                            }
+                            const txt = `${value}`;
+                            const tw = txt.length * 7 + 10;
+                            return (
+                              <g key={`${occ}-${stepIdx}`}>
+                                <rect x={x - tw / 2} y={y + dy - 10} width={tw} height={15} rx={4} fill={occColors[occ]} opacity={0.15} />
+                                <text x={x} y={y + dy} textAnchor="middle" fontSize={10} fontWeight={700} fill={occColors[occ]}>{txt}</text>
+                              </g>
+                            );
+                          };
+                          return (
+                            <Line
+                              key={occ}
+                              type="monotone"
+                              dataKey={occ}
+                              stroke={occColors[occ]}
+                              strokeWidth={2.5}
+                              dot={{ r: 5, fill: occColors[occ], stroke: '#fff', strokeWidth: 2 }}
+                              activeDot={{ r: 7 }}
+                              connectNulls={false}
+                            >
+                              <LabelList dataKey={occ} content={renderLabel} />
+                            </Line>
+                          );
+                        })}
+                        <Line
+                          type="monotone"
+                          dataKey="เฉลี่ยรวม"
+                          stroke="#94a3b8"
+                          strokeWidth={2}
+                          strokeDasharray="6 4"
+                          dot={{ r: 3, fill: '#94a3b8', stroke: '#fff', strokeWidth: 1 }}
+                          connectNulls={false}
+                        >
+                          <LabelList dataKey="เฉลี่ยรวม" position="bottom" offset={10} style={{ fontSize: 10, fontWeight: 600, fill: '#64748b' }} />
+                        </Line>
+                      </ComposedChart>
+                    </ResponsiveContainer>
                   </div>
-                  <div className="text-sm text-blue-500 mt-1">รายการ</div>
-                </div>
-                <div className="bg-white rounded-xl p-5 border border-slate-200">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-sm text-slate-500">Aging เฉลี่ย</span>
-                    <TrendingUp className="w-5 h-5 text-slate-400" />
+                );
+              })()}
+
+              <div className="grid grid-cols-10 gap-4 items-stretch">
+              <div className="col-span-3 flex">
+              {/* ════════ เวลาอนุมัติเฉลี่ย แต่ละ Step ของธนาคาร + JD ════════ */}
+              {(() => {
+                const parseD = (d: string) => { const [dd,mm,yy] = d.split('/'); return new Date(+yy, +mm-1, +dd); };
+                const daysDiff = (a: string | null, b: string | null) => {
+                  if (!a || !b) return null;
+                  return Math.round((parseD(b).getTime() - parseD(a).getTime()) / 86400000);
+                };
+
+                // ธนาคารทั้งหมดตาม master (ไม่รวม CASH)
+                const allBanks = ['GHB','GSB','SCB','KBANK','KTB','TTB','BAY','LH','BBL','UOB','CIMB','KKP','iBank','TISCO','สหกรณ์','JD'];
+                const bankColors: Record<string, string> = {
+                  'GHB': '#e11d48', 'GSB': '#f472b6', 'SCB': '#7c3aed', 'KBANK': '#16a34a',
+                  'KTB': '#0891b2', 'TTB': '#ea580c', 'BAY': '#eab308', 'LH': '#84cc16',
+                  'BBL': '#2563eb', 'UOB': '#db2777', 'CIMB': '#b91c1c', 'KKP': '#6366f1',
+                  'iBank': '#0d9488', 'TISCO': '#a855f7', 'สหกรณ์': '#78716c', 'JD': '#059669',
+                };
+
+                const stepNames = ['ส่ง → บูโร', 'บูโร → เบื้องต้น', 'เบื้องต้น → อนุมัติจริง', 'รวม ส่ง → อนุมัติจริง'];
+
+                // Collect per-bank step data
+                type BankStep = { bank: string; vals: (number | null)[] };
+                const bankStepMap: Record<string, number[][]> = {};
+
+                globalFilteredBookings.forEach(b => {
+                  const bureauDate = b.bureau_actual_result_date;
+                  b.banks_submitted.forEach(bs => {
+                    if (bs.bank === 'CASH' || !bs.submit_date) return;
+                    if (!bankStepMap[bs.bank]) bankStepMap[bs.bank] = [[], [], [], []];
+                    const arr = bankStepMap[bs.bank];
+
+                    // Step 0: ส่ง → บูโร
+                    const d0 = daysDiff(bs.submit_date, bureauDate);
+                    if (d0 !== null && d0 >= 0) arr[0].push(d0);
+
+                    if (bs.bank === 'JD') {
+                      // JD: ไม่มีเบื้องต้น, step 2 = บูโร → อนุมัติจริง
+                      const d2 = daysDiff(bureauDate, bs.result_date);
+                      if (d2 !== null && d2 >= 0) arr[2].push(d2);
+                    } else {
+                      // Step 1: บูโร → เบื้องต้น
+                      const d1 = daysDiff(bureauDate, bs.preapprove_date);
+                      if (d1 !== null && d1 >= 0) arr[1].push(d1);
+                      // Step 2: เบื้องต้น → อนุมัติจริง
+                      const d2 = daysDiff(bs.preapprove_date, bs.result_date);
+                      if (d2 !== null && d2 >= 0) arr[2].push(d2);
+                    }
+
+                    // Step 3: รวม ส่ง → อนุมัติจริง
+                    const dTotal = daysDiff(bs.submit_date, bs.result_date);
+                    if (dTotal !== null && dTotal >= 0) arr[3].push(dTotal);
+                  });
+                });
+
+                // Build heatmap data: rows = banks, cols = steps
+                const heatData = allBanks.map(bk => {
+                  const row: { bank: string; values: (number | null)[] } = { bank: bk, values: [] };
+                  stepNames.forEach((_, si) => {
+                    const vals = bankStepMap[bk]?.[si] || [];
+                    row.values.push(vals.length > 0 ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length) : null);
+                  });
+                  return row;
+                });
+
+                // Rank per step column (เร็วสุด = ลำดับ 1, ค่าเท่ากัน = ลำดับเดียวกัน)
+                // rankMap[stepIdx][bank] = { rank, total }
+                const rankMap: Record<number, Record<string, { rank: number; total: number }>> = {};
+                stepNames.forEach((_, si) => {
+                  const entries = heatData
+                    .filter(r => r.values[si] !== null)
+                    .map(r => ({ bank: r.bank, val: r.values[si] as number }));
+                  // sort by value ascending
+                  entries.sort((a, b) => a.val - b.val);
+                  // assign rank — tied values get the same rank
+                  rankMap[si] = {};
+                  const total = entries.length;
+                  let currentRank = 1;
+                  entries.forEach((e, idx) => {
+                    if (idx > 0 && e.val > entries[idx - 1].val) currentRank = idx + 1;
+                    rankMap[si][e.bank] = { rank: currentRank, total };
+                  });
+                });
+
+                // Color by rank ratio — Excel-style gradient: เขียวจัด → เขียว → เหลือง → ส้ม → แดง → แดงจัด
+                const heatColorByRank = (si: number, bank: string, v: number | null): string => {
+                  if (v === null) return '';
+                  const info = rankMap[si]?.[bank];
+                  if (!info || info.total <= 1) return 'text-white';
+                  const ratio = (info.rank - 1) / (info.total - 1); // 0=best → 1=worst
+                  // interpolate: green(34,197,94) → yellow(250,204,21) → orange(249,115,22) → red(220,38,38) → darkred(153,27,27)
+                  let r: number, g: number, b: number;
+                  if (ratio <= 0.25) {
+                    const t = ratio / 0.25;
+                    r = Math.round(34 + t * (250 - 34));
+                    g = Math.round(197 + t * (204 - 197));
+                    b = Math.round(94 + t * (21 - 94));
+                  } else if (ratio <= 0.5) {
+                    const t = (ratio - 0.25) / 0.25;
+                    r = Math.round(250 + t * (249 - 250));
+                    g = Math.round(204 + t * (115 - 204));
+                    b = Math.round(21 + t * (22 - 21));
+                  } else if (ratio <= 0.75) {
+                    const t = (ratio - 0.5) / 0.25;
+                    r = Math.round(249 + t * (220 - 249));
+                    g = Math.round(115 + t * (38 - 115));
+                    b = Math.round(22 + t * (38 - 22));
+                  } else {
+                    const t = (ratio - 0.75) / 0.25;
+                    r = Math.round(220 + t * (153 - 220));
+                    g = Math.round(38 + t * (27 - 38));
+                    b = Math.round(38 + t * (27 - 38));
+                  }
+                  return ratio > 0.5 ? 'text-white' : 'text-slate-900';
+                };
+                const heatBg = (si: number, bank: string, v: number | null): string | undefined => {
+                  if (v === null) return '#f8fafc';
+                  const info = rankMap[si]?.[bank];
+                  if (!info || info.total <= 1) return 'rgb(34,197,94)';
+                  const ratio = (info.rank - 1) / (info.total - 1);
+                  let r: number, g: number, b: number;
+                  if (ratio <= 0.25) {
+                    const t = ratio / 0.25;
+                    r = Math.round(34 + t * (250 - 34));  g = Math.round(197 + t * (204 - 197));  b = Math.round(94 + t * (21 - 94));
+                  } else if (ratio <= 0.5) {
+                    const t = (ratio - 0.25) / 0.25;
+                    r = Math.round(250 + t * (249 - 250));  g = Math.round(204 + t * (115 - 204));  b = Math.round(21 + t * (22 - 21));
+                  } else if (ratio <= 0.75) {
+                    const t = (ratio - 0.5) / 0.25;
+                    r = Math.round(249 + t * (220 - 249));  g = Math.round(115 + t * (38 - 115));  b = Math.round(22 + t * (38 - 22));
+                  } else {
+                    const t = (ratio - 0.75) / 0.25;
+                    r = Math.round(220 + t * (153 - 220));  g = Math.round(38 + t * (27 - 38));  b = Math.round(38 + t * (27 - 38));
+                  }
+                  return `rgb(${r},${g},${b})`;
+                };
+
+                // Count bookings per bank
+                const bankCount: Record<string, number> = {};
+                globalFilteredBookings.forEach(b => {
+                  b.banks_submitted.forEach(bs => {
+                    if (bs.bank !== 'CASH' && bs.submit_date) bankCount[bs.bank] = (bankCount[bs.bank] || 0) + 1;
+                  });
+                });
+
+                return (
+                  <div className="bg-white rounded-xl border border-slate-200 p-3 w-full">
+                    <div className="mb-2">
+                      <h2 className="font-semibold text-slate-900 text-sm">เวลาอนุมัติเฉลี่ย</h2>
+                      <p className="text-[10px] text-slate-400">สีเข้ม = ใช้เวลามาก</p>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-[9px] table-fixed">
+                        <thead>
+                          <tr>
+                            <th className="text-left py-1 px-1 text-slate-500 font-semibold" style={{ width: '56px' }}></th>
+                            <th className="text-center py-1 px-0.5 text-slate-400 font-medium" style={{ width: '22px' }}>N</th>
+                            {['ส่ง→บูโร', 'บูโร→ต้น', 'ต้น→จริง', 'รวม'].map(s => (
+                              <th key={s} className="text-center py-1 px-0.5 text-slate-500 font-semibold">{s}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {heatData.map(row => (
+                            <tr key={row.bank}>
+                              <td className="py-0 px-1 font-bold text-slate-700 whitespace-nowrap border border-white text-[9px]">
+                                <span className="inline-block w-1.5 h-1.5 rounded-sm mr-0.5" style={{ backgroundColor: bankColors[row.bank] }} />
+                                {row.bank}
+                              </td>
+                              <td className="text-center py-0 px-0.5 text-slate-400 tabular-nums border border-white">{bankCount[row.bank] || '—'}</td>
+                              {row.values.map((v, ci) => {
+                                const info = rankMap[ci]?.[row.bank];
+                                return (
+                                  <td key={ci} className={`text-center py-1 px-0.5 font-bold tabular-nums border border-white ${heatColorByRank(ci, row.bank, v)}`} style={{ backgroundColor: heatBg(ci, row.bank, v) }}>
+                                    {v !== null ? (<>{v}d<span className="text-[7px] opacity-60"> #{info?.rank}</span></>) : <span className="text-slate-300">—</span>}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="flex items-center gap-0.5 mt-3 text-[10px] text-slate-400">
+                      <span className="mr-1">เร็ว</span>
+                      <span className="w-6 h-3 rounded" style={{ backgroundColor: 'rgb(34,197,94)' }} />
+                      <span className="w-6 h-3 rounded" style={{ backgroundColor: 'rgb(142,200,57)' }} />
+                      <span className="w-6 h-3 rounded" style={{ backgroundColor: 'rgb(250,204,21)' }} />
+                      <span className="w-6 h-3 rounded" style={{ backgroundColor: 'rgb(249,159,22)' }} />
+                      <span className="w-6 h-3 rounded" style={{ backgroundColor: 'rgb(249,115,22)' }} />
+                      <span className="w-6 h-3 rounded" style={{ backgroundColor: 'rgb(220,38,38)' }} />
+                      <span className="w-6 h-3 rounded" style={{ backgroundColor: 'rgb(153,27,27)' }} />
+                      <span className="ml-1">ช้า</span>
+                    </div>
                   </div>
-                  <div className="text-3xl font-bold text-slate-900">{filteredSummary.avgAgingDays}</div>
-                  <div className="text-sm text-slate-500 mt-1">วัน</div>
-                </div>
+                );
+              })()}
               </div>
+              <div className="col-span-7 flex">
+              {/* ════════ Stacked Bar — จำนวนยื่นสินเชื่อรายธนาคาร ════════ */}
+              {(() => {
+                const allBanksSb = ['GHB','GSB','SCB','KBANK','KTB','TTB','BAY','LH','BBL','UOB','CIMB','KKP','iBank','TISCO','สหกรณ์'];
+                const sbColors: Record<string, string> = {
+                  'GHB': '#e11d48', 'GSB': '#f472b6', 'SCB': '#7c3aed', 'KBANK': '#16a34a',
+                  'KTB': '#0891b2', 'TTB': '#ea580c', 'BAY': '#eab308', 'LH': '#84cc16',
+                  'BBL': '#2563eb', 'UOB': '#db2777', 'CIMB': '#b91c1c', 'KKP': '#6366f1',
+                  'iBank': '#0d9488', 'TISCO': '#a855f7', 'สหกรณ์': '#78716c', 'JD': '#059669',
+                };
+
+                // Count per bank per status
+                const bankData: Record<string, { approved: number; rejected: number; pending: number }> = {};
+                allBanksSb.forEach(bk => { bankData[bk] = { approved: 0, rejected: 0, pending: 0 }; });
+
+                globalFilteredBookings.forEach(b => {
+                  b.banks_submitted.forEach(bs => {
+                    if (bs.bank === 'CASH' || bs.bank === 'JD') return;
+                    if (!bankData[bs.bank]) return;
+                    if (!bs.result || bs.result === 'รอผล') {
+                      bankData[bs.bank].pending++;
+                    } else if (bs.result.includes('ไม่อนุมัติ')) {
+                      bankData[bs.bank].rejected++;
+                    } else if (bs.result.includes('อนุมัติ')) {
+                      bankData[bs.bank].approved++;
+                    } else {
+                      bankData[bs.bank].pending++;
+                    }
+                  });
+                });
+
+                const chartData = allBanksSb
+                  .map(bk => {
+                    const t = bankData[bk].approved + bankData[bk].rejected + bankData[bk].pending;
+                    return {
+                      bank: bk,
+                      อนุมัติ: bankData[bk].approved,
+                      ไม่อนุมัติ: bankData[bk].rejected,
+                      งานค้าง: bankData[bk].pending,
+                      total: t,
+                      approveRate: t > 0 ? Math.round((bankData[bk].approved / t) * 100) : 0,
+                      rejectRate: t > 0 ? Math.round((bankData[bk].rejected / t) * 100) : 0,
+                    };
+                  })
+                  .sort((a, b) => b.total - a.total);
+
+                return (
+                  <div className="bg-white rounded-xl border border-slate-200 p-4 w-full flex flex-col">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <h2 className="font-semibold text-slate-900 text-sm">จำนวนยื่นสินเชื่อ — รายธนาคาร</h2>
+                        <p className="text-[10px] text-slate-400 mt-0.5">แท่งซ้าย = ส่ง, แท่งขวา = อนุมัติ+ไม่อนุมัติ</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-1 text-[10px] text-slate-600">
+                          <span className="w-3 h-3 rounded-sm bg-slate-400" /> ส่ง
+                        </div>
+                        <div className="flex items-center gap-1 text-[10px] text-slate-600">
+                          <span className="w-3 h-3 rounded-sm bg-emerald-500" /> อนุมัติ
+                        </div>
+                        <div className="flex items-center gap-1 text-[10px] text-slate-600">
+                          <span className="w-3 h-3 rounded-sm bg-red-500" /> ไม่อนุมัติ
+                        </div>
+                        <div className="flex items-center gap-1 text-[10px] text-slate-600">
+                          <span className="w-2.5 h-0.5 rounded bg-amber-500" /> รออนุมัติ
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex-1 min-h-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ComposedChart data={chartData} margin={{ left: 0, right: 10, top: 25, bottom: 5 }} barGap={2} barCategoryGap="20%">
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="bank" tick={{ fontSize: 9, fontWeight: 600 }} interval={0} />
+                        <YAxis tick={{ fontSize: 11 }} />
+                        <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} formatter={(value, name) => [`${value} ใบ`, name]} />
+                        <Bar dataKey="ไม่อนุมัติ" stackId="result" fill="#ef4444">
+                          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                          <LabelList content={(props: any) => {
+                            const { x, y, width, height, index } = props;
+                            const d = chartData[index];
+                            if (!d || d['ไม่อนุมัติ'] === 0) return null;
+                            return <text x={x + width / 2} y={y - 4} textAnchor="middle" style={{ fontSize: 8, fontWeight: 700, fill: '#dc2626' }}>{d['ไม่อนุมัติ']} ({d.rejectRate}%)</text>;
+                          }} />
+                        </Bar>
+                        <Bar dataKey="อนุมัติ" stackId="result" fill="#22c55e">
+                          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                          <LabelList content={(props: any) => {
+                            const { x, y, width, height, index } = props;
+                            const d = chartData[index];
+                            if (!d || d['อนุมัติ'] === 0) return null;
+                            return <text x={x + width / 2} y={y + height / 2} textAnchor="middle" dominantBaseline="central" style={{ fontSize: 8, fontWeight: 700, fill: '#065f46' }}>{d['อนุมัติ']} ({d.approveRate}%)</text>;
+                          }} />
+                        </Bar>
+                        <Bar dataKey="total" name="ส่ง" fill="#94a3b8">
+                          <LabelList dataKey="total" position="top" style={{ fontSize: 9, fontWeight: 700, fill: '#334155' }} formatter={((v: any) => Number(v) > 0 ? `${v}` : '') as any} />
+                        </Bar>
+                        <Line type="monotone" dataKey="งานค้าง" name="รออนุมัติ" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3, fill: '#f59e0b' }}>
+                          <LabelList dataKey="งานค้าง" position="top" style={{ fontSize: 8, fontWeight: 700, fill: '#d97706' }} formatter={((v: any) => Number(v) > 0 ? `${v}` : '') as any} />
+                        </Line>
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                    </div>
+                  </div>
+                );
+              })()}
+              </div>
+              </div>
+
 
               {/* Stage Pipeline - 2 Rows with Backlog spanning both */}
               <div className="bg-white rounded-xl border border-slate-200 p-5">
