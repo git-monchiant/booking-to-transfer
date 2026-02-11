@@ -110,7 +110,11 @@ export const createMenuConfig = (
           view: 'list' as const,
           stageFilter: key as Stage,
           color: config.color,
-          badge: globalFilteredBookings.filter(b => b.stage === key).length,
+          badge: key === 'credit'
+            ? globalFilteredBookings.filter(b => b.stage !== 'cancelled' && b.stage !== 'transferred' && b.credit_status !== 'อนุมัติแล้ว' && b.credit_status !== 'โอนสด').length
+            : key === 'inspection'
+            ? globalFilteredBookings.filter(b => b.stage !== 'cancelled' && b.stage !== 'transferred' && b.inspection_status !== 'ผ่านแล้ว' && b.inspection_status !== 'โอนแล้ว').length
+            : globalFilteredBookings.filter(b => b.stage === key).length,
         })),
       // Cancel - single item with dot like stages
       {
@@ -120,14 +124,6 @@ export const createMenuConfig = (
         stageFilter: 'cancelled' as Stage,
         color: '#ef4444',
         badge: globalFilteredBookings.filter(b => b.stage === 'cancelled').length,
-      },
-      {
-        id: 'blocked',
-        label: 'Blocked',
-        icon: AlertTriangle,
-        view: 'blocked',
-        badge: blockedCount,
-        badgeColor: 'bg-amber-600',
       },
       // After Transfer section
       {
@@ -144,7 +140,7 @@ export const createMenuConfig = (
         icon: Wallet,
         iconColor: '#f59e0b',
         view: 'refund' as const,
-        badge: globalFilteredBookings.filter(b => b.refund_status && b.refund_status !== 'ไม่มี').length,
+        badge: globalFilteredBookings.filter(b => b.stage !== 'cancelled' && b.refund_status && b.refund_status !== 'ไม่มี').length,
       },
       {
         id: 'freebie',

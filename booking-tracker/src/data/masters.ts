@@ -69,7 +69,7 @@ export const BANKS_LIST = [
   'TISCO',      // ทิสโก้
   'สหกรณ์',     // สหกรณ์
   'CASH',       // เงินสด
-  'Proptiane',  // Proptiane (Internal)
+  'JD',         // Jaidee (JD)
 ] as const;
 
 export type BankCode = typeof BANKS_LIST[number];

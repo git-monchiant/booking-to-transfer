@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Booking, STAGE_CONFIG, Stage, formatMoney } from '@/data/bookings';
-import { X, Phone, ChevronDown, ChevronRight, Info, User, CreditCard, ClipboardCheck, ArrowRightLeft, Wifi, BarChart3, Wallet, MessageSquare } from 'lucide-react';
+import { X, Phone, ChevronDown, ChevronRight, Info, User, CreditCard, ClipboardCheck, ArrowRightLeft, Wifi, BarChart3, MessageSquare, Wallet, Gauge, Gift, AlertTriangle } from 'lucide-react';
 
 // ─── Helpers ───
 const THAI_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
@@ -32,7 +32,7 @@ function generateMonthOptions(): string[] {
 }
 
 function bankDisplayName(code: string): string {
-  return code === 'Proptiane' ? 'Jaidee (JD)' : code;
+  return code === 'JD' ? 'Jaidee(JD)' : code;
 }
 
 // Bank brand colors — chip bg + white text
@@ -237,14 +237,16 @@ interface Props {
   booking: Booking;
   onClose: () => void;
   onTransferMonthChange?: (bookingId: string, monthKey: string) => void;
+  currentView?: string;
 }
 
-export function BookingDetailPanel({ booking, onClose, onTransferMonthChange }: Props) {
+export function BookingDetailPanel({ booking, onClose, onTransferMonthChange, currentView }: Props) {
   const b = booking;
   const initialMonth = dateToMonthKey(b.transfer_target_date);
   const [transferMonth, setTransferMonth] = useState<string>(initialMonth || '');
   const [upside, setUpside] = useState<boolean>(!!b.transfer_upside_flag);
   const [banksOpen, setBanksOpen] = useState(false);
+  const isAfterView = ['after-transfer','refund','meter','freebie','pending-work'].includes(currentView || '');
   const monthOptions = generateMonthOptions();
   if (initialMonth && !monthOptions.includes(initialMonth)) {
     monthOptions.unshift(initialMonth);
@@ -258,47 +260,51 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange }: 
       <div className="relative w-full max-w-3xl bg-slate-50 shadow-2xl overflow-y-auto flex flex-col">
 
         {/* ── Sticky Header ── */}
-        <div className="sticky top-0 z-10 bg-white border-b border-slate-200 px-6 py-3 shadow-sm">
+        <div className={`sticky top-0 z-10 border-b px-6 py-3 shadow-sm ${
+          b.stage === 'cancelled' ? 'bg-red-600 border-red-700' :
+          b.stage === 'transferred' ? 'bg-teal-600 border-teal-700' :
+          'bg-white border-slate-200'
+        }`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-lg font-bold text-slate-800">{b.id}</span>
-              <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${b.backlog_old_flag ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
-                {b.backlog_old_flag ? 'Backlog' : 'ขายในเดือน'}
+              <span className={`text-lg font-bold ${b.stage === 'cancelled' || b.stage === 'transferred' ? 'text-white' : 'text-slate-800'}`}>{b.id}</span>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${b.stage === 'cancelled' || b.stage === 'transferred' ? 'bg-white/20 text-white' : b.backlog_old_flag ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
+                {b.stage === 'cancelled' ? 'Cancelled' : b.stage === 'transferred' ? 'Transferred' : b.backlog_old_flag ? 'Backlog' : 'ขายในเดือน'}
               </span>
             </div>
-            <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors"><X className="w-4 h-4 text-slate-400" /></button>
+            <button onClick={onClose} className={`p-1.5 rounded-lg transition-colors ${b.stage === 'cancelled' ? 'hover:bg-red-500' : b.stage === 'transferred' ? 'hover:bg-teal-500' : 'hover:bg-slate-100'}`}><X className={`w-4 h-4 ${b.stage === 'cancelled' || b.stage === 'transferred' ? 'text-white/70' : 'text-slate-400'}`} /></button>
           </div>
 
           {/* Row 2: Project + Aging */}
-          <div className="flex items-center gap-2 mt-1 text-sm">
-            <span className="font-medium text-slate-700">{b.project_name}</span>
-            <span className="ml-auto text-slate-500">Aging <span className="font-semibold text-slate-700">{b.aging_days}</span> วัน</span>
+          <div className={`flex items-center gap-2 mt-1 text-sm ${b.stage === 'cancelled' || b.stage === 'transferred' ? 'text-white/80' : ''}`}>
+            <span className={`font-medium ${b.stage === 'cancelled' || b.stage === 'transferred' ? 'text-white' : 'text-slate-700'}`}>{b.project_name}</span>
+            <span className={`ml-auto ${b.stage === 'cancelled' || b.stage === 'transferred' ? 'text-white/70' : 'text-slate-500'}`}>Aging <span className={`font-semibold ${b.stage === 'cancelled' || b.stage === 'transferred' ? 'text-white' : 'text-slate-700'}`}>{b.aging_days}</span> วัน</span>
           </div>
 
           {/* Row 3: Unit | แบบบ้าน | Aging | Price + เป้าโอน */}
-          <div className="flex items-center gap-2 mt-0.5 text-sm text-slate-500">
-            <span>Unit <span className="font-semibold text-slate-700">{b.unit_no}</span></span>
-            {b.house_type && <><span className="text-slate-300">|</span><span>{b.house_type}</span></>}
-            <span className="text-slate-300">|</span>
-            <span>฿<span className="font-semibold text-slate-700">{formatMoney(b.net_contract_value)}</span></span>
-            {b.booking_date && <><span className="text-slate-300">|</span><span className="text-xs">จอง <span className="font-semibold text-slate-700">{b.booking_date}</span></span></>}
+          <div className={`flex items-center gap-2 mt-0.5 text-sm ${b.stage === 'cancelled' || b.stage === 'transferred' ? 'text-white/70' : 'text-slate-500'}`}>
+            <span>Unit <span className={`font-semibold ${b.stage === 'cancelled' || b.stage === 'transferred' ? 'text-white' : 'text-slate-700'}`}>{b.unit_no}</span></span>
+            {b.house_type && <><span className={b.stage === 'cancelled' || b.stage === 'transferred' ? 'text-white/40' : 'text-slate-300'}>|</span><span>{b.house_type}</span></>}
+            <span className={b.stage === 'cancelled' || b.stage === 'transferred' ? 'text-white/40' : 'text-slate-300'}>|</span>
+            <span>฿<span className={`font-semibold ${b.stage === 'cancelled' || b.stage === 'transferred' ? 'text-white' : 'text-slate-700'}`}>{formatMoney(b.net_contract_value)}</span></span>
+            {b.booking_date && <><span className={b.stage === 'cancelled' || b.stage === 'transferred' ? 'text-white/40' : 'text-slate-300'}>|</span><span className="text-xs">จอง <span className={`font-semibold ${b.stage === 'cancelled' || b.stage === 'transferred' ? 'text-white' : 'text-slate-700'}`}>{b.booking_date}</span></span></>}
 
             <div className="ml-auto flex items-center gap-3">
               <label className="flex items-center gap-1 cursor-pointer">
                 <input type="checkbox" checked={upside} onChange={(e) => setUpside(e.target.checked)} className="w-3.5 h-3.5 rounded border-slate-300 text-emerald-500 focus:ring-emerald-400 cursor-pointer" />
-                <span className={`text-xs font-medium ${upside ? 'text-emerald-500' : 'text-slate-400'}`}>Upside</span>
+                <span className={`text-xs font-medium ${upside ? 'text-emerald-500' : b.stage === 'cancelled' || b.stage === 'transferred' ? 'text-white/50' : 'text-slate-400'}`}>Upside</span>
               </label>
-              <span className="text-xs text-slate-400">เป้าโอน</span>
+              <span className={`text-xs ${b.stage === 'cancelled' || b.stage === 'transferred' ? 'text-white/50' : 'text-slate-400'}`}>เป้าโอน</span>
               <div className="relative">
                 <select
                   value={transferMonth}
                   onChange={(e) => { setTransferMonth(e.target.value); onTransferMonthChange?.(b.id, e.target.value); }}
-                  className="appearance-none bg-slate-50 border border-slate-200 rounded-md pl-2 pr-6 py-1 text-xs font-medium text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-1 focus:ring-slate-300 cursor-pointer"
+                  className={`appearance-none border rounded-md pl-2 pr-6 py-1 text-xs font-medium hover:border-slate-300 focus:outline-none focus:ring-1 focus:ring-slate-300 cursor-pointer ${b.stage === 'cancelled' || b.stage === 'transferred' ? 'bg-white/10 border-white/20 text-white' : 'bg-slate-50 border-slate-200 text-slate-700'}`}
                 >
                   <option value="">— ยังไม่กำหนด —</option>
                   {monthOptions.map(mk => <option key={mk} value={mk}>{monthKeyToLabel(mk)}</option>)}
                 </select>
-                <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
+                <ChevronDown className={`absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 pointer-events-none ${b.stage === 'cancelled' || b.stage === 'transferred' ? 'text-white/50' : 'text-slate-400'}`} />
               </div>
             </div>
           </div>
@@ -368,7 +374,13 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange }: 
           </Section>
 
           {/* ═══ 2. ลูกค้า ═══ */}
-          <Section title="ลูกค้า" icon={User}>
+          <Section title="ลูกค้า" icon={User} defaultOpen={false} badge={
+              <span className="text-xs text-white/70 flex items-center gap-2">
+                <span>{b.customer_name}</span>
+                {b.customer_occupation && <><span className="text-white/40">|</span><span>อาชีพ: {b.customer_occupation}</span></>}
+                {b.customer_monthly_income && <><span className="text-white/40">|</span><span>รายได้: ฿{formatMoney(b.customer_monthly_income)}/เดือน</span></>}
+              </span>
+            }>
             <div className="px-3 py-2.5 flex items-center justify-between border-b border-slate-100 bg-slate-50/50">
               <span className="text-sm font-semibold text-slate-800">{b.customer_name}</span>
               <span className="flex items-center gap-1 text-xs text-blue-600 font-medium"><Phone className="w-3 h-3" />{b.customer_tel}</span>
@@ -393,6 +405,7 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange }: 
           <Section
             title="สินเชื่อ — Credit Process"
             icon={CreditCard}
+            defaultOpen={!isAfterView}
             count={`${b.banks_submitted.length} ธนาคาร`}
             badge={b.credit_status ? <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/15 text-white/80 font-medium">{b.credit_status}</span> : undefined}
           >
@@ -402,15 +415,15 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange }: 
               {b.credit_owner && <span className="text-[10px] text-slate-400">CO: <span className="text-slate-600 font-medium">{b.credit_owner}</span></span>}
             </div>
             <div className="grid grid-cols-3 divide-x divide-slate-100 text-[11px]">
-              {/* Step 1: บูโร */}
+              {/* Step 1: เตรียมเอกสารเช็คบูโร */}
               <div className="px-3 py-2">
-                <div className="text-[10px] font-semibold text-slate-500 uppercase mb-1">① เช็คบูโร</div>
-                <div className="text-slate-700 font-medium">{b.doc_submit_date || <span className="text-slate-300 font-normal">—</span>}</div>
+                <div className="text-[10px] font-semibold text-slate-500 uppercase mb-1">① เตรียมเอกสารเช็คบูโร</div>
+                <div className="text-slate-700 font-medium">{b.doc_bureau_date || <span className="text-slate-300 font-normal">—</span>}</div>
               </div>
-              {/* Step 2a: ชุดธนาคาร */}
+              {/* Step 2a: เอกสารครบ(Bank) */}
               <div className="px-3 py-2">
                 <div className="flex items-center gap-1.5 mb-1">
-                  <span className="text-[10px] font-semibold text-slate-500 uppercase">② ชุดธนาคาร</span>
+                  <span className="text-[10px] font-semibold text-slate-500 uppercase">② เอกสารครบ(Bank)</span>
                   <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-semibold ${b.doc_complete_bank_jd_date ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{b.doc_complete_bank_jd_date ? 'ส่งแล้ว' : 'ยังไม่ส่ง'}</span>
                 </div>
                 <div className="space-y-0.5">
@@ -418,10 +431,10 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange }: 
                   <div><span className="text-slate-500">ขอเพิ่ม: </span><span className={b.bank_request_more_doc_date ? 'text-amber-600 font-medium' : 'text-slate-300'}>{b.bank_request_more_doc_date || '—'}</span></div>
                 </div>
               </div>
-              {/* Step 2b: ชุด JD */}
+              {/* Step 2b: เอกสารครบ(JD) */}
               <div className="px-3 py-2">
                 <div className="flex items-center gap-1.5 mb-1">
-                  <span className="text-[10px] font-semibold text-slate-500 uppercase">② ชุด JD</span>
+                  <span className="text-[10px] font-semibold text-slate-500 uppercase">② เอกสารครบ(JD)</span>
                   <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-semibold ${b.doc_complete_jd_date ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{b.doc_complete_jd_date ? 'ส่งแล้ว' : 'ยังไม่ส่ง'}</span>
                 </div>
                 <div className="space-y-0.5">
@@ -542,9 +555,9 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange }: 
                   {banksOpen && (
                     <div className="border-t border-slate-100">
                       {[...b.banks_submitted]
-                        .sort((a, _b) => a.bank === 'Proptiane' ? 1 : _b.bank === 'Proptiane' ? -1 : 0)
+                        .sort((a, _b) => a.bank === 'JD' ? 1 : _b.bank === 'JD' ? -1 : 0)
                         .map((bs, i) => {
-                          const isJD = bs.bank === 'Proptiane';
+                          const isJD = bs.bank === 'JD';
                           const steps = isJD ? [
                             { label: 'บูโร', target: b.bureau_target_result_date_biz, actual: b.bureau_actual_result_date, result: b.bureau_result },
                             { label: 'เข้าโครงการ', target: b.jd_final_target_date, actual: b.jd_final_actual_date, result: b.livnex_able_status },
@@ -602,6 +615,7 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange }: 
           <Section
             title="ตรวจบ้าน / Inspection"
             icon={ClipboardCheck}
+            defaultOpen={!isAfterView}
             badge={b.inspection_status ? <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/15 text-white/80 font-medium">{b.inspection_status}</span> : undefined}
           >
             {/* SubHead: รอบตรวจ + CS / CON */}
@@ -647,6 +661,7 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange }: 
           <Section
             title="โอน / Transfer"
             icon={ArrowRightLeft}
+            defaultOpen={!isAfterView}
             badge={b.transfer_status ? <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/15 text-white/80 font-medium">{b.transfer_status}</span> : undefined}
           >
             {/* SubHead: ขั้นตอนโอน + ชื่อคน */}
@@ -727,7 +742,7 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange }: 
           </Section>
 
           {/* ═══ 6. LivNex / Pre-LivNex ═══ */}
-          <Section title="LivNex / Pre-LivNex" icon={Wifi}>
+          <Section title="LivNex / Pre-LivNex" icon={Wifi} defaultOpen={!isAfterView}>
             {/* SubHead: ขั้นตอน + ผู้รับผิดชอบ */}
             <div className="px-3 py-1.5 flex items-center justify-between bg-slate-50/80 border-b border-slate-100">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">ขั้นตอน LivNex</span>
@@ -825,7 +840,7 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange }: 
           </Section>
 
           {/* ═══ 7. Backlog / Segmentation ═══ */}
-          <Section title="Backlog / Segmentation" icon={BarChart3}>
+          <Section title="Backlog / Segmentation" icon={BarChart3} defaultOpen={!isAfterView}>
             <div className="grid grid-cols-2 divide-x divide-slate-100">
               <div>
                 <Row label="Backlog Status"><Val v={b.backlog_status} /></Row>
@@ -840,26 +855,28 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange }: 
             </div>
           </Section>
 
-          {/* ═══ 8. Finance / Refund / Meter ═══ */}
-          {(b.refund_status || b.water_meter_change_date || b.electricity_meter_change_date || b.handover_document_received_date) && (
-            <Section title="Finance / Meter" icon={Wallet}>
-              <div className="grid grid-cols-2 divide-x divide-slate-100">
-                <div>
-                  <SubHead>Refund</SubHead>
-                  <Row label="Status"><Val v={b.refund_status} /></Row>
-                  {b.refund_aging !== null && <Row label="Aging"><Val v={`${b.refund_aging} วัน`} /></Row>}
-                  <Row label="Transfer"><Val v={b.refund_transfer_date} /></Row>
-                  {b.refund_amount !== null && <Row label="Amount"><Val v={`฿${formatMoney(b.refund_amount)}`} /></Row>}
-                </div>
-                <div>
-                  <SubHead>Meter / เอกสาร</SubHead>
-                  <Row label="มิเตอร์น้ำ"><Val v={b.water_meter_change_date} /></Row>
-                  <Row label="มิเตอร์ไฟ"><Val v={b.electricity_meter_change_date} /></Row>
-                  <Row label="เอกสารโอนรับ"><Val v={b.handover_document_received_date} /></Row>
-                </div>
-              </div>
+          {/* ═══ 8. After Transfer — 4 sections ═══ */}
+          {b.stage === 'transferred' && (<>
+            <Section title="เงินทอนลูกค้า" icon={Wallet} defaultOpen={currentView === 'refund' || currentView === 'after-transfer' || !isAfterView}>
+              <Row label="สถานะ"><Val v={b.refund_status} /></Row>
+              {b.refund_amount !== null && <Row label="จำนวนเงิน"><Val v={`฿${formatMoney(b.refund_amount)}`} /></Row>}
+              {b.refund_aging !== null && <Row label="Aging"><Val v={`${b.refund_aging} วัน`} /></Row>}
+              <Row label="วันที่คืน"><Val v={b.refund_transfer_date} /></Row>
             </Section>
-          )}
+
+            <Section title="ของแถมลูกค้า" icon={Gift} defaultOpen={currentView === 'freebie' || currentView === 'after-transfer' || !isAfterView}>
+              <Row label="เอกสารส่งมอบ"><Val v={b.handover_document_received_date} /></Row>
+            </Section>
+
+            <Section title="การเปลี่ยนชื่อมิเตอร์น้ำ-ไฟ" icon={Gauge} defaultOpen={currentView === 'meter' || currentView === 'after-transfer' || !isAfterView}>
+              <Row label="มิเตอร์น้ำ"><Val v={b.water_meter_change_date} /></Row>
+              <Row label="มิเตอร์ไฟ"><Val v={b.electricity_meter_change_date} /></Row>
+            </Section>
+
+            <Section title="งานซ่อมคงค้าง" icon={AlertTriangle} defaultOpen={currentView === 'pending-work' || currentView === 'after-transfer' || !isAfterView}>
+              <Row label="เอกสารส่งมอบ"><Val v={b.handover_document_received_date} /></Row>
+            </Section>
+          </>)}
 
           {/* ═══ 9. Follow-up / Notes ═══ */}
           {(b.mgmt_remark || b.followup_note || b.sale_followup_task || b.pm_fast_sent_date || b.cs_review_date) && (
