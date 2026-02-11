@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { Booking, STAGE_CONFIG, Stage, formatMoney } from '@/data/bookings';
-import { X, Phone, ChevronDown, ChevronRight, Info, User, CreditCard, ClipboardCheck, ArrowRightLeft, Wifi, BarChart3, MessageSquare, Wallet, Gauge, Gift, AlertTriangle } from 'lucide-react';
+import { X, Phone, ChevronDown, ChevronRight, Info, User, CreditCard, ClipboardCheck, ArrowRightLeft, Wifi, BarChart3, MessageSquare, Wallet, Gauge, Gift, AlertTriangle, Clock } from 'lucide-react';
+import { SLATimeline } from '@/components/SLATimeline';
 
 // ─── Helpers ───
 const THAI_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
@@ -246,6 +247,7 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange, cu
   const [transferMonth, setTransferMonth] = useState<string>(initialMonth || '');
   const [upside, setUpside] = useState<boolean>(!!b.transfer_upside_flag);
   const [banksOpen, setBanksOpen] = useState(false);
+  const [panelTab, setPanelTab] = useState<'detail' | 'sla'>('detail');
   const isAfterView = ['after-transfer','refund','meter','freebie','pending-work'].includes(currentView || '');
   const monthOptions = generateMonthOptions();
   if (initialMonth && !monthOptions.includes(initialMonth)) {
@@ -313,6 +315,34 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange, cu
 
         {/* ── Content ── */}
         <div className="flex-1 px-6 pb-6 space-y-2">
+
+          {/* ── Tab Buttons ── */}
+          <div className="flex gap-1 pt-1 border-b border-slate-200 -mx-6 px-6">
+            <button
+              onClick={() => setPanelTab('detail')}
+              className={`px-3 py-1.5 text-xs font-medium border-b-2 transition -mb-px ${
+                panelTab === 'detail'
+                  ? 'border-slate-700 text-slate-700'
+                  : 'border-transparent text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <Info className="w-3 h-3 inline mr-1 -mt-0.5" />
+              รายละเอียด
+            </button>
+            <button
+              onClick={() => setPanelTab('sla')}
+              className={`px-3 py-1.5 text-xs font-medium border-b-2 transition -mb-px ${
+                panelTab === 'sla'
+                  ? 'border-amber-500 text-amber-600'
+                  : 'border-transparent text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <Clock className="w-3 h-3 inline mr-1 -mt-0.5" />
+              SLA Timeline
+            </button>
+          </div>
+
+          {panelTab === 'detail' && (<>
 
           {/* ════════════════ Pipeline Stepper ════════════════ */}
           <PipelineStepper current={b.stage} cancelled={b.stage === 'cancelled'} />
@@ -887,6 +917,14 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange, cu
               {b.pm_fast_sent_date && <Row label="PM Fast ส่ง"><Val v={b.pm_fast_sent_date} /></Row>}
               {b.cs_review_date && <Row label="CS Review"><Val v={b.cs_review_date} /></Row>}
             </Section>
+          )}
+
+          </>)}
+
+          {panelTab === 'sla' && (
+            <div className="bg-white rounded-lg shadow-sm p-5">
+              <SLATimeline booking={b} />
+            </div>
           )}
 
         </div>
