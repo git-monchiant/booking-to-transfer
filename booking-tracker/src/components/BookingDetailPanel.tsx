@@ -493,10 +493,10 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange, cu
                     const isFail = hasResult && (step.result === 'ไม่ผ่าน' || step.result!.includes('ไม่อนุมัติ') || step.result === 'ปฏิเสธ');
                     const isPass = hasResult && !isFail && (step.result === 'ผ่าน' || step.result!.includes('อนุมัติ') || step.result!.includes('Pre-approve') || step.result!.includes('บูโรปกติ'));
                     const isNext = !hasResult && i === lastDone + 1;
-                    const accent = isPass ? 'bg-emerald-500' : isFail ? 'bg-red-500' : hasResult ? 'bg-amber-500' : isNext ? 'bg-amber-300' : 'bg-slate-200';
-                    const border = isPass ? 'border-emerald-200' : isFail ? 'border-red-200' : isNext ? 'border-amber-200' : 'border-slate-200';
-                    const badgeCls = isPass ? 'bg-emerald-100 text-emerald-700' : isFail ? 'bg-red-100 text-red-700' : hasResult ? 'bg-amber-100 text-amber-700' : isNext ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-400';
-                    const labelCls = isPass ? 'text-emerald-700' : isFail ? 'text-red-600' : hasResult ? 'text-amber-700' : isNext ? 'text-amber-600' : 'text-slate-500';
+                    const accent = isPass ? 'bg-emerald-500' : isFail ? 'bg-red-500' : hasResult ? 'bg-amber-500' : isNext ? 'bg-amber-400' : 'bg-slate-200';
+                    const border = isPass ? 'border-emerald-300' : isFail ? 'border-red-300' : isNext ? 'border-amber-300' : 'border-slate-200';
+                    const badgeCls = isPass ? 'bg-emerald-200 text-emerald-800' : isFail ? 'bg-red-200 text-red-800' : hasResult ? 'bg-amber-200 text-amber-800' : isNext ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-400';
+                    const labelCls = isPass ? 'text-emerald-800' : isFail ? 'text-red-700' : hasResult ? 'text-amber-800' : isNext ? 'text-amber-700' : 'text-slate-500';
                     return (
                       <div key={i} className="flex items-stretch flex-1 min-w-0">
                         {i > 0 && <div className="w-1.5 flex-shrink-0" />}
@@ -607,7 +607,7 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange, cu
                                 {steps.map((step, si) => {
                                   const isFail = !!step.result && (step.result.includes('ไม่อนุมัติ') || step.result.includes('ค้างชำระ') || step.result === 'อาณัติ' || step.result === 'ยกเลิก' || step.result === 'ปฏิเสธ');
                                   const isPass = !!step.result && !isFail && (step.result.includes('อนุมัติ') || step.result.includes('บูโรปกติ') || step.result === 'ผ่าน');
-                                  const stepBg = isPass ? 'bg-emerald-50' : isFail ? 'bg-red-50' : '';
+                                  const stepBg = isPass ? 'bg-emerald-100' : isFail ? 'bg-red-100' : '';
                                   return (
                                   <div key={si} className={`px-3 py-2 space-y-1 ${stepBg}`}>
                                     <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{si + 1}. {step.label}</div>

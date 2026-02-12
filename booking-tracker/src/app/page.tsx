@@ -20,8 +20,8 @@ import {
 } from '@/data/bookings';
 import { Sidebar, View } from '@/components/Sidebar';
 import { MultiSelect } from '@/components/MultiSelect';
-import { PerformanceCharts } from '@/components/PerformanceCharts';
 import { BookingDetailPanel } from '@/components/BookingDetailPanel';
+import { TransferCharts } from '@/components/TransferCharts';
 import { BookingListItem } from '@/components/BookingListItem';
 import {
   BarChart,
@@ -32,11 +32,9 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
   Cell,
   LabelList,
-  Treemap,
 } from 'recharts';
 import {
   AlertTriangle,
@@ -62,7 +60,7 @@ export default function Home() {
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
   const [stageFilter, setStageFilter] = useState<Stage | 'all'>('all');
-  // selectedBudMonth removed — now showing all 12 months at once
+  const [cancelDisplayMode, setCancelDisplayMode] = useState<'unit' | 'value'>('unit');
 
   // Global Filters
   const [globalFilters, setGlobalFilters] = useState({
@@ -708,115 +706,149 @@ export default function Home() {
 
               </div>
 
-              {/* Performance Charts */}
-              <PerformanceCharts bookings={globalFilteredBookings} />
+              <TransferCharts />
 
-              {/* 2-Column Layout: Credit, Team */}
-              <div className="grid grid-cols-2 gap-4">
-                {/* Credit Status */}
-                <div className="bg-white rounded-xl border border-slate-200 p-5">
-                  <h2 className="font-semibold text-slate-900 mb-4">สินเชื่อ</h2>
-                  <div className="space-y-3">
-                    {filteredSummary.byCredit.map((item, idx) => (
-                      <div key={item.status} className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-2 h-2 rounded-full ${
-                            item.status === 'อนุมัติแล้ว' || item.status === 'โอนสด' ? 'bg-emerald-500' :
-                            item.status === 'รอผล Bureau' ? 'bg-amber-500' :
-                            'bg-slate-400'
-                          }`} />
-                          <span className="text-sm text-slate-700">{item.status}</span>
-                        </div>
-                        <span className={`text-lg font-bold ${
-                          item.status === 'อนุมัติแล้ว' || item.status === 'โอนสด' ? 'text-emerald-600' :
-                          item.status === 'รอผล Bureau' ? 'text-amber-600' :
-                          'text-slate-600'
-                        }`}>
-                          {item.count}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+              {/* ════════ ภาพรวมยอดยกเลิกรายเดือน ════════ */}
+              {(() => {
+                const avgVal = 4.8;
+                const isCV = cancelDisplayMode === 'value';
+                const cv = (v: number) => isCV ? +(v * avgVal).toFixed(1) : v;
+                const cUnit = isCV ? 'ล้าน฿' : 'ราย';
 
-                {/* Team Workload */}
-                <div className="bg-white rounded-xl border border-slate-200 p-5">
-                  <h2 className="font-semibold text-slate-900 mb-4">ทีม</h2>
-                  <div className="space-y-2">
-                    {filteredSummary.byTeam.map(item => (
-                      <div key={item.team} className="flex items-center gap-3">
-                        <div
-                          className="w-3 h-3 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: TEAM_CONFIG[item.team]?.color ?? '#64748b' }}
-                        />
-                        <span className="text-sm text-slate-700 flex-1">{TEAM_CONFIG[item.team]?.label ?? item.team}</span>
-                        <span className="text-sm font-bold text-slate-900">{item.count}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
+                const cancelDataRaw = [
+                  { month: 'ม.ค.',  ยกเลิก: 5,  LivNex: 2, PreLivNex: 0,  Booking: 32 },
+                  { month: 'ก.พ.',  ยกเลิก: 8,  LivNex: 3, PreLivNex: 0,  Booking: 44 },
+                  { month: 'มี.ค.', ยกเลิก: 11, LivNex: 5, PreLivNex: 1,  Booking: 55 },
+                  { month: 'เม.ย.', ยกเลิก: 3,  LivNex: 1, PreLivNex: 0,  Booking: 28 },
+                  { month: 'พ.ค.',  ยกเลิก: 7,  LivNex: 3, PreLivNex: 0,  Booking: 42 },
+                  { month: 'มิ.ย.', ยกเลิก: 12, LivNex: 5, PreLivNex: 1,  Booking: 58 },
+                  { month: 'ก.ค.',  ยกเลิก: 6,  LivNex: 2, PreLivNex: 0,  Booking: 38 },
+                  { month: 'ส.ค.',  ยกเลิก: 9,  LivNex: 4, PreLivNex: 0,  Booking: 48 },
+                  { month: 'ก.ย.',  ยกเลิก: 0,  LivNex: 0, PreLivNex: 0,  Booking: 50 },
+                  { month: 'ต.ค.',  ยกเลิก: 0,  LivNex: 0, PreLivNex: 0,  Booking: 46 },
+                  { month: 'พ.ย.',  ยกเลิก: 0,  LivNex: 0, PreLivNex: 0,  Booking: 52 },
+                  { month: 'ธ.ค.',  ยกเลิก: 0,  LivNex: 0, PreLivNex: 0,  Booking: 30 },
+                ];
+                let cumCancel = 0;
+                const cancelData = cancelDataRaw.map(d => {
+                  cumCancel += d.ยกเลิก;
+                  const ยกเลิกจริง = d.ยกเลิก - d.LivNex - d.PreLivNex;
+                  return { ...d, 'ไป LivNex': cv(d.LivNex), 'ไป Pre-LivNex': cv(d.PreLivNex), ยกเลิกจริง: cv(ยกเลิกจริง), ยกเลิกสะสม: cv(cumCancel), _total: cv(d.ยกเลิก) };
+                });
+                const totalCancel = cancelDataRaw.reduce((s, d) => s + d.ยกเลิก, 0);
+                const totalLivNex = cancelDataRaw.reduce((s, d) => s + d.LivNex, 0);
+                const totalPreLivNex = cancelDataRaw.reduce((s, d) => s + d.PreLivNex, 0);
+                const totalReal = totalCancel - totalLivNex - totalPreLivNex;
 
-              {/* BUD Summary */}
-              <div className="bg-white rounded-xl border border-slate-200 p-5">
-                <h2 className="font-semibold text-slate-900 mb-4">สรุปตาม BUD</h2>
-                <div className="grid grid-cols-3 gap-4">
-                  {filteredSummary.byBUD.map(item => (
-                    <div key={item.bud} className="p-4 bg-slate-50 rounded-lg">
-                      <div className="text-sm font-medium text-slate-700 mb-2 truncate">{item.bud}</div>
-                      <div className="flex items-end justify-between">
-                        <div>
-                          <div className="text-2xl font-bold text-slate-900">{item.count}</div>
-                          <div className="text-xs text-slate-500">กำลังดำเนินการ</div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-sm font-semibold text-emerald-600">{item.transferred}</div>
-                          <div className="text-xs text-slate-500">โอนแล้ว</div>
-                        </div>
-                      </div>
-                      <div className="mt-2 text-xs text-slate-500">฿{formatMoney(item.value)}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+                const niceYMax = (dataMax: number) => {
+                  const step = [5, 10, 15, 20, 25, 50, 100].find(s => dataMax / s <= 4) || Math.ceil(dataMax / 4);
+                  return (Math.ceil(dataMax / step) + 1) * step;
+                };
 
-              {/* Blocked Items */}
-              <div className="bg-white rounded-xl border border-slate-200 p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="font-semibold text-slate-900 flex items-center gap-2">
-                    <AlertTriangle className="w-5 h-5 text-amber-500" />
-                    ติดปัญหา ({blockedBookings.length})
-                  </h2>
-                </div>
-                <div className="grid grid-cols-3 gap-3 max-h-80 overflow-auto">
-                  {blockedBookings.map(booking => (
-                    <div
-                      key={booking.id}
-                      onClick={() => setSelectedBooking(booking)}
-                      className="p-3 bg-amber-50 border border-amber-200 rounded-lg cursor-pointer hover:bg-amber-100 transition"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-semibold text-slate-900">{booking.id}</span>
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-amber-200 text-amber-800">
-                          {booking.aging_days} วัน
-                        </span>
+                return (
+                  <div className="bg-white rounded-xl border border-slate-200 p-5">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <h2 className="font-semibold text-slate-900">ภาพรวมยอดยกเลิกรายเดือน</h2>
                       </div>
-                      <div className="text-sm text-slate-700 mb-1 truncate">{booking.customer_name}</div>
-                      <div className="text-xs text-slate-500 mb-2 truncate">{booking.project_name}</div>
-                      <div className="text-sm text-amber-700 font-medium truncate">{booking.current_blocker}</div>
-                      <div className="text-xs text-slate-500 mt-2">
-                        {TEAM_CONFIG[booking.current_owner_team]?.label ?? booking.current_owner_team}
+                      <div className="flex items-center gap-4 text-[10px]">
+                        <span className="text-slate-500">ยกเลิกทั้งปี <span className="font-bold text-red-500">{cv(totalCancel)}</span> {cUnit}</span>
+                        <span className="text-slate-500">ไป LivNex <span className="font-bold text-orange-500">{cv(totalLivNex)}</span></span>
+                        <span className="text-slate-500">ไป Pre-LivNex <span className="font-bold text-indigo-500">{cv(totalPreLivNex)}</span></span>
+                        <span className="text-slate-500">ยกเลิกจริง <span className="font-bold text-red-500">{cv(totalReal)}</span></span>
+                        <select value={cancelDisplayMode} onChange={e => setCancelDisplayMode(e.target.value as 'unit' | 'value')}
+                          className="text-[10px] border border-slate-200 rounded px-1.5 py-0.5 text-slate-600 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-300">
+                          <option value="unit">จำนวน (Unit)</option>
+                          <option value="value">มูลค่า (ล้าน฿)</option>
+                        </select>
                       </div>
                     </div>
-                  ))}
-                </div>
-                {blockedBookings.length === 0 && (
-                  <div className="text-center py-8 text-slate-500">
-                    <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-emerald-500" />
-                    <div>ไม่มีรายการติดปัญหา</div>
+                    <div className="flex items-center justify-end gap-4 mb-1 text-[10px] text-slate-500">
+                      <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#f97316' }} /> ไป LivNex</span>
+                      <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#6366f1' }} /> ไป Pre-LivNex</span>
+                      <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#dc2626' }} /> ยกเลิกจริง</span>
+                      <span className="flex items-center gap-1"><span className="w-6 border-t-2" style={{ borderColor: '#991b1b' }} /> ยกเลิกสะสม</span>
+                    </div>
+                    <ResponsiveContainer width="100%" height={320}>
+                      <ComposedChart data={cancelData} margin={{ left: 0, right: 10, top: 25, bottom: 5 }} barCategoryGap="15%">
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="month" tick={{ fontSize: 11, fontWeight: 600 }} />
+                        <YAxis yAxisId="left" tick={{ fontSize: 11 }} allowDecimals={false} domain={[0, niceYMax]} />
+                        <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} allowDecimals={false} domain={[0, niceYMax]} label={{ value: 'สะสม', angle: 90, position: 'insideRight', style: { fontSize: 10, fill: '#94a3b8' } }} />
+                        <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                        <Bar yAxisId="left" dataKey="ไป LivNex" stackId="cancel" fill="#f97316">
+                          <LabelList
+                            content={((props: any) => {
+                              const { x, y, width, height, index } = props;
+                              if (x == null || y == null || width == null || height == null || index == null) return null;
+                              const d = cancelData[index];
+                              if (!d['ไป LivNex']) return null;
+                              const pct = d._total > 0 ? Math.round((d['ไป LivNex'] / d._total) * 100) : 0;
+                              return height > 14 ? (
+                                <text x={x + width / 2} y={y + height / 2 + 3} textAnchor="middle" style={{ fontSize: 8, fontWeight: 700, fill: '#fff' }}>
+                                  {d['ไป LivNex']}({pct}%)
+                                </text>
+                              ) : null;
+                            }) as any}
+                          />
+                        </Bar>
+                        <Bar yAxisId="left" dataKey="ไป Pre-LivNex" stackId="cancel" fill="#6366f1">
+                          <LabelList
+                            content={((props: any) => {
+                              const { x, y, width, height, index } = props;
+                              if (x == null || y == null || width == null || height == null || index == null) return null;
+                              const d = cancelData[index];
+                              if (!d['ไป Pre-LivNex']) return null;
+                              const pct = d._total > 0 ? Math.round((d['ไป Pre-LivNex'] / d._total) * 100) : 0;
+                              return height > 14 ? (
+                                <text x={x + width / 2} y={y + height / 2 + 3} textAnchor="middle" style={{ fontSize: 8, fontWeight: 700, fill: '#fff' }}>
+                                  {d['ไป Pre-LivNex']}({pct}%)
+                                </text>
+                              ) : null;
+                            }) as any}
+                          />
+                        </Bar>
+                        <Bar yAxisId="left" dataKey="ยกเลิกจริง" stackId="cancel" fill="#dc2626">
+                          <LabelList
+                            content={((props: any) => {
+                              const { x, y, width, height, index } = props;
+                              if (x == null || y == null || width == null || height == null || index == null) return null;
+                              const d = cancelData[index];
+                              if (!d.ยกเลิกจริง) return null;
+                              const pct = d._total > 0 ? Math.round((d.ยกเลิกจริง / d._total) * 100) : 0;
+                              return (
+                                <>
+                                  {height > 14 && (
+                                    <text x={x + width / 2} y={y + height / 2 + 3} textAnchor="middle" style={{ fontSize: 8, fontWeight: 700, fill: '#fff' }}>
+                                      {d.ยกเลิกจริง}({pct}%)
+                                    </text>
+                                  )}
+                                  <text x={x + width / 2} y={y - 4} textAnchor="middle" style={{ fontSize: 9, fontWeight: 700, fill: '#b91c1c' }}>
+                                    {d._total}
+                                  </text>
+                                </>
+                              );
+                            }) as any}
+                          />
+                        </Bar>
+                        <Line yAxisId="right" type="monotone" dataKey="ยกเลิกสะสม" stroke="#991b1b" strokeWidth={2} dot={{ r: 3, fill: '#991b1b' }}>
+                          <LabelList
+                            content={((props: any) => {
+                              const { x, y, value } = props;
+                              if (x == null || y == null || !value) return null;
+                              return (
+                                <text x={x} y={y - 8} textAnchor="middle" style={{ fontSize: 9, fontWeight: 700, fill: '#991b1b' }}>
+                                  {value}
+                                </text>
+                              );
+                            }) as any}
+                          />
+                        </Line>
+                      </ComposedChart>
+                    </ResponsiveContainer>
                   </div>
-                )}
-              </div>
+                );
+              })()}
             </div>
           )}
 
@@ -855,8 +887,8 @@ export default function Home() {
 
                 return (
                   <div className="space-y-4">
-                    {/* Row 1: Hero Cards */}
-                    <div className="grid grid-cols-2 gap-4">
+                    {/* Row 1: Hero Cards — hidden */}
+                    {false && <div className="grid grid-cols-2 gap-4">
                       {/* Pipeline Card */}
                       <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl p-5 text-white">
                         <div className="flex items-center justify-between mb-1">
@@ -910,7 +942,7 @@ export default function Home() {
                           </div>
                         </div>
                       </div>
-                    </div>
+                    </div>}
 
                     {/* Row 2: Detail Cards */}
                     <div className="grid grid-cols-4 gap-4">
@@ -998,208 +1030,6 @@ export default function Home() {
                           ))}
                         </div>
                       </div>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* ════════ แผนโอน แต่ละเดือน ════════ */}
-              {(() => {
-                // Mock data — แผนโอน stack กับ Upside, เป้าสูง โอนจริงต่ำ
-                const chartData = [
-                  { month: 'ม.ค.',  เป้า: 35, แผนโอน: 18, Upside: 0,  โอนจริง: 18 },
-                  { month: 'ก.พ.',  เป้า: 40, แผนโอน: 22, Upside: 0,  โอนจริง: 20 },
-                  { month: 'มี.ค.', เป้า: 50, แผนโอน: 30, Upside: 8,  โอนจริง: 30 },
-                  { month: 'เม.ย.', เป้า: 35, แผนโอน: 15, Upside: 0,  โอนจริง: 15 },
-                  { month: 'พ.ค.',  เป้า: 40, แผนโอน: 18, Upside: 0,  โอนจริง: 18 },
-                  { month: 'มิ.ย.', เป้า: 50, แผนโอน: 24, Upside: 6,  โอนจริง: 26 },
-                  { month: 'ก.ค.',  เป้า: 45, แผนโอน: 22, Upside: 0,  โอนจริง: 22 },
-                  { month: 'ส.ค.',  เป้า: 45, แผนโอน: 20, Upside: 0,  โอนจริง: 20 },
-                  { month: 'ก.ย.',  เป้า: 50, แผนโอน: 25, Upside: 10, โอนจริง: 0 },
-                  { month: 'ต.ค.',  เป้า: 50, แผนโอน: 24, Upside: 0,  โอนจริง: 0 },
-                  { month: 'พ.ย.',  เป้า: 50, แผนโอน: 26, Upside: 7,  โอนจริง: 0 },
-                  { month: 'ธ.ค.',  เป้า: 35, แผนโอน: 18, Upside: 5,  โอนจริง: 0 },
-                ];
-
-                // คำนวณโอนสะสม
-                let cumActual = 0;
-                const chartDataWithCum = chartData.map(d => {
-                  cumActual += d.โอนจริง;
-                  return { ...d, โอนสะสม: cumActual };
-                });
-
-                const totalTarget = chartData.reduce((s, d) => s + d.เป้า, 0);
-                const totalPlan = chartData.reduce((s, d) => s + d.แผนโอน + d.Upside, 0);
-                const totalActual = chartData.reduce((s, d) => s + d.โอนจริง, 0);
-
-                return (
-                  <div className="bg-white rounded-xl border border-slate-200 p-5">
-                    <div className="flex items-center justify-between mb-2">
-                      <div>
-                        <h2 className="font-semibold text-slate-900">แผนโอน แต่ละเดือน</h2>
-                        <p className="text-[11px] text-slate-400 mt-0.5">เปรียบเทียบเป้า / แผนโอน / โอนจริง รายเดือน</p>
-                      </div>
-                      <div className="flex items-center gap-4 text-[10px]">
-                        <span className="text-slate-500">เป้าทั้งปี <span className="font-bold text-slate-700">{totalTarget}</span> ราย</span>
-                        <span className="text-slate-500">แผนรวม <span className="font-bold text-indigo-600">{totalPlan}</span> ราย</span>
-                        <span className="text-slate-500">โอนจริง <span className="font-bold text-emerald-600">{totalActual}</span> ราย</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-end gap-4 mb-1 text-[10px] text-slate-500">
-                      <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#d1d5db' }} /> เป้า</span>
-                      <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#93c5fd' }} /> แผนโอน</span>
-                      <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#bfdbfe' }} /> Upside</span>
-                      <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#3b82f6' }} /> โอนจริง</span>
-                      <span className="flex items-center gap-1"><span className="w-6 border-t-2" style={{ borderColor: '#1d4ed8' }} /> โอนสะสม</span>
-                    </div>
-                    <ResponsiveContainer width="100%" height={320}>
-                      <ComposedChart data={chartDataWithCum} margin={{ left: 0, right: 10, top: 20, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="month" tick={{ fontSize: 11, fontWeight: 600 }} />
-                        <YAxis yAxisId="left" tick={{ fontSize: 11 }} allowDecimals={false} />
-                        <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} allowDecimals={false} label={{ value: 'สะสม', angle: 90, position: 'insideRight', style: { fontSize: 10, fill: '#94a3b8' } }} />
-                        <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} formatter={(value: number, name: string) => [`${value} รายการ`, name]} />
-                        <Bar yAxisId="left" dataKey="เป้า" stackId="target" fill="#d1d5db" barSize={24}>
-                          <LabelList dataKey="เป้า" position="top" style={{ fontSize: 9, fontWeight: 700, fill: '#94a3b8' }} />
-                        </Bar>
-                        <Bar yAxisId="left" dataKey="แผนโอน" stackId="plan" fill="#93c5fd" barSize={24} />
-                        <Bar yAxisId="left" dataKey="Upside" stackId="plan" fill="#bfdbfe" barSize={24}>
-                          <LabelList
-                            content={({ x, y, width, index }: { x?: number; y?: number; width?: number; index?: number }) => {
-                              if (x == null || y == null || width == null || index == null) return null;
-                              const d = chartDataWithCum[index];
-                              return (
-                                <text x={x + width / 2} y={y - 5} textAnchor="middle" style={{ fontSize: 9, fontWeight: 700, fill: '#2563eb' }}>
-                                  {d.แผนโอน + d.Upside}
-                                </text>
-                              );
-                            }}
-                          />
-                        </Bar>
-                        <Bar yAxisId="left" dataKey="โอนจริง" stackId="actual" fill="#3b82f6" barSize={24}>
-                          <LabelList dataKey="โอนจริง" position="top" style={{ fontSize: 9, fontWeight: 700, fill: '#2563eb' }} />
-                        </Bar>
-                        <Line yAxisId="right" type="monotone" dataKey="โอนสะสม" stroke="#1d4ed8" strokeWidth={2} dot={{ r: 3, fill: '#1d4ed8' }}>
-                          <LabelList
-                            content={({ x, y, value }: { x?: number; y?: number; value?: number }) => {
-                              if (x == null || y == null || value == null || value === 0) return null;
-                              const pct = Math.round((value / totalTarget) * 100);
-                              return (
-                                <text x={x} y={y - 8} textAnchor="middle" style={{ fontSize: 9, fontWeight: 700 }}>
-                                  <tspan fill="#1d4ed8">{value} </tspan>
-                                  <tspan fill="#16a34a">+{pct}%</tspan>
-                                </text>
-                              );
-                            }}
-                          />
-                        </Line>
-                      </ComposedChart>
-                    </ResponsiveContainer>
-                  </div>
-                );
-              })()}
-
-              {/* ════════ โอนจริง แยก BUD — 12 เดือน ════════ */}
-              {(() => {
-                const budColors: Record<string, string> = {
-                  'Condo 1': '#6366f1', 'Condo 2': '#818cf8', 'Condo 3': '#a5b4fc', 'Condo 4': '#c7d2fe',
-                  'Housing 1': '#f59e0b', 'Housing 2': '#fbbf24',
-                };
-                const budActual: Record<string, number[]> = {
-                  'Condo 1':   [14, 16, 25, 10, 13, 22, 16, 15, 0, 0, 0, 0],
-                  'Condo 2':   [9,  11, 17, 8,  9,  14, 11, 10, 0, 0, 0, 0],
-                  'Condo 3':   [7,  8,  11, 5,  6,  10, 7,  7,  0, 0, 0, 0],
-                  'Condo 4':   [3,  4,  5,  2,  3,  4,  3,  3,  0, 0, 0, 0],
-                  'Housing 1': [13, 15, 22, 12, 14, 20, 16, 15, 0, 0, 0, 0],
-                  'Housing 2': [6,  7,  10, 4,  5,  8,  6,  5,  0, 0, 0, 0],
-                };
-                const budTarget: Record<string, number[]> = {
-                  'Condo 1':   [15, 18, 28, 12, 15, 25, 18, 18, 20, 20, 20, 15],
-                  'Condo 2':   [12, 15, 22, 12, 14, 20, 15, 15, 18, 18, 18, 12],
-                  'Condo 3':   [12, 14, 20, 10, 12, 18, 14, 14, 16, 16, 16, 10],
-                  'Condo 4':   [10, 12, 18, 10, 12, 16, 12, 12, 14, 14, 14, 10],
-                  'Housing 1': [15, 18, 25, 14, 16, 22, 18, 18, 20, 20, 20, 15],
-                  'Housing 2': [14, 16, 24, 14, 16, 20, 18, 18, 18, 18, 18, 14],
-                };
-                const budNames = Object.keys(budActual);
-                const months = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
-
-                // grand totals for header
-                const grandActual = budNames.reduce((s, b) => s + budActual[b].reduce((a, v) => a + v, 0), 0);
-                const grandTarget = budNames.reduce((s, b) => s + budTarget[b].reduce((a, v) => a + v, 0), 0);
-
-                return (
-                  <div className="bg-white rounded-xl border border-slate-200 p-5">
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <h2 className="font-semibold text-slate-900">โอนจริง แยก BUD</h2>
-                        <p className="text-[11px] text-slate-400 mt-0.5">เปรียบเทียบโอนจริง vs เป้า แต่ละ BUD รายเดือน</p>
-                      </div>
-                      <div className="flex items-center gap-3 text-[10px]">
-                        {budNames.map(b => (
-                          <span key={b} className="flex items-center gap-1">
-                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: budColors[b] }} />
-                            <span className="text-slate-500">{b}</span>
-                          </span>
-                        ))}
-                        <span className="text-slate-500 ml-1">รวม <span className="font-bold text-slate-800">{grandActual}/{grandTarget}</span></span>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-6 gap-3">
-                      {months.map((m, mi) => {
-                        const monthData = budNames.map(b => ({
-                          name: b,
-                          actual: budActual[b][mi],
-                          target: budTarget[b][mi],
-                          color: budColors[b],
-                        }));
-                        const maxVal = Math.max(...monthData.map(d => Math.max(d.actual, d.target)), 1);
-                        const totalActual = monthData.reduce((s, d) => s + d.actual, 0);
-                        const totalTarget = monthData.reduce((s, d) => s + d.target, 0);
-                        const totalPct = totalTarget > 0 ? Math.round((totalActual / totalTarget) * 100) : 0;
-                        const isFuture = totalActual === 0;
-                        return (
-                          <div key={m} className="rounded-lg p-2.5 text-white" style={{ backgroundColor: isFuture ? 'rgba(59,130,246,0.3)' : '#3b82f6' }}>
-                            <div className="flex items-center justify-between mb-2">
-                              <span className={`text-xs font-semibold ${isFuture ? 'text-indigo-300' : 'text-white'}`}>{m}</span>
-                              <span className={`text-[10px] font-bold ${isFuture ? 'text-indigo-300' : totalPct >= 80 ? 'text-emerald-300' : totalPct >= 60 ? 'text-yellow-300' : totalPct >= 40 ? 'text-orange-300' : 'text-red-300'}`}>
-                                {isFuture ? `−/${totalTarget}` : `${totalActual}/${totalTarget} (${totalPct}%)`}
-                              </span>
-                            </div>
-                            <div className="space-y-1.5">
-                              {monthData.map(d => {
-                                const pct = d.target > 0 ? Math.round((d.actual / d.target) * 100) : 0;
-                                return (
-                                  <div key={d.name} className="flex items-center gap-1.5">
-                                    <span className={`text-[9px] truncate w-14 shrink-0 ${isFuture ? 'text-indigo-300' : 'text-indigo-200'}`}>{d.name}</span>
-                                    <div className="relative h-2 bg-white/20 flex-1">
-                                      {!isFuture && (
-                                        <div
-                                          className="absolute inset-y-0 left-0 bg-white"
-                                          style={{
-                                            width: `${Math.min((d.actual / maxVal) * 100, 100)}%`,
-                                          }}
-                                        />
-                                      )}
-                                      <div
-                                        className={`absolute inset-y-0 w-0.5 ${isFuture ? 'bg-indigo-400' : 'bg-indigo-300'}`}
-                                        style={{ left: `${Math.min((d.target / maxVal) * 100, 100)}%` }}
-                                      />
-                                    </div>
-                                    <span className={`text-[8px] font-semibold shrink-0`}>
-                                      {isFuture ? (
-                                        <span className="text-indigo-300">−/{d.target}</span>
-                                      ) : (
-                                        <><span className="text-white">{d.actual}</span><span className="text-indigo-300">/{d.target}</span> <span className={pct >= 80 ? 'text-emerald-300' : pct >= 60 ? 'text-yellow-300' : pct >= 40 ? 'text-orange-300' : 'text-red-300'}>{pct}%</span></>
-                                      )}
-                                    </span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        );
-                      })}
                     </div>
                   </div>
                 );
