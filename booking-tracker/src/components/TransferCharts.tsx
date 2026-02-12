@@ -15,6 +15,13 @@ import {
   Cell,
   LabelList,
 } from 'recharts';
+import { THAI_MONTHS } from '@/data/masters';
+import {
+  AVG_UNIT_VALUE, MONTHLY_TRANSFER_DATA,
+  BUD_NAMES, BUD_COLORS, BUD_AVG_VALUE,
+  BUD_ACTUAL, BUD_PLAN, BUD_UPSIDE, BUD_BACKLOG,
+  BUD_LIVNEX, BUD_PRE_LIVNEX, BUD_TARGET,
+} from '@/data/chart-data';
 
 export function TransferCharts() {
   const [selectedBud, setSelectedBud] = useState<string | null>('Condo 1');
@@ -27,26 +34,11 @@ export function TransferCharts() {
   };
 
   // มูลค่าเฉลี่ยต่อ unit รวมทั้งโครงการ (ล้านบาท)
-  const avgUnitValue = 4.8;
   const isVal = budDisplayMode === 'value';
-  const mv = (v: number) => isVal ? +(v * avgUnitValue).toFixed(1) : v;
+  const mv = (v: number) => isVal ? +(v * AVG_UNIT_VALUE).toFixed(1) : v;
   const valUnit = isVal ? 'ล้าน฿' : 'ราย';
 
-  const chartDataRaw = [
-    { month: 'ม.ค.',  MTOP: 35, แผนโอน: 18, Upside: 0,  โอนจริง: 18, LivNex: 4, PreLivNex: 0 },
-    { month: 'ก.พ.',  MTOP: 40, แผนโอน: 22, Upside: 0,  โอนจริง: 20, LivNex: 5, PreLivNex: 1 },
-    { month: 'มี.ค.', MTOP: 50, แผนโอน: 30, Upside: 8,  โอนจริง: 30, LivNex: 8, PreLivNex: 0 },
-    { month: 'เม.ย.', MTOP: 35, แผนโอน: 15, Upside: 0,  โอนจริง: 15, LivNex: 3, PreLivNex: 0 },
-    { month: 'พ.ค.',  MTOP: 40, แผนโอน: 18, Upside: 0,  โอนจริง: 18, LivNex: 5, PreLivNex: 1 },
-    { month: 'มิ.ย.', MTOP: 50, แผนโอน: 24, Upside: 6,  โอนจริง: 26, LivNex: 7, PreLivNex: 0 },
-    { month: 'ก.ค.',  MTOP: 45, แผนโอน: 22, Upside: 0,  โอนจริง: 22, LivNex: 6, PreLivNex: 1 },
-    { month: 'ส.ค.',  MTOP: 45, แผนโอน: 20, Upside: 0,  โอนจริง: 20, LivNex: 5, PreLivNex: 0 },
-    { month: 'ก.ย.',  MTOP: 50, แผนโอน: 25, Upside: 10, โอนจริง: 0,  LivNex: 0, PreLivNex: 0 },
-    { month: 'ต.ค.',  MTOP: 50, แผนโอน: 24, Upside: 0,  โอนจริง: 0,  LivNex: 0, PreLivNex: 0 },
-    { month: 'พ.ย.',  MTOP: 50, แผนโอน: 26, Upside: 7,  โอนจริง: 0,  LivNex: 0, PreLivNex: 0 },
-    { month: 'ธ.ค.',  MTOP: 35, แผนโอน: 18, Upside: 5,  โอนจริง: 0,  LivNex: 0, PreLivNex: 0 },
-  ];
-  const chartData = chartDataRaw.map(d => ({
+  const chartData = MONTHLY_TRANSFER_DATA.map(d => ({
     month: d.month, MTOP: mv(d.MTOP), แผนโอน: mv(d.แผนโอน), Upside: mv(d.Upside), โอนจริง: mv(d.โอนจริง), LivNex: mv(d.LivNex), PreLivNex: mv(d.PreLivNex),
   }));
 
@@ -63,87 +55,20 @@ export function TransferCharts() {
   const totalLivNex = +chartData.reduce((s, d) => s + d.LivNex, 0).toFixed(1);
   const totalPreLivNex = +chartData.reduce((s, d) => s + d.PreLivNex, 0).toFixed(1);
 
-  // ═══ BUD Data ═══
-  const budNames = ['Condo 1', 'Condo 2', 'Condo 3', 'Condo 4', 'Housing 1', 'Housing 2'];
-  const budColors: Record<string, string> = {
-    'Condo 1': '#6366f1', 'Condo 2': '#818cf8', 'Condo 3': '#a5b4fc', 'Condo 4': '#c7d2fe',
-    'Housing 1': '#10b981', 'Housing 2': '#6ee7b7',
-  };
-  const budActual: Record<string, number[]> = {
-    'Condo 1':   [14, 16, 25, 10, 13, 22, 16, 15, 0, 0, 0, 0],
-    'Condo 2':   [9,  11, 17, 8,  9,  14, 11, 10, 0, 0, 0, 0],
-    'Condo 3':   [7,  8,  11, 5,  6,  10, 7,  7,  0, 0, 0, 0],
-    'Condo 4':   [3,  4,  5,  2,  3,  4,  3,  3,  0, 0, 0, 0],
-    'Housing 1': [13, 15, 22, 12, 14, 20, 16, 15, 0, 0, 0, 0],
-    'Housing 2': [6,  7,  10, 4,  5,  8,  6,  5,  0, 0, 0, 0],
-  };
-  const budPlan: Record<string, number[]> = {
-    'Condo 1':   [13, 15, 24, 11, 14, 23, 17, 16, 18, 18, 18, 14],
-    'Condo 2':   [10, 13, 20, 10, 12, 18, 14, 13, 16, 16, 16, 11],
-    'Condo 3':   [10, 12, 18, 9,  11, 16, 13, 12, 14, 14, 14, 9],
-    'Condo 4':   [8,  10, 16, 8,  10, 14, 11, 10, 12, 12, 12, 9],
-    'Housing 1': [14, 17, 24, 13, 15, 21, 17, 17, 19, 19, 19, 14],
-    'Housing 2': [12, 14, 22, 12, 14, 18, 16, 16, 16, 16, 16, 12],
-  };
-  const budUpside: Record<string, number[]> = {
-    'Condo 1':   [2, 3, 4, 1, 1, 2, 1, 2, 2, 2, 2, 1],
-    'Condo 2':   [2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 1],
-    'Condo 3':   [2, 2, 2, 1, 1, 2, 1, 2, 2, 2, 2, 1],
-    'Condo 4':   [2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 1],
-    'Housing 1': [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-    'Housing 2': [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
-  };
-  const budBacklog: Record<string, number[]> = {
-    'Condo 1':   [120, 118, 108, 112, 114, 105, 102, 100, 110, 120, 130, 135],
-    'Condo 2':   [85, 82, 74, 78, 80, 74, 72, 70, 78, 86, 94, 98],
-    'Condo 3':   [60, 58, 52, 55, 56, 52, 50, 48, 54, 60, 66, 70],
-    'Condo 4':   [40, 38, 36, 38, 39, 38, 37, 36, 40, 44, 48, 50],
-    'Housing 1': [95, 90, 78, 80, 80, 72, 68, 65, 74, 82, 90, 95],
-    'Housing 2': [55, 52, 48, 50, 51, 48, 46, 45, 50, 56, 62, 66],
-  };
-  const budLivNex: Record<string, number[]> = {
-    'Condo 1':   [3, 4, 6, 2, 3, 5, 4, 3, 0, 0, 0, 0],
-    'Condo 2':   [2, 3, 4, 2, 2, 3, 3, 2, 0, 0, 0, 0],
-    'Condo 3':   [2, 2, 3, 1, 1, 2, 2, 2, 0, 0, 0, 0],
-    'Condo 4':   [1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0, 0],
-    'Housing 1': [3, 4, 5, 3, 3, 5, 4, 4, 0, 0, 0, 0],
-    'Housing 2': [1, 2, 2, 1, 1, 2, 1, 1, 0, 0, 0, 0],
-  };
-  const budPreLivNex: Record<string, number[]> = {
-    'Condo 1':   [0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
-    'Condo 2':   [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
-    'Condo 3':   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    'Condo 4':   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    'Housing 1': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    'Housing 2': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  };
-  const budTargetData: Record<string, number[]> = {
-    'Condo 1':   [15, 18, 28, 12, 15, 25, 18, 18, 20, 20, 20, 15],
-    'Condo 2':   [12, 15, 22, 12, 14, 20, 15, 15, 18, 18, 18, 12],
-    'Condo 3':   [12, 14, 20, 10, 12, 18, 14, 14, 16, 16, 16, 10],
-    'Condo 4':   [10, 12, 18, 10, 12, 16, 12, 12, 14, 14, 14, 10],
-    'Housing 1': [15, 18, 25, 14, 16, 22, 18, 18, 20, 20, 20, 15],
-    'Housing 2': [14, 16, 24, 14, 16, 20, 18, 18, 18, 18, 18, 14],
-  };
-  const months = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
-
-  // มูลค่าเฉลี่ยต่อ unit (ล้านบาท) per BUD
-  const budAvgValue: Record<string, number> = {
-    'Condo 1': 3.2, 'Condo 2': 2.8, 'Condo 3': 4.5, 'Condo 4': 5.1,
-    'Housing 1': 6.8, 'Housing 2': 8.5,
-  };
+  // ═══ BUD Data (imported from chart-data.ts) ═══
+  const months = [...THAI_MONTHS];
   const isValue = budDisplayMode === 'value';
-  const toVal = (units: number, bud: string) => isValue ? +(units * budAvgValue[bud]).toFixed(1) : units;
+  const toVal = (units: number, bud: string) => isValue ? +(units * BUD_AVG_VALUE[bud]).toFixed(1) : units;
   const unitLabel = isValue ? 'ล้าน฿' : 'ราย';
 
   // ยอดสะสมรวมต่อ BUD
-  const budTotals = budNames.map(b => ({
+  const budTotals = BUD_NAMES.map(b => ({
     name: b,
-    total: toVal(budActual[b].reduce((s, v) => s + v, 0), b),
-    target: toVal(budTargetData[b].reduce((s, v) => s + v, 0), b),
-    livnex: toVal(budLivNex[b].reduce((s, v) => s + v, 0), b),
-    prelivnex: toVal(budPreLivNex[b].reduce((s, v) => s + v, 0), b),
-    color: budColors[b],
+    total: toVal(BUD_ACTUAL[b].reduce((s, v) => s + v, 0), b),
+    target: toVal(BUD_TARGET[b].reduce((s, v) => s + v, 0), b),
+    livnex: toVal(BUD_LIVNEX[b].reduce((s, v) => s + v, 0), b),
+    prelivnex: toVal(BUD_PRE_LIVNEX[b].reduce((s, v) => s + v, 0), b),
+    color: BUD_COLORS[b],
   }));
   const grandTotal = budTotals.reduce((s, d) => s + d.total, 0);
   const grandTarget = budTotals.reduce((s, d) => s + d.target, 0);
@@ -151,16 +76,16 @@ export function TransferCharts() {
   // Drill-down data for selected BUD
   const drillData = selectedBud ? months.map((m, i) => ({
     month: m,
-    MTOP: toVal(budTargetData[selectedBud][i], selectedBud),
-    แผนโอน: toVal(budPlan[selectedBud][i], selectedBud),
-    Upside: toVal(budUpside[selectedBud][i], selectedBud),
-    actual: toVal(budActual[selectedBud][i], selectedBud),
-    LivNex: toVal(budLivNex[selectedBud][i], selectedBud),
-    PreLivNex: toVal(budPreLivNex[selectedBud][i], selectedBud),
-    Backlog: budBacklog[selectedBud][i],
+    MTOP: toVal(BUD_TARGET[selectedBud][i], selectedBud),
+    แผนโอน: toVal(BUD_PLAN[selectedBud][i], selectedBud),
+    Upside: toVal(BUD_UPSIDE[selectedBud][i], selectedBud),
+    actual: toVal(BUD_ACTUAL[selectedBud][i], selectedBud),
+    LivNex: toVal(BUD_LIVNEX[selectedBud][i], selectedBud),
+    PreLivNex: toVal(BUD_PRE_LIVNEX[selectedBud][i], selectedBud),
+    Backlog: BUD_BACKLOG[selectedBud][i],
   })) : [];
-  const drillTotal = selectedBud ? toVal(budActual[selectedBud].reduce((s, v) => s + v, 0), selectedBud) : 0;
-  const drillTarget = selectedBud ? toVal(budTargetData[selectedBud].reduce((s, v) => s + v, 0), selectedBud) : 0;
+  const drillTotal = selectedBud ? toVal(BUD_ACTUAL[selectedBud].reduce((s, v) => s + v, 0), selectedBud) : 0;
+  const drillTarget = selectedBud ? toVal(BUD_TARGET[selectedBud].reduce((s, v) => s + v, 0), selectedBud) : 0;
 
   return (
     <>
@@ -330,7 +255,7 @@ export function TransferCharts() {
         <div className="bg-white rounded-xl border border-slate-200 p-4 col-span-7">
           <div className="mb-2">
             <h2 className="text-sm font-semibold text-slate-900">
-              ยอดโอนรายเดือน — <span style={{ color: budColors[selectedBud!] }}>{selectedBud}</span>
+              ยอดโอนรายเดือน — <span style={{ color: BUD_COLORS[selectedBud!] }}>{selectedBud}</span>
             </h2>
             <p className="text-[9px] text-slate-400 mt-0.5">
               รวม {isValue ? drillTotal.toFixed(1) : drillTotal}/{isValue ? drillTarget.toFixed(1) : drillTarget} {unitLabel} ({drillTarget > 0 ? Math.round((drillTotal / drillTarget) * 100) : 0}%)
@@ -362,7 +287,7 @@ export function TransferCharts() {
                   }) as any}
                 />
               </Bar>
-              <Bar yAxisId="left" dataKey="actual" stackId="actual" name="โอนจริง" fill={budColors[selectedBud!]} barSize={16}>
+              <Bar yAxisId="left" dataKey="actual" stackId="actual" name="โอนจริง" fill={BUD_COLORS[selectedBud!]} barSize={16}>
                 <LabelList
                   content={((props: any) => {
                     const { x, y, width, index } = props;

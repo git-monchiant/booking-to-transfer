@@ -17,6 +17,8 @@ import {
   Team,
   OPM_LIST,
   BUD_LIST,
+  CHAT_ROLE_CONFIG,
+  type ChatRole,
 } from '@/data/bookings';
 import { Sidebar, View } from '@/components/Sidebar';
 import { MultiSelect } from '@/components/MultiSelect';
@@ -52,6 +54,7 @@ import {
   Wallet,
   Settings,
   Layers,
+  Bell,
 } from 'lucide-react';
 
 export default function Home() {
@@ -61,6 +64,8 @@ export default function Home() {
     const [searchQuery, setSearchQuery] = useState('');
   const [stageFilter, setStageFilter] = useState<Stage | 'all'>('all');
   const [cancelDisplayMode, setCancelDisplayMode] = useState<'unit' | 'value'>('unit');
+  const [notiOpen, setNotiOpen] = useState(false);
+  const [defaultTab, setDefaultTab] = useState<'detail' | 'sla' | 'followup' | 'ai' | undefined>(undefined);
 
   // Global Filters
   const [globalFilters, setGlobalFilters] = useState({
@@ -209,6 +214,20 @@ export default function Home() {
     return result;
   }, [globalFilteredBookings, searchQuery, stageFilter, currentView]);
 
+  // Notification: recent chat messages across all bookings
+  const notifications = useMemo(() => {
+    return bookings
+      .filter(b => b.chat_messages && b.chat_messages.length > 0)
+      .map(b => {
+        const last = b.chat_messages[b.chat_messages.length - 1];
+        return { booking: b, lastMessage: last };
+      })
+      .sort((a, b) => b.lastMessage.timestamp.localeCompare(a.lastMessage.timestamp))
+      .slice(0, 8);
+  }, []);
+
+  const notiCount = notifications.length;
+
   // Team and blocked bookings based on global filter
   const teamBookings = useMemo(() => {
     return globalFilteredBookings.filter(b =>
@@ -335,7 +354,68 @@ export default function Home() {
             </h1>
             <span className="text-xs text-slate-400 font-medium">{filteredBookings.length} รายการ</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            {/* Notification Bell */}
+            <div className="relative">
+              <button
+                onClick={() => setNotiOpen(!notiOpen)}
+                className="relative p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                <Bell className="w-4.5 h-4.5 text-slate-500" />
+                {notiCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                    {notiCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Notification Dropdown */}
+              {notiOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setNotiOpen(false)} />
+                  <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl shadow-xl border border-slate-200 z-50 overflow-hidden">
+                    <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-700">แจ้งเตือนแชท</span>
+                      <span className="text-[10px] text-slate-400">{notiCount} ข้อความ</span>
+                    </div>
+                    <div className="max-h-80 overflow-y-auto divide-y divide-slate-50">
+                      {notifications.map((n) => {
+                        const roleConfig = CHAT_ROLE_CONFIG[n.lastMessage.role as ChatRole];
+                        return (
+                          <button
+                            key={n.booking.id}
+                            className="w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors flex gap-3 items-start"
+                            onClick={() => {
+                              setDefaultTab('followup');
+                              setSelectedBooking(n.booking);
+                              setNotiOpen(false);
+                            }}
+                          >
+                            <div className={`w-7 h-7 rounded-full ${roleConfig?.bg || 'bg-slate-400'} text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5`}>
+                              {roleConfig?.avatar || '?'}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-semibold text-slate-800 truncate">{n.lastMessage.sender}</span>
+                                <span className="text-[10px] text-slate-400">{n.lastMessage.role}</span>
+                              </div>
+                              <p className="text-[11px] text-slate-600 truncate mt-0.5">{n.lastMessage.text}</p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-[10px] text-indigo-500 font-medium truncate">{n.booking.project_name}</span>
+                                <span className="text-[10px] text-slate-300">·</span>
+                                <span className="text-[10px] text-slate-400">{n.lastMessage.timestamp}</span>
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Search */}
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
               <input
@@ -871,8 +951,8 @@ export default function Home() {
                 // Credit approval
                 const allBankSubs = active.flatMap(b => b.banks_submitted).filter(bs => bs.bank !== 'JD' && bs.bank !== 'CASH');
                 const submitted = allBankSubs.length;
-                const approved = allBankSubs.filter(bs => bs.result?.includes('อนุมัติ') && !bs.result?.includes('ไม่')).length;
-                const rejected = allBankSubs.filter(bs => bs.result?.includes('ไม่อนุมัติ')).length;
+                const approved = allBankSubs.filter(bs => bs.result_flag === 'pass').length;
+                const rejected = allBankSubs.filter(bs => bs.result_flag === 'fail').length;
                 const approvalRate = submitted > 0 ? Math.round((approved / submitted) * 100) : 0;
 
                 // Aging
@@ -1528,12 +1608,10 @@ export default function Home() {
                   b.banks_submitted.forEach(bs => {
                     if (bs.bank === 'CASH' || bs.bank === 'JD') return;
                     if (!bankData[bs.bank]) return;
-                    if (!bs.result || bs.result === 'รอผล') {
-                      bankData[bs.bank].pending++;
-                    } else if (bs.result.includes('ไม่อนุมัติ')) {
-                      bankData[bs.bank].rejected++;
-                    } else if (bs.result.includes('อนุมัติ')) {
+                    if (bs.result_flag === 'pass') {
                       bankData[bs.bank].approved++;
+                    } else if (bs.result_flag === 'fail') {
+                      bankData[bs.bank].rejected++;
                     } else {
                       bankData[bs.bank].pending++;
                     }
@@ -1831,7 +1909,7 @@ export default function Home() {
                     {blockedBookings.slice(0, 8).map(booking => (
                       <div
                         key={booking.id}
-                        onClick={() => setSelectedBooking(booking)}
+                        onClick={() => { setDefaultTab(undefined); setSelectedBooking(booking); }}
                         className="p-3 bg-red-50 border border-red-200 rounded-lg cursor-pointer hover:bg-red-100 transition"
                       >
                         <div className="flex items-center justify-between mb-2">
@@ -2063,7 +2141,7 @@ export default function Home() {
                       {stageBookings.slice(0, 5).map(booking => (
                         <div
                           key={booking.id}
-                          onClick={() => setSelectedBooking(booking)}
+                          onClick={() => { setDefaultTab(undefined); setSelectedBooking(booking); }}
                           className="px-5 py-3 flex items-center justify-between hover:bg-slate-50 cursor-pointer"
                         >
                           <div className="flex items-center gap-4">
@@ -2108,7 +2186,7 @@ export default function Home() {
                 {blockedBookings.map(booking => (
                   <div
                     key={booking.id}
-                    onClick={() => setSelectedBooking(booking)}
+                    onClick={() => { setDefaultTab(undefined); setSelectedBooking(booking); }}
                     className="bg-white rounded-xl border border-slate-200 p-5 cursor-pointer hover:shadow-md hover:border-amber-300 transition"
                   >
                     <div className="flex items-center justify-between mb-3">
@@ -2156,7 +2234,7 @@ export default function Home() {
                     key={booking.id}
                     booking={booking}
                     currentView={currentView}
-                    onClick={() => setSelectedBooking(booking)}
+                    onClick={() => { setDefaultTab(undefined); setSelectedBooking(booking); }}
                   />
                 ))}
               </div>
@@ -2193,7 +2271,7 @@ export default function Home() {
                 {teamBookings.map(booking => (
                   <div
                     key={booking.id}
-                    onClick={() => setSelectedBooking(booking)}
+                    onClick={() => { setDefaultTab(undefined); setSelectedBooking(booking); }}
                     className="bg-white rounded-xl border border-slate-200 p-4 cursor-pointer hover:shadow-md hover:border-slate-300 transition"
                   >
                     <div className="flex items-center justify-between mb-3">
@@ -2309,7 +2387,7 @@ export default function Home() {
                       .map(booking => (
                         <tr
                           key={booking.id}
-                          onClick={() => setSelectedBooking(booking)}
+                          onClick={() => { setDefaultTab(undefined); setSelectedBooking(booking); }}
                           className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition"
                         >
                           <td className="px-4 py-3">
@@ -2369,7 +2447,7 @@ export default function Home() {
 
       {/* Detail Panel */}
       {selectedBooking && (
-        <BookingDetailPanel booking={selectedBooking} onClose={() => setSelectedBooking(null)} currentView={currentView} />
+        <BookingDetailPanel key={`${selectedBooking.id}-${defaultTab || 'detail'}`} booking={selectedBooking} onClose={() => { setSelectedBooking(null); setDefaultTab(undefined); }} currentView={currentView} stageFilter={stageFilter} defaultTab={defaultTab} />
       )}
     </div>
   );

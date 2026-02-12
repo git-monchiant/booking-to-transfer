@@ -74,6 +74,32 @@ export const BANKS_LIST = [
 
 export type BankCode = typeof BANKS_LIST[number];
 
+// Bank UI — สีและชื่อแสดงผล
+export const BANK_COLORS: Record<string, string> = {
+  KBANK: 'bg-green-600',
+  SCB: 'bg-violet-700',
+  KTB: 'bg-sky-600',
+  BBL: 'bg-blue-800',
+  BAY: 'bg-yellow-500',
+  GHB: 'bg-orange-500',
+  GSB: 'bg-pink-500',
+  TTB: 'bg-orange-400',
+  LH: 'bg-lime-600',
+  UOB: 'bg-blue-600',
+  CIMB: 'bg-red-600',
+  KKP: 'bg-teal-600',
+  iBank: 'bg-emerald-600',
+  TISCO: 'bg-cyan-700',
+  CASH: 'bg-slate-600',
+  'สหกรณ์': 'bg-stone-500',
+  JD: 'bg-green-500',
+  Proptiane: 'bg-green-500',
+};
+
+export function bankDisplayName(code: string): string {
+  return code === 'JD' ? 'Jaidee(JD)' : code;
+}
+
 // Bank submission tracking — per bank (รวม เบื้องต้น + อนุมัติจริง)
 export interface BankSubmission {
   bank: BankCode;
@@ -81,9 +107,11 @@ export interface BankSubmission {
   // เบื้องต้น (Pre-approve)
   preapprove_date: string | null;
   preapprove_result: string | null;
+  preapprove_flag: ResultFlag;
   // อนุมัติจริง (Final)
   result: string | null;
   result_date: string | null;
+  result_flag: ResultFlag;
   approved_amount: number | null;
   remark: string | null;
 }
@@ -256,13 +284,13 @@ export type ProjectStatus = typeof PROJECT_STATUSES[number];
 // ─────────────────────────────────────────────
 // OPM (Operation Manager)
 // ─────────────────────────────────────────────
-export const OPM_LIST = ['OPM CH1', 'OPM H1'] as const;
+export const OPM_LIST = ['OPM C1', 'OPM C2', 'OPM C3', 'OPM H1', 'OPM H2'] as const;
 export type OPMCode = typeof OPM_LIST[number];
 
 // ─────────────────────────────────────────────
 // BUD (Business Unit Director)
 // ─────────────────────────────────────────────
-export const BUD_LIST = ['BUD H2'] as const;
+export const BUD_LIST = ['BUD C1', 'BUD C2', 'BUD C3', 'BUD C4', 'BUD H1', 'BUD H2'] as const;
 export type BUDCode = typeof BUD_LIST[number];
 
 // ─────────────────────────────────────────────
@@ -279,16 +307,28 @@ export interface Project {
 }
 
 export const PROJECTS: Project[] = [
-  { code: '00601', name: 'เสนา อเวนิว บางปะกง - บ้านโพธิ์', company: 'SENX', project_status: 'House', opm: 'OPM CH1', bud: 'BUD H2', type: 'แนวราบ' },
-  { code: '00602', name: 'J Town Execlusive บางปะกง', company: 'SENX', project_status: 'House', opm: 'OPM CH1', bud: 'BUD H2', type: 'แนวราบ' },
-  { code: '10301', name: 'เสนา วิลเลจ บางปะกง - บ้านโพธิ์', company: 'SENX', project_status: 'House', opm: 'OPM CH1', bud: 'BUD H2', type: 'แนวราบ' },
-  { code: '01800', name: 'เสนา เวล่า สิริโสธร', company: 'SENX', project_status: 'House', opm: 'OPM CH1', bud: 'BUD H2', type: 'แนวราบ' },
-  { code: '70401', name: 'เสนา วีว่า ศรีราชา - อัสสัมชัญ', company: 'SENX', project_status: 'House', opm: 'OPM CH1', bud: 'BUD H2', type: 'แนวราบ' },
-  { code: 'BPSN', name: 'บ้านบูรพา', company: 'SENA', project_status: 'House', opm: 'OPM CH1', bud: 'BUD H2', type: 'แนวราบ' },
-  { code: '00300', name: 'เสนา ช็อปเฮ้าส์ สุขุมวิท - แพรกษา', company: 'SENX', project_status: 'House', opm: 'OPM CH1', bud: 'BUD H2', type: 'แนวราบ' },
-  { code: '20100', name: 'เสนา วิลเลจ สุขุมวิท - แพรกษา 1', company: 'SENX', project_status: 'House', opm: 'OPM CH1', bud: 'BUD H2', type: 'แนวราบ' },
-  { code: 'BPU', name: 'เสนา เวล่า สุขุมวิท-บางปู', company: 'SENA-JV', project_status: 'House', opm: 'OPM H1', bud: 'BUD H2', type: 'แนวราบ' },
-  { code: 'TRAK1', name: 'เสนา เวล่า เทพารักษ์ - บางบ่อ', company: 'SENA-JV', project_status: 'House', opm: 'OPM H1', bud: 'BUD H2', type: 'แนวราบ' },
+  // BUD C1 — Condo
+  { code: '01800', name: 'เสนา เวล่า สิริโสธร', company: 'SENX', project_status: 'Condo', opm: 'OPM C1', bud: 'BUD C1', type: 'แนวสูง' },
+  { code: '01801', name: 'เสนา พาร์ค แกรนด์ รามอินทรา', company: 'SENA', project_status: 'Condo', opm: 'OPM C1', bud: 'BUD C1', type: 'แนวสูง' },
+  { code: '01809', name: 'เสนา เรสซิเดนซ์ อารีย์', company: 'SENA', project_status: 'Condo', opm: 'OPM C1', bud: 'BUD C1', type: 'แนวสูง' },
+  // BUD C2 — Condo
+  { code: '01804', name: 'เสนา คอนโด วงเวียนใหญ่', company: 'SENA', project_status: 'Condo', opm: 'OPM C2', bud: 'BUD C2', type: 'แนวสูง' },
+  { code: '01807', name: 'เสนา เพลส ลาดพร้าว', company: 'SENA', project_status: 'Condo', opm: 'OPM C2', bud: 'BUD C2', type: 'แนวสูง' },
+  // BUD C3 — Condo
+  { code: '01802', name: 'เสนา โซลาร์ พหลโยธิน', company: 'SENX', project_status: 'Condo', opm: 'OPM C3', bud: 'BUD C3', type: 'แนวสูง' },
+  { code: '01806', name: 'เสนา วิลล่า สุขุมวิท', company: 'SENX', project_status: 'Condo', opm: 'OPM C3', bud: 'BUD C3', type: 'แนวสูง' },
+  // BUD C4 — Condo
+  { code: '01810', name: 'เสนา คอนโด พระราม 9', company: 'SENA', project_status: 'Condo', opm: 'OPM C1', bud: 'BUD C4', type: 'แนวสูง' },
+  { code: '01811', name: 'เสนา คอนโด อ่อนนุช', company: 'SENA', project_status: 'Condo', opm: 'OPM C2', bud: 'BUD C4', type: 'แนวสูง' },
+  // BUD H1 — House
+  { code: '01805', name: 'เสนา ทาวน์ รังสิต', company: 'SENX', project_status: 'House', opm: 'OPM H1', bud: 'BUD H1', type: 'แนวราบ' },
+  { code: '70401', name: 'เสนา วีว่า ศรีราชา - อัสสัมชัญ', company: 'SENX', project_status: 'House', opm: 'OPM H1', bud: 'BUD H1', type: 'แนวราบ' },
+  { code: 'BPSN', name: 'บ้านบูรพา', company: 'SENA', project_status: 'House', opm: 'OPM H1', bud: 'BUD H1', type: 'แนวราบ' },
+  // BUD H2 — House
+  { code: '00601', name: 'เสนา อเวนิว บางปะกง - บ้านโพธิ์', company: 'SENX', project_status: 'House', opm: 'OPM H2', bud: 'BUD H2', type: 'แนวราบ' },
+  { code: '01803', name: 'เสนา เอโค่ บางนา', company: 'SENX', project_status: 'House', opm: 'OPM H2', bud: 'BUD H2', type: 'แนวราบ' },
+  { code: '01808', name: 'เสนา ไลฟ์ บางปู', company: 'SENA-JV', project_status: 'House', opm: 'OPM H2', bud: 'BUD H2', type: 'แนวราบ' },
+  { code: 'BPU', name: 'เสนา เวล่า สุขุมวิท-บางปู', company: 'SENA-JV', project_status: 'House', opm: 'OPM H2', bud: 'BUD H2', type: 'แนวราบ' },
 ];
 
 // ─────────────────────────────────────────────
@@ -342,3 +382,20 @@ export const MGMT_STATUSES = [
   'โอน',
   'LivNex',
 ] as const;
+
+// ─────────────────────────────────────────────
+// Thai Months (เดือนภาษาไทย)
+// ─────────────────────────────────────────────
+export const THAI_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'] as const;
+
+// ─────────────────────────────────────────────
+// Result Flag — ผลอนุมัติ pass/fail จาก master data
+// ─────────────────────────────────────────────
+export type ResultFlag = 'pass' | 'fail' | null;
+
+export function getResultFlag(value: string | null | undefined): ResultFlag {
+  if (!value) return null;
+  if (value.startsWith('ไม่อนุมัติ') || value.startsWith('บูโร - ค้างชำระ') || value === 'อาณัติ' || value === 'ยกเลิก' || value === 'ปฏิเสธ' || value.startsWith('สถานะไม่ผ่านเอกสาร')) return 'fail';
+  if (value.startsWith('อนุมัติ') || value.startsWith('บูโรปกติ') || value === 'ทำสัญญาแล้ว') return 'pass';
+  return null;
+}

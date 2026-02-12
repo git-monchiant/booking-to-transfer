@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { ChevronRight } from 'lucide-react';
-import { Booking } from '@/data/bookings';
+import { Booking, getResultFlag } from '@/data/bookings';
 
 // SLA Timeline — text-character tree view (├ └ │)
 export function SLATimeline({ booking }: { booking: Booking }) {
@@ -16,8 +16,8 @@ export function SLATimeline({ booking }: { booking: Booking }) {
     const parts = sla.replace('d', '').split('-');
     return parseInt(parts[parts.length - 1]);
   };
-  const isPass = (r: string | null) => r != null && (r.includes('อนุมัติ') || r === 'ปกติ' || r === 'ผ่าน') && !r.includes('ไม่');
-  const isFail = (r: string | null) => r != null && (r.includes('ไม่') || r === 'ค้างชำระ');
+  const isPass = (r: string | null) => getResultFlag(r) === 'pass';
+  const isFail = (r: string | null) => getResultFlag(r) === 'fail';
 
   // Key dates
   const bureauDate = booking.bureau_actual_result_date;

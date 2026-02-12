@@ -11,14 +11,17 @@ export {
   BUREAU_RESULTS, BANK_PREAPPROVE_RESULTS, BANK_FINAL_RESULTS, JD_RESULTS,
   APPROVAL_COMBINED_RESULTS, PURCHASE_OBJECTIVES, SALE_TYPE_FLAGS,
   INSPECTION_METHODS, BACKLOG_STATUSES, TRANSFER_STATUSES, MGMT_STATUSES,
-  type Stage, type Team, type BankCode, type BankSubmission,
+  THAI_MONTHS, BANK_COLORS, bankDisplayName,
+  getResultFlag,
+  type Stage, type Team, type BankCode, type BankSubmission, type ResultFlag,
   type SaleType, type CreditRequestType, type CustomerOccupation, type BureauResult,
   type BankPreapproveResult, type BankFinalResult, type JDResult, type Project,
   type Company, type OPMCode, type BUDCode,
 } from './masters';
+// ChatMessage types exported directly from this file (not masters)
 
-import type { Stage, BankCode, BankSubmission, Team } from './masters';
-import { STAGES, TEAMS } from './masters';
+import type { Stage, BankCode, BankSubmission, Team, ResultFlag } from './masters';
+import { STAGES, TEAMS, getResultFlag } from './masters';
 
 // ===== SEEDED RANDOM (เพื่อให้ Server และ Client ได้ค่าเดียวกัน) =====
 class SeededRandom {
@@ -42,6 +45,31 @@ class SeededRandom {
 
 // Global seeded random instance - ใช้ seed คงที่เพื่อ deterministic
 const seededRandom = new SeededRandom(12345);
+
+// ===============================================
+// CHAT MESSAGE — Group Chat / Notes
+// ===============================================
+export type ChatRole = 'Sale' | 'CO' | 'CS' | 'CON' | 'MGR' | 'PM' | 'Legal' | 'Finance';
+
+export const CHAT_ROLE_CONFIG: Record<ChatRole, { label: string; bg: string; text: string; avatar: string }> = {
+  Sale:    { label: 'Sale',    bg: 'bg-blue-500',    text: 'text-blue-600',    avatar: 'S' },
+  CO:      { label: 'CO',      bg: 'bg-purple-500',  text: 'text-purple-600',  avatar: 'C' },
+  CS:      { label: 'CS',      bg: 'bg-green-500',   text: 'text-green-600',   avatar: 'CS' },
+  CON:     { label: 'CON',     bg: 'bg-amber-500',   text: 'text-amber-600',   avatar: 'Q' },
+  MGR:     { label: 'MGR',     bg: 'bg-slate-600',   text: 'text-slate-600',   avatar: 'M' },
+  PM:      { label: 'PM',      bg: 'bg-emerald-500', text: 'text-emerald-600', avatar: 'P' },
+  Legal:   { label: 'Legal',   bg: 'bg-red-500',     text: 'text-red-600',     avatar: 'L' },
+  Finance: { label: 'Finance', bg: 'bg-cyan-500',    text: 'text-cyan-600',    avatar: 'F' },
+};
+
+export interface ChatMessage {
+  id: string;
+  sender: string;
+  role: ChatRole;
+  text: string;
+  timestamp: string;    // "11/02/68 14:30"
+  mentions?: string[];
+}
 
 // ===============================================
 // BOOKING INTERFACE - จัดหมวดหมู่ตาม BookingDetailPanel
@@ -102,16 +130,19 @@ export interface Booking {
   bureau_target_result_date_biz: string | null;       // Target (ไม่นับ Sat-Sun)
   bureau_actual_result_date: string | null;           // วันที่ได้ผลจริง
   bureau_result: string | null;                       // ผลบูโร "ปกติ" | "ค้างชำระ"
+  bureau_flag: ResultFlag;
 
   // ผลอนุมัติ — Bank เบื้องต้น (Pre-approve)
   bank_preapprove_target_date_biz: string | null;     // Target (ไม่นับ Sat-Sun)
   bank_preapprove_actual_date: string | null;         // วันที่ได้ผลจริง
   bank_preapprove_result: string | null;              // ผล "อนุมัติ" | "ไม่อนุมัติ"
+  bank_preapprove_flag: ResultFlag;                   // computed: pass ถ้ามี ≥1 ธนาคาร preapprove ผ่าน
 
   // ผลอนุมัติ — Bank อนุมัติจริง (Final)
   bank_final_target_date_biz: string | null;          // Target (ไม่นับ Sat-Sun)
   bank_final_actual_date: string | null;              // วันที่ได้ผลจริง
   bank_final_result: string | null;                   // ผล "อนุมัติ" | "ไม่อนุมัติ"
+  bank_final_flag: ResultFlag;                        // computed: pass ถ้ามี ≥1 ธนาคาร อนุมัติจริง
 
   // ผลอนุมัติ — JD
   jd_final_target_date: string | null;                // Target (ไม่นับ Sat-Sun)
@@ -195,6 +226,7 @@ export interface Booking {
 
   // LivNex สถานะ
   livnex_able_status: string | null;           // ได้/ไม่ได้ LivNex
+  livnex_able_flag: ResultFlag;
   livnex_able_reason: string | null;           // เหตุผล e.g., "อนุมัติ - ไม่มีเงื่อนไข"
   livnex_credit_status: string | null;         // สถานะสินเชื่อ e.g., "11. เซ็นสัญญา Livnex"
   livnex_contract_sign_status: string | null;  // สถานะสัญญา e.g., "เซ็นสัญญาแล้ว นัดชำระเงิน"
@@ -268,6 +300,11 @@ export interface Booking {
   mgmt_remark: string | null;           // หมายเหตุสัปดาห์ (CA)
 
   // ═════════════════════════════════════════════
+  // 11. Chat / Notes (Group Chat)
+  // ═════════════════════════════════════════════
+  chat_messages: ChatMessage[];
+
+  // ═════════════════════════════════════════════
   // COMPUTED / HELPER
   // ═════════════════════════════════════════════
   aging_days: number;               // จำนวนวันตั้งแต่จอง
@@ -278,9 +315,38 @@ export interface Booking {
 }
 
 // ===============================================
+// COMPUTE FLAGS — เติม flag จาก result text อัตโนมัติ
+// ===============================================
+function aggregateFlag(flags: (ResultFlag)[]): ResultFlag {
+  if (flags.some(f => f === 'pass')) return 'pass';
+  if (flags.length > 0 && flags.every(f => f === 'fail')) return 'fail';
+  return null;
+}
+
+function computeFlags(raw: any[]): Booking[] {
+  return raw.map(b => {
+    const banks = (b.banks_submitted || []).map((bs: any) => ({
+      ...bs,
+      preapprove_flag: getResultFlag(bs.preapprove_result),
+      result_flag: getResultFlag(bs.result),
+    }));
+    // ธนาคารจริง (ไม่รวม JD, CASH) สำหรับ aggregate
+    const realBanks = banks.filter((bs: any) => bs.bank !== 'JD' && bs.bank !== 'CASH');
+    return {
+      ...b,
+      bureau_flag: getResultFlag(b.bureau_result),
+      bank_preapprove_flag: aggregateFlag(realBanks.map((bs: any) => bs.preapprove_flag)),
+      bank_final_flag: aggregateFlag(realBanks.map((bs: any) => bs.result_flag)),
+      livnex_able_flag: getResultFlag(b.livnex_able_status),
+      banks_submitted: banks,
+    };
+  });
+}
+
+// ===============================================
 // MOCK DATA - ครบทุก Field
 // ===============================================
-export const bookings: Booking[] = [
+export const bookings: Booking[] = computeFlags([
   {
     id: 'BK-2025-1218-001',
 
@@ -292,8 +358,8 @@ export const bookings: Booking[] = [
     fiscal_year: 1403,
     no_count_flag: false,
     obj_purchase: 'เพื่ออยู่อาศัย',
-    OPM: 'CH1 - คุณธานินทร์',
-    BUD: 'H2 - คุณเอกกฤษณ์',
+    OPM: 'C1 - คุณธานินทร์',
+    BUD: 'C1 - คุณนิธิ',
     head_co: 'ภาวิณีย์',
 
     // 2. Project
@@ -455,6 +521,13 @@ export const bookings: Booking[] = [
     current_owner_team: 'CS',
     current_blocker: 'ลูกค้าดูฤกษ์โอน',
     next_action: 'นัดตรวจบ้าน 15 พ.ค.',
+    chat_messages: [
+      { id: 'c1-1', sender: 'สกุลกาญจน์', role: 'Sale', text: 'ลูกค้าโอนสดครับ เตรียมเอกสารเรียบร้อย', timestamp: '18/12/68 10:15' },
+      { id: 'c1-2', sender: 'วิลาวัณย์', role: 'CO', text: 'รับทราบค่ะ ลูกค้าโอนสดไม่ต้องยื่นบูโร', timestamp: '18/12/68 11:30' },
+      { id: 'c1-3', sender: 'สุรศักดิ์', role: 'CS', text: '@สกุลกาญจน์ นัดตรวจบ้าน 15 พ.ค. ได้ไหมครับ', timestamp: '20/12/68 09:00', mentions: ['สกุลกาญจน์'] },
+      { id: 'c1-4', sender: 'สกุลกาญจน์', role: 'Sale', text: 'ลูกค้าขอดูฤกษ์ก่อนนะครับ หลังสงกรานต์น่าจะได้', timestamp: '20/12/68 14:20' },
+      { id: 'c1-5', sender: 'คุณเอกกฤษณ์', role: 'MGR', text: '@สกุลกาญจน์ เร่งนัดโอนด้วยนะ ลูกค้าโอนสดไม่ควรยืดเยื้อ', timestamp: '10/01/69 09:30', mentions: ['สกุลกาญจน์'] },
+    ],
   },
 
   {
@@ -468,8 +541,8 @@ export const bookings: Booking[] = [
     fiscal_year: 1403,
     no_count_flag: false,
     obj_purchase: 'เพื่ออยู่อาศัย',
-    OPM: 'CH2 - คุณสมชาย',
-    BUD: 'H1 - คุณวิชัย',
+    OPM: 'C1 - คุณธานินทร์',
+    BUD: 'C1 - คุณนิธิ',
     head_co: 'ภาวิณีย์',
 
     // 2. Project
@@ -632,6 +705,13 @@ export const bookings: Booking[] = [
     current_owner_team: 'CO',
     current_blocker: 'รอผล Bureau',
     next_action: 'ผล Bureau 25 ม.ค.',
+    chat_messages: [
+      { id: 'c2-1', sender: 'นภาพร', role: 'Sale', text: 'ลูกค้ายื่นกู้ KBANK + SCB แล้วครับ @สมหญิง ช่วยติดตามด้วย', timestamp: '06/01/69 10:00', mentions: ['สมหญิง'] },
+      { id: 'c2-2', sender: 'สมหญิง', role: 'CO', text: 'รับทราบค่ะ ส่งเอกสารธนาคารวันนี้ รอผลบูโร 2-3 วัน', timestamp: '06/01/69 11:15' },
+      { id: 'c2-3', sender: 'สมหญิง', role: 'CO', text: 'ลูกค้าประวัติดี คาดว่าผ่าน รอผล 25 ม.ค.', timestamp: '20/01/69 16:00' },
+      { id: 'c2-4', sender: 'คุณวิชัย', role: 'MGR', text: '@สมหญิง ผลบูโรออกแล้วยังครับ ลูกค้าพร้อมโอนทันที', timestamp: '22/01/69 09:00', mentions: ['สมหญิง'] },
+      { id: 'c2-5', sender: 'นภาพร', role: 'Sale', text: 'ลูกค้าโทรมาถามผลทุกวันเลยครับ รบกวน @สมหญิง update ด้วย', timestamp: '23/01/69 10:30', mentions: ['สมหญิง'] },
+    ],
   },
 
   {
@@ -645,8 +725,8 @@ export const bookings: Booking[] = [
     fiscal_year: 1403,
     no_count_flag: false,
     obj_purchase: 'ลงทุน',
-    OPM: 'CH1 - คุณธานินทร์',
-    BUD: 'H2 - คุณเอกกฤษณ์',
+    OPM: 'C3 - คุณสุภา',
+    BUD: 'C3 - คุณกมล',
     head_co: 'ภาวิณีย์',
 
     // 2. Project
@@ -808,6 +888,14 @@ export const bookings: Booking[] = [
     current_owner_team: 'Construction',
     current_blocker: 'รอแก้งาน 5 รายการ',
     next_action: 'ตรวจรอบ 2 วันที่ 25 ม.ค.',
+    chat_messages: [
+      { id: 'c3-1', sender: 'ธนพล', role: 'Sale', text: 'ตรวจรอบ 1 ผ่านแล้ว แต่มีงานแก้ 5 รายการครับ', timestamp: '10/01/69 14:00' },
+      { id: 'c3-2', sender: 'สุรศักดิ์', role: 'CS', text: '@สุรสิทธิ์ ช่วยประสานช่างแก้งานด้วยนะครับ 5 รายการ', timestamp: '10/01/69 15:30', mentions: ['สุรสิทธิ์'] },
+      { id: 'c3-3', sender: 'สุรสิทธิ์', role: 'CON', text: 'รับแล้วครับ ส่งช่างเข้าแก้วันจันทร์ คาดเสร็จ 23 ม.ค.', timestamp: '11/01/69 09:00' },
+      { id: 'c3-4', sender: 'กานดา', role: 'CO', text: 'สินเชื่อผ่านแล้ว ทำสัญญาเรียบร้อย รอแก้งานตรวจเสร็จได้เลย', timestamp: '15/01/69 11:00' },
+      { id: 'c3-5', sender: 'ธนพล', role: 'Sale', text: 'ลูกค้าถามว่าเมื่อไหร่ได้ตรวจรอบ 2 ครับ @สุรสิทธิ์', timestamp: '20/01/69 10:00', mentions: ['สุรสิทธิ์'] },
+      { id: 'c3-6', sender: 'สุรสิทธิ์', role: 'CON', text: 'แก้เกือบเสร็จแล้วครับ เหลือ 1 รายการ นัดตรวจ 25 ม.ค. ได้', timestamp: '20/01/69 14:30' },
+    ],
   },
 
   {
@@ -821,8 +909,8 @@ export const bookings: Booking[] = [
     fiscal_year: 1403,
     no_count_flag: false,
     obj_purchase: 'เพื่ออยู่อาศัย',
-    OPM: 'CH3 - คุณสุภา',
-    BUD: 'H1 - คุณวิชัย',
+    OPM: 'C1 - คุณธานินทร์',
+    BUD: 'C1 - คุณนิธิ',
     head_co: 'ภาวิณีย์',
 
     // 2. Project
@@ -985,6 +1073,12 @@ export const bookings: Booking[] = [
     current_owner_team: 'Legal',
     current_blocker: null,
     next_action: 'นัดโอน 25 ม.ค.',
+    chat_messages: [
+      { id: 'c4-1', sender: 'รัตนา', role: 'Sale', text: 'สินเชื่อผ่านหมดแล้วครับ พร้อมนัดโอน @วิลาวัณย์', timestamp: '15/01/69 10:00', mentions: ['วิลาวัณย์'] },
+      { id: 'c4-2', sender: 'วิลาวัณย์', role: 'CO', text: 'เตรียมชุดโอนส่งนิติกรรมเรียบร้อยค่ะ', timestamp: '15/01/69 14:00' },
+      { id: 'c4-3', sender: 'รัตนา', role: 'Sale', text: 'ลูกค้ายืนยันนัดโอน 25 ม.ค. แน่นอนครับ', timestamp: '20/01/69 09:00' },
+      { id: 'c4-4', sender: 'คุณเอกกฤษณ์', role: 'MGR', text: 'ดีมาก เคสนี้เร็วเลย จัดให้เรียบร้อยนะ', timestamp: '20/01/69 11:00' },
+    ],
   },
 
   {
@@ -998,8 +1092,8 @@ export const bookings: Booking[] = [
     fiscal_year: 1403,
     no_count_flag: false,
     obj_purchase: 'เพื่ออยู่อาศัย',
-    OPM: 'CH2 - คุณสมชาย',
-    BUD: 'H2 - คุณเอกกฤษณ์',
+    OPM: 'C1 - คุณธานินทร์',
+    BUD: 'C1 - คุณนิธิ',
     head_co: 'ภาวิณีย์',
 
     // 2. Project
@@ -1162,6 +1256,11 @@ export const bookings: Booking[] = [
     current_owner_team: 'Finance',
     current_blocker: null,
     next_action: null,
+    chat_messages: [
+      { id: 'c5-1', sender: 'อรุณี', role: 'Sale', text: 'ลูกค้า VIP มากครับ ช่วยดูแลดีๆ นะ @สมหญิง', timestamp: '16/11/68 10:00', mentions: ['สมหญิง'] },
+      { id: 'c5-2', sender: 'สมหญิง', role: 'CO', text: 'ลูกค้าประวัติดีเยี่ยม อนุมัติเร็วแน่นอนค่ะ', timestamp: '20/11/68 11:00' },
+      { id: 'c5-3', sender: 'อรุณี', role: 'Sale', text: 'โอนเรียบร้อยแล้วครับ เร็วกว่ากำหนด ขอบคุณทุกคน!', timestamp: '28/12/68 15:00' },
+    ],
   },
 
   // ── After Transfer: รอเงินทอน ──
@@ -1264,7 +1363,7 @@ export const bookings: Booking[] = [
     livnex_present_date: null, livnex_contract_appointment_date: null, livnex_contract_actual_date: null, livnex_move_in_date: null, livnex_cancel_date: null, livnex_cancel_reason: null,
     pre_livnex_present_date: null, pre_livnex_contract_appointment_date: null, pre_livnex_contract_actual_date: null, pre_livnex_move_in_date: null, pre_livnex_cancel_date: null, pre_livnex_cancel_reason: null,
     backlog_status: '4. โอนแล้ว', backlog_old_flag: false, sale_type_flag: 'ขายใหม่', dec_period: 'NOV', fiscal_year: 1403, no_count_flag: false,
-    sale_name: 'ศิริพร แก้วใส', OPM: 'CH2 - คุณสมชาย', BUD: 'H1 - คุณวิชัย', head_co: 'ภาวิณีย์',
+    sale_name: 'ศิริพร แก้วใส', OPM: 'C3 - คุณสุภา', BUD: 'C3 - คุณกมล', head_co: 'ภาวิณีย์',
     refund_status: 'รอคืนเงิน',
     refund_aging: 20,
     refund_transfer_date: null,
@@ -1279,6 +1378,11 @@ export const bookings: Booking[] = [
     current_owner_team: 'Finance',
     current_blocker: 'รอเงินทอน',
     next_action: 'คืนเงินทอน 35,000',
+    chat_messages: [
+      { id: 'c6-1', sender: 'ศิริพร', role: 'Sale', text: 'โอนเรียบร้อย รอเงินทอนคืนลูกค้าครับ', timestamp: '20/12/68 14:00' },
+      { id: 'c6-2', sender: 'ภาวิณีย์', role: 'CO', text: 'รับทราบค่ะ ส่งเรื่องการเงินแล้ว', timestamp: '20/12/68 15:00' },
+      { id: 'c6-3', sender: 'การเงิน', role: 'Finance', text: 'รับเรื่องแล้วค่ะ คิวคืนเงินประมาณ 7-10 วัน', timestamp: '21/12/68 09:00' },
+    ],
   },
 
   // ── After Transfer: รอมิเตอร์น้ำ-ไฟ ──
@@ -1373,7 +1477,7 @@ export const bookings: Booking[] = [
     livnex_present_date: null, livnex_contract_appointment_date: null, livnex_contract_actual_date: null, livnex_move_in_date: null, livnex_cancel_date: null, livnex_cancel_reason: null,
     pre_livnex_present_date: null, pre_livnex_contract_appointment_date: null, pre_livnex_contract_actual_date: null, pre_livnex_move_in_date: null, pre_livnex_cancel_date: null, pre_livnex_cancel_reason: null,
     backlog_status: '4. โอนแล้ว', backlog_old_flag: false, sale_type_flag: 'ขายใหม่', dec_period: 'NOV', fiscal_year: 1403, no_count_flag: false,
-    sale_name: 'มานพ ดีเด่น', OPM: 'CH1 - คุณธานินทร์', BUD: 'H2 - คุณเอกกฤษณ์', head_co: 'ภาวิณีย์',
+    sale_name: 'มานพ ดีเด่น', OPM: 'C2 - คุณสมชาย', BUD: 'C2 - คุณปรีชา', head_co: 'ภาวิณีย์',
     refund_status: null,
     refund_aging: null,
     refund_transfer_date: null,
@@ -1388,6 +1492,11 @@ export const bookings: Booking[] = [
     current_owner_team: 'CS',
     current_blocker: 'รอเปลี่ยนมิเตอร์',
     next_action: 'เปลี่ยนมิเตอร์น้ำ-ไฟ',
+    chat_messages: [
+      { id: 'c7-1', sender: 'สุรศักดิ์', role: 'CS', text: 'โอนเรียบร้อย ดำเนินการเปลี่ยนมิเตอร์ครับ', timestamp: '05/01/69 10:00' },
+      { id: 'c7-2', sender: 'มานพ', role: 'Sale', text: 'ลูกค้าถามว่าเมื่อไหร่จะเปลี่ยนมิเตอร์ครับ', timestamp: '08/01/69 14:00' },
+      { id: 'c7-3', sender: 'วิลาวัณย์', role: 'CO', text: 'ส่งเอกสารมิเตอร์ให้ CS แล้วค่ะ @สุรศักดิ์ เช็คด้วยนะ', timestamp: '08/01/69 16:00', mentions: ['สุรศักดิ์'] },
+    ],
   },
 
   // ── After Transfer: รอของแถม + งานค้าง (ไม่มีเอกสารโอนรับ) ──
@@ -1482,7 +1591,7 @@ export const bookings: Booking[] = [
     livnex_present_date: '22/12/2025', livnex_contract_appointment_date: '26/12/2025', livnex_contract_actual_date: '27/12/2025', livnex_move_in_date: '15 Jan 2026', livnex_cancel_date: null, livnex_cancel_reason: null,
     pre_livnex_present_date: null, pre_livnex_contract_appointment_date: null, pre_livnex_contract_actual_date: null, pre_livnex_move_in_date: null, pre_livnex_cancel_date: null, pre_livnex_cancel_reason: null,
     backlog_status: '4. โอนแล้ว', backlog_old_flag: true, sale_type_flag: 'ขายใหม่', dec_period: 'NOV', fiscal_year: 1403, no_count_flag: false,
-    sale_name: 'พัชรี สุขสันต์', OPM: 'CH2 - คุณสมชาย', BUD: 'H1 - คุณวิชัย', head_co: 'ภาวิณีย์',
+    sale_name: 'พัชรี สุขสันต์', OPM: 'H1 - คุณวิชัย', BUD: 'H1 - คุณประพันธ์', head_co: 'ภาวิณีย์',
     refund_status: 'รอคืนเงิน',
     refund_aging: 30,
     refund_transfer_date: null,
@@ -1497,6 +1606,11 @@ export const bookings: Booking[] = [
     current_owner_team: 'CS',
     current_blocker: 'งานค้างหลายรายการ',
     next_action: 'ของแถม + เอกสารโอนรับ + มิเตอร์ไฟ',
+    chat_messages: [
+      { id: 'c8-1', sender: 'พัชรี', role: 'Sale', text: 'ลูกค้าถามเรื่องของแถมครับ ยังไม่ได้รับ', timestamp: '12/01/69 09:00' },
+      { id: 'c8-2', sender: 'วิลาวัณย์', role: 'CO', text: 'เรื่องของแถมส่งให้ CS แล้วค่ะ', timestamp: '12/01/69 10:00' },
+      { id: 'c8-3', sender: 'สุรศักดิ์', role: 'CS', text: 'จัดส่งของแถมสัปดาห์หน้าครับ @พัชรี แจ้งลูกค้าด้วย', timestamp: '12/01/69 11:00', mentions: ['พัชรี'] },
+    ],
   },
 
   {
@@ -1510,7 +1624,7 @@ export const bookings: Booking[] = [
     fiscal_year: 1403,
     no_count_flag: true,
     obj_purchase: 'เพื่ออยู่อาศัย',
-    OPM: 'CH1 - คุณธานินทร์',
+    OPM: 'H2 - คุณเอกกฤษณ์',
     BUD: 'H2 - คุณเอกกฤษณ์',
     head_co: 'ภาวิณีย์',
 
@@ -1674,23 +1788,59 @@ export const bookings: Booking[] = [
     current_owner_team: 'Finance',
     current_blocker: 'รอคืนเงินจอง',
     next_action: 'คืนเงินจอง 50,000',
+    chat_messages: [
+      { id: 'c9-1', sender: 'นภาพร', role: 'Sale', text: 'ลูกค้ายกเลิก สาเหตุไม่ผ่านสินเชื่อทุกธนาคาร', timestamp: '10/01/69 10:00' },
+      { id: 'c9-2', sender: 'ภาวิณีย์', role: 'CO', text: 'รับทราบค่ะ ยื่นทุกธนาคารแล้วไม่ผ่านจริงๆ', timestamp: '10/01/69 11:00' },
+      { id: 'c9-3', sender: 'คุณวิชัย', role: 'MGR', text: '@การเงิน ดำเนินการคืนเงินจอง 50,000 ด้วยครับ', timestamp: '10/01/69 14:00', mentions: ['การเงิน'] },
+      { id: 'c9-4', sender: 'การเงิน', role: 'Finance', text: 'รับทราบค่ะ ดำเนินการคืนเงิน 7-14 วันทำการ', timestamp: '11/01/69 09:00' },
+    ],
   },
-];
+]);
 
 // ===============================================
 // GENERATE BULK BOOKINGS FOR ~6,000 MILLION BACKLOG
 // ===============================================
+// Project → BUD/OPM mapping (ตรงกับ PROJECTS ใน masters.ts)
+const PROJECT_BUD_MAP: Record<string, { bud: string; opm: string }> = {
+  '01800': { bud: 'C1 - คุณนิธิ',       opm: 'C1 - คุณธานินทร์' },
+  '01801': { bud: 'C1 - คุณนิธิ',       opm: 'C1 - คุณธานินทร์' },
+  '01809': { bud: 'C1 - คุณนิธิ',       opm: 'C1 - คุณธานินทร์' },
+  '01804': { bud: 'C2 - คุณปรีชา',      opm: 'C2 - คุณสมชาย' },
+  '01807': { bud: 'C2 - คุณปรีชา',      opm: 'C2 - คุณสมชาย' },
+  '01802': { bud: 'C3 - คุณกมล',        opm: 'C3 - คุณสุภา' },
+  '01806': { bud: 'C3 - คุณกมล',        opm: 'C3 - คุณสุภา' },
+  '01810': { bud: 'C4 - คุณมณี',        opm: 'C1 - คุณธานินทร์' },
+  '01811': { bud: 'C4 - คุณมณี',        opm: 'C2 - คุณสมชาย' },
+  '01805': { bud: 'H1 - คุณประพันธ์',   opm: 'H1 - คุณวิชัย' },
+  '70401': { bud: 'H1 - คุณประพันธ์',   opm: 'H1 - คุณวิชัย' },
+  'BPSN':  { bud: 'H1 - คุณประพันธ์',   opm: 'H1 - คุณวิชัย' },
+  '00601': { bud: 'H2 - คุณเอกกฤษณ์',   opm: 'H2 - คุณเอกกฤษณ์' },
+  '01803': { bud: 'H2 - คุณเอกกฤษณ์',   opm: 'H2 - คุณเอกกฤษณ์' },
+  '01808': { bud: 'H2 - คุณเอกกฤษณ์',   opm: 'H2 - คุณเอกกฤษณ์' },
+  'BPU':   { bud: 'H2 - คุณเอกกฤษณ์',   opm: 'H2 - คุณเอกกฤษณ์' },
+};
+
 const PROJECT_NAMES = [
+  // BUD C1
   '01800 - เสนา เวล่า สิริโสธร',
   '01801 - เสนา พาร์ค แกรนด์ รามอินทรา',
-  '01802 - เสนา โซลาร์ พหลโยธิน',
-  '01803 - เสนา เอโค่ บางนา',
-  '01804 - เสนา คอนโด วงเวียนใหญ่',
-  '01805 - เสนา ทาวน์ รังสิต',
-  '01806 - เสนา วิลล่า สุขุมวิท',
-  '01807 - เสนา เพลส ลาดพร้าว',
-  '01808 - เสนา ไลฟ์ บางปู',
   '01809 - เสนา เรสซิเดนซ์ อารีย์',
+  // BUD C2
+  '01804 - เสนา คอนโด วงเวียนใหญ่',
+  '01807 - เสนา เพลส ลาดพร้าว',
+  // BUD C3
+  '01802 - เสนา โซลาร์ พหลโยธิน',
+  '01806 - เสนา วิลล่า สุขุมวิท',
+  // BUD C4
+  '01810 - เสนา คอนโด พระราม 9',
+  '01811 - เสนา คอนโด อ่อนนุช',
+  // BUD H1
+  '01805 - เสนา ทาวน์ รังสิต',
+  '70401 - เสนา วีว่า ศรีราชา',
+  // BUD H2
+  '01803 - เสนา เอโค่ บางนา',
+  '01808 - เสนา ไลฟ์ บางปู',
+  '00601 - เสนา อเวนิว บางปะกง',
 ];
 
 const CUSTOMER_NAMES = [
@@ -1783,19 +1933,67 @@ function generateBankSubmissions(price: number, hasBankFinal: boolean, hasBureau
       submit_date: '20/01/2026',
       preapprove_date: preapproveDate,
       preapprove_result: preapproveResult,
+      preapprove_flag: getResultFlag(preapproveResult),
       result,
       result_date: resultDate,
+      result_flag: getResultFlag(result),
       approved_amount: approvedAmount,
       remark: null
     };
   });
 }
 
-function generateBulkBookings(): Booking[] {
+// Templates use {sale} and {co} as placeholders
+const CHAT_TEMPLATES: Record<string, { role: ChatRole; text: string; mentionRole?: 'sale' | 'co' }[]> = {
+  credit: [
+    { role: 'Sale', text: 'ยื่นกู้เรียบร้อยแล้วครับ @{co} ช่วยติดตามด้วย', mentionRole: 'co' },
+    { role: 'CO', text: 'รับทราบค่ะ ติดตามผลบูโรให้' },
+    { role: 'Sale', text: 'ลูกค้าถามผลครับ @{co} update ด้วย', mentionRole: 'co' },
+  ],
+  inspection: [
+    { role: 'Sale', text: 'ลูกค้ารอนัดตรวจบ้านครับ' },
+    { role: 'CO', text: 'สินเชื่อเรียบร้อยแล้วค่ะ รอตรวจบ้านอย่างเดียว' },
+    { role: 'CS', text: 'นัดตรวจให้แล้วครับ @{sale} แจ้งลูกค้าด้วย', mentionRole: 'sale' },
+  ],
+  ready: [
+    { role: 'CO', text: 'สินเชื่อผ่าน ตรวจบ้านเรียบร้อย พร้อมนัดโอนค่ะ' },
+    { role: 'Sale', text: 'ลูกค้ายืนยันนัดโอนครับ' },
+    { role: 'MGR', text: '@{sale} เร่งนัดโอนด้วยนะ', mentionRole: 'sale' },
+  ],
+  booking: [
+    { role: 'Sale', text: 'ลูกค้าจองแล้ว เตรียมเอกสารยื่นสินเชื่อครับ @{co}', mentionRole: 'co' },
+    { role: 'CO', text: 'รับทราบค่ะ รอเอกสารจากลูกค้า' },
+  ],
+  contract: [
+    { role: 'Sale', text: 'ทำสัญญาเรียบร้อยแล้วครับ @{co} ยื่นกู้ได้เลย', mentionRole: 'co' },
+    { role: 'CO', text: 'ส่งเอกสารธนาคารวันนี้ค่ะ' },
+  ],
+};
+
+function generateChatMessages(stage: string, saleName: string, prefix: string): ChatMessage[] {
+  const coName = 'สมหญิง'; // auto-gen bookings all use สมหญิง as CO
+  const templates = CHAT_TEMPLATES[stage] || CHAT_TEMPLATES.credit;
+  return templates.map((t, idx) => {
+    const text = t.text.replace('{sale}', saleName).replace('{co}', coName);
+    const mentions: string[] = [];
+    if (t.mentionRole === 'sale') mentions.push(saleName);
+    if (t.mentionRole === 'co') mentions.push(coName);
+    return {
+      id: `${prefix}-${idx}`,
+      sender: t.role === 'Sale' ? saleName : t.role === 'CO' ? coName : t.role === 'CS' ? 'CS' : t.role === 'MGR' ? 'MGR' : t.role,
+      role: t.role,
+      text,
+      timestamp: `${10 + idx}/01/69 ${9 + idx}:00`,
+      ...(mentions.length > 0 ? { mentions } : {}),
+    };
+  });
+}
+
+function generateBulkBookings(): any[] {
   // Reset seed ให้เริ่มต้นที่ค่าเดิมเสมอ
   seededRandom.reset(12345);
 
-  const generated: Booking[] = [];
+  const generated: any[] = [];
   const targetBacklog = 6000000000; // 6,000 million baht
   let currentTotal = 0;
   let id = 100;
@@ -1833,10 +2031,10 @@ function generateBulkBookings(): Booking[] {
 
     // Generate multi-bank submissions (1-3 banks)
     const isCash = seededRandom.next() > 0.85; // 15% cash
-    const banksSubmitted = isCash
+    const banksSubmitted: BankSubmission[] = isCash
       ? [
-          { bank: 'CASH' as BankCode, submit_date: null, preapprove_date: null, preapprove_result: null, result: 'อนุมัติ - เงินสด', result_date: null, approved_amount: price, remark: 'โอนสด' },
-          { bank: 'JD' as BankCode, submit_date: null, preapprove_date: null, preapprove_result: null, result: null, result_date: null, approved_amount: null, remark: 'โอนสด - ไม่ต้องยื่น JD' }
+          { bank: 'CASH' as BankCode, submit_date: null, preapprove_date: null, preapprove_result: null, preapprove_flag: null, result: 'อนุมัติ - เงินสด', result_date: null, result_flag: 'pass', approved_amount: price, remark: 'โอนสด' },
+          { bank: 'JD' as BankCode, submit_date: null, preapprove_date: null, preapprove_result: null, preapprove_flag: null, result: null, result_date: null, result_flag: null, approved_amount: null, remark: 'โอนสด - ไม่ต้องยื่น JD' }
         ]
       : generateBankSubmissions(price, hasBankFinal, hasBureauResult);
 
@@ -1845,7 +2043,7 @@ function generateBulkBookings(): Booking[] {
     const hasInspect2 = (stage === 'inspection' && seededRandom.next() > 0.6) || stage === 'ready';
     const hasInspect3 = stage === 'ready' && seededRandom.next() > 0.5;
 
-    const booking: Booking = {
+    const booking = {
       id: `BK-2026-GEN-${String(id++).padStart(4, '0')}`,
 
       // 1. Backlog
@@ -1856,8 +2054,8 @@ function generateBulkBookings(): Booking[] {
       fiscal_year: 1403,
       no_count_flag: false,
       obj_purchase: seededRandom.next() > 0.3 ? 'เพื่ออยู่อาศัย' : 'ลงทุน',
-      OPM: 'CH1 - คุณธานินทร์',
-      BUD: 'H2 - คุณเอกกฤษณ์',
+      OPM: (PROJECT_BUD_MAP[project.split(' - ')[0]] || { opm: 'C1 - คุณธานินทร์' }).opm,
+      BUD: (PROJECT_BUD_MAP[project.split(' - ')[0]] || { bud: 'C1 - คุณนิธิ' }).bud,
       head_co: 'ภาวิณีย์',
 
       // 2. Project
@@ -1896,7 +2094,7 @@ function generateBulkBookings(): Booking[] {
       credit_request_type: isCash ? 'โอนสด' : 'สินเชื่อธนาคาร',
       banks_submitted: banksSubmitted,
       selected_bank: (() => {
-        const approvedBanks = banksSubmitted.filter(bs => bs.result?.includes('อนุมัติ') && !bs.result?.includes('ไม่อนุมัติ') && bs.bank !== 'JD');
+        const approvedBanks = banksSubmitted.filter(bs => bs.result_flag === 'pass' && bs.bank !== 'JD');
         if (approvedBanks.length > 0) return approvedBanks[Math.floor(seededRandom.next() * approvedBanks.length)].bank;
         return null;
       })(),
@@ -2023,6 +2221,7 @@ function generateBulkBookings(): Booking[] {
       current_owner_team: team,
       current_blocker: seededRandom.next() > 0.7 ? 'รอผลธนาคาร' : null,
       next_action: stage === 'ready' ? 'นัดโอน' : stage === 'inspection' ? 'นัดตรวจ' : 'รอผลสินเชื่อ',
+      chat_messages: generateChatMessages(stage, saleName, `gen-${id}`),
     };
 
     generated.push(booking);
@@ -2034,7 +2233,7 @@ function generateBulkBookings(): Booking[] {
 
 // Add generated bookings to main array
 const generatedBookings = generateBulkBookings();
-bookings.push(...generatedBookings);
+bookings.push(...computeFlags(generatedBookings));
 
 // ===============================================
 // HELPER FUNCTIONS

@@ -1,4 +1,4 @@
-import { Booking, STAGE_CONFIG, formatMoney } from '@/data/bookings';
+import { Booking, STAGE_CONFIG, formatMoney, getResultFlag, BANK_COLORS } from '@/data/bookings';
 import { View } from '@/components/Sidebar';
 
 interface BookingListItemProps {
@@ -6,14 +6,6 @@ interface BookingListItemProps {
   currentView: View;
   onClick: () => void;
 }
-
-const BCLR: Record<string, string> = {
-  KBANK:'bg-green-600',SCB:'bg-violet-700',KTB:'bg-sky-600',BBL:'bg-blue-800',
-  BAY:'bg-yellow-500',GHB:'bg-orange-500',GSB:'bg-pink-500',TTB:'bg-orange-400',
-  LH:'bg-lime-600',UOB:'bg-blue-600',CIMB:'bg-red-600',KKP:'bg-teal-600',
-  iBank:'bg-emerald-600',TISCO:'bg-cyan-700',CASH:'bg-slate-600',
-  'สหกรณ์':'bg-stone-500',JD:'bg-green-500',
-};
 
 const isAfterView = (view: View) => ['refund','meter','freebie','pending-work'].includes(view);
 
@@ -68,8 +60,8 @@ export function BookingListItem({ booking, currentView, onClick }: BookingListIt
                   {booking.livnex_able_status && (<>
                     <span className="text-slate-300">|</span>
                     <span className={`font-medium ${
-                      booking.livnex_able_status.includes('อนุมัติ') && !booking.livnex_able_status.includes('ไม่อนุมัติ') ? 'text-indigo-600' :
-                      booking.livnex_able_status.includes('ไม่อนุมัติ') ? 'text-red-500' : 'text-slate-500'
+                      booking.livnex_able_flag === 'pass' ? 'text-indigo-600' :
+                      booking.livnex_able_flag === 'fail' ? 'text-red-500' : 'text-slate-500'
                     }`}>LivNex Able : {booking.livnex_able_status}</span>
                   </>)}
                 </div>
@@ -137,7 +129,7 @@ export function BookingListItem({ booking, currentView, onClick }: BookingListIt
                 <div className="flex items-center gap-1 mt-auto pt-0.5 border-t border-slate-100">
                   <div className="flex flex-wrap gap-0.5 flex-1 min-w-0">
                     {booking.banks_submitted.map(bs => (
-                      <span key={bs.bank} className={`inline-flex px-1.5 py-px text-[9px] font-bold text-white uppercase ${BCLR[bs.bank] || 'bg-slate-500'}`} title={[bs.bank, bs.result, bs.approved_amount ? `฿${formatMoney(bs.approved_amount)}` : ''].filter(Boolean).join(' · ')}>
+                      <span key={bs.bank} className={`inline-flex px-1.5 py-px text-[9px] font-bold text-white uppercase ${BANK_COLORS[bs.bank] || 'bg-slate-500'}`} title={[bs.bank, bs.result, bs.approved_amount ? `฿${formatMoney(bs.approved_amount)}` : ''].filter(Boolean).join(' · ')}>
                         {bs.bank}
                       </span>
                     ))}
@@ -227,8 +219,8 @@ export function BookingListItem({ booking, currentView, onClick }: BookingListIt
 
 // Credit Pipeline sub-component
 function CreditPipeline({ booking }: { booking: Booking }) {
-  const isPass = (v: string | null) => v != null && (v.includes('อนุมัติ') || v.includes('ปกติ')) && !v.includes('ไม่อนุมัติ');
-  const isFail = (v: string | null) => v != null && (v.includes('ไม่อนุมัติ') || v.includes('ค้างชำระ') || v === 'ยกเลิก' || v === 'อาณัติ');
+  const isPass = (v: string | null) => getResultFlag(v) === 'pass';
+  const isFail = (v: string | null) => getResultFlag(v) === 'fail';
   const parseD = (d: string) => { const [dd,mm,yy] = d.split('/'); return new Date(+yy, +mm-1, +dd); };
   const agingD = (target: string | null, actual: string | null) => {
     if (!target) return null;
