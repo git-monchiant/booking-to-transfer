@@ -24,6 +24,11 @@ import { Sidebar, View } from '@/components/Sidebar';
 import { MultiSelect } from '@/components/MultiSelect';
 import { BookingDetailPanel } from '@/components/BookingDetailPanel';
 import { TransferCharts } from '@/components/TransferCharts';
+import {
+  MONTHLY_SALES_DATA, MONTHLY_TRANSFER_DATA, MONTHLY_CANCEL_DATA,
+  BACKLOG_INITIAL,
+} from '@/data/chart-data';
+import { PROCESS_BACKLOG, GROUP_COLORS, AGING_BUCKETS, AGING_COLORS, BANK_APPROVAL_DATA, BANK_APPROVAL_STEPS } from '@/data/chart-data-tracking';
 import { BookingListItem } from '@/components/BookingListItem';
 import {
   BarChart,
@@ -63,8 +68,10 @@ export default function Home() {
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
   const [stageFilter, setStageFilter] = useState<Stage | 'all'>('all');
-  const [cancelDisplayMode, setCancelDisplayMode] = useState<'unit' | 'value'>('unit');
-  const [notiOpen, setNotiOpen] = useState(false);
+const [notiOpen, setNotiOpen] = useState(false);
+  const [budDisplayMode, setBudDisplayMode] = useState<'unit' | 'net' | 'contract'>('unit');
+  const [selectedProcess, setSelectedProcess] = useState<string>(PROCESS_BACKLOG[0].key);
+  const [heatmapCell, setHeatmapCell] = useState<{ processKey: string; agingDay: string } | null>(null);
   const [defaultTab, setDefaultTab] = useState<'detail' | 'sla' | 'followup' | 'ai' | undefined>(undefined);
 
   // Global Filters
@@ -116,6 +123,24 @@ export default function Home() {
       dateTo: range.to,
     }));
   };
+
+  // ─── Backlog booking map: process+aging → actual bookings (round-robin) ───
+  const backlogBookingMap = useMemo(() => {
+    const map: Record<string, Booking[]> = {};
+    let idx = 0;
+    for (const proc of PROCESS_BACKLOG) {
+      for (const bucket of AGING_BUCKETS) {
+        const count = proc.aging[bucket];
+        const key = `${proc.key}|${bucket}`;
+        map[key] = [];
+        for (let i = 0; i < count; i++) {
+          map[key].push(bookings[idx % bookings.length]);
+          idx++;
+        }
+      }
+    }
+    return map;
+  }, []);
 
   // Get unique values for filters — OPM/BUD from master data, others from booking data
   const uniqueProjectNames = useMemo(() => Array.from(new Set(bookings.map(b => b.project_name))).sort(), []);
@@ -541,6 +566,15 @@ export default function Home() {
                   </button>
                 ))}
               </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-semibold text-slate-400 uppercase">แสดงผล</label>
+                <select value={budDisplayMode} onChange={e => setBudDisplayMode(e.target.value as 'unit' | 'net' | 'contract')}
+                  className="px-2 py-1 bg-white border border-slate-200 rounded text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-300">
+                  <option value="unit">จำนวน (Unit)</option>
+                  <option value="net">ราคาขายสุทธิ (ล้าน฿)</option>
+                  <option value="contract">ราคาหน้าสัญญา (ล้าน฿)</option>
+                </select>
+              </div>
               <div className="flex-1" />
               {(globalFilters.bu.length > 0 || globalFilters.opm.length > 0 || globalFilters.project.length > 0 || globalFilters.status.length > 0 || globalFilters.responsible.length > 0 || globalFilters.dateFrom || globalFilters.dateTo) && (
                 <button
@@ -560,375 +594,182 @@ export default function Home() {
           {/* ========== DASHBOARD PERFORMANCE VIEW ========== */}
           {(currentView === 'dashboard' || currentView === 'dashboard-performance') && (
             <div className="space-y-6">
-              {/* KPI Cards */}
-              <div className="grid grid-cols-7 gap-3">
-                {/* 1. จำนวนโครงการ - สีเทา */}
-                {(() => {
-                  const uniqueProjects = new Set(globalFilteredBookings.map(b => b.project_name));
-                  const projectCount = uniqueProjects.size;
-                  const changePercent = 2.1;
-                  const changeCount = 3;
-                  const isPositive = changePercent >= 0;
-                  return (
-                    <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-sm">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center">
-                          <Layers className="w-4 h-4 text-slate-600" />
-                        </div>
-                        <div className={`flex items-center gap-1 text-[10px] font-medium ${isPositive ? 'text-emerald-500' : 'text-red-500'}`}>
-                          <span>{isPositive ? '▲' : '▼'}{changePercent.toFixed(1)}%</span>
-                          <span className="text-slate-300">|</span>
-                          <span>{changeCount} โครงการ</span>
-                        </div>
-                      </div>
-                      <div className="text-sm font-bold text-slate-700">{projectCount} โครงการ</div>
-                      <div className="text-xs font-medium text-slate-700">จำนวนโครงการ</div>
-                      <div className="text-[10px] text-slate-400 mt-1">{globalFilteredBookings.length} รายการ</div>
-                    </div>
-                  );
-                })()}
-
-                {/* 2. Booking - สีม่วง */}
-                {(() => {
-                  const bookingData = globalFilteredBookings.filter(b => b.stage === 'booking');
-                  const value = bookingData.reduce((sum, b) => sum + (b.net_contract_value || 0), 0);
-                  const target = 14197340000;
-                  const pct = target > 0 ? (value / target * 100) : 0;
-                  const changePercent = 5.2;
-                  const changeValue = 120000000;
-                  const isPositive = changePercent >= 0;
-                  return (
-                    <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-sm">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="w-8 h-8 bg-violet-100 rounded-lg flex items-center justify-center">
-                          <TrendingUp className="w-4 h-4 text-violet-600" />
-                        </div>
-                        <div className={`flex items-center gap-1 text-[10px] font-medium ${isPositive ? 'text-emerald-500' : 'text-red-500'}`}>
-                          <span>{isPositive ? '▲' : '▼'}{changePercent.toFixed(1)}%</span>
-                          <span className="text-slate-300">|</span>
-                          <span>฿{formatMoney(changeValue)}</span>
-                        </div>
-                      </div>
-                      <div className="text-sm font-bold text-violet-600">฿{formatMoney(value)}</div>
-                      <div className="text-xs font-medium text-slate-700">Booking</div>
-                      <div className="mt-2 flex items-center gap-1.5">
-                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                          <div className="h-full bg-violet-500 rounded-full" style={{ width: `${Math.min(pct, 100)}%` }} />
-                        </div>
-                        <span className="text-[10px] font-bold text-violet-500">{pct.toFixed(0)}%</span>
-                      </div>
-                      <div className="text-[10px] text-slate-400 mt-1">Target ฿{formatMoney(target)}</div>
-                    </div>
-                  );
-                })()}
-
-                {/* 3. Contract */}
-                {(() => {
-                  const contractData = globalFilteredBookings.filter(b => b.stage === 'contract');
-                  const value = contractData.reduce((sum, b) => sum + (b.net_contract_value || 0), 0);
-                  const target = 14197340000;
-                  const pct = target > 0 ? (value / target * 100) : 0;
-                  const changePercent = 3.8;
-                  const changeValue = 85000000;
-                  const isPositive = changePercent >= 0;
-                  return (
-                    <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-sm">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                        </div>
-                        <div className={`flex items-center gap-1 text-[10px] font-medium ${isPositive ? 'text-emerald-500' : 'text-red-500'}`}>
-                          <span>{isPositive ? '▲' : '▼'}{changePercent.toFixed(1)}%</span>
-                          <span className="text-slate-300">|</span>
-                          <span>฿{formatMoney(changeValue)}</span>
-                        </div>
-                      </div>
-                      <div className="text-sm font-bold text-emerald-600">฿{formatMoney(value)}</div>
-                      <div className="text-xs font-medium text-slate-700">Contract</div>
-                      <div className="mt-2 flex items-center gap-1.5">
-                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                          <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.min(pct, 100)}%` }} />
-                        </div>
-                        <span className="text-[10px] font-bold text-emerald-500">{pct.toFixed(0)}%</span>
-                      </div>
-                      <div className="text-[10px] text-slate-400 mt-1">Target ฿{formatMoney(target)}</div>
-                    </div>
-                  );
-                })()}
-
-                {/* 4. Transfer - สีน้ำเงิน */}
-                {(() => {
-                  const revenueData = globalFilteredBookings.filter(b => b.stage === 'transferred');
-                  const value = revenueData.reduce((sum, b) => sum + (b.net_contract_value || 0), 0);
-                  const target = 8885450000;
-                  const pct = target > 0 ? (value / target * 100) : 0;
-                  const changePercent = 7.5;
-                  const changeValue = 210000000;
-                  const isPositive = changePercent >= 0;
-                  return (
-                    <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-sm">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                          <Banknote className="w-4 h-4 text-blue-600" />
-                        </div>
-                        <div className={`flex items-center gap-1 text-[10px] font-medium ${isPositive ? 'text-emerald-500' : 'text-red-500'}`}>
-                          <span>{isPositive ? '▲' : '▼'}{changePercent.toFixed(1)}%</span>
-                          <span className="text-slate-300">|</span>
-                          <span>฿{formatMoney(changeValue)}</span>
-                        </div>
-                      </div>
-                      <div className="text-sm font-bold text-blue-600">฿{formatMoney(value)}</div>
-                      <div className="text-xs font-medium text-slate-700">Transfer</div>
-                      <div className="mt-2 flex items-center gap-1.5">
-                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                          <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(pct, 100)}%` }} />
-                        </div>
-                        <span className="text-[10px] font-bold text-blue-500">{pct.toFixed(0)}%</span>
-                      </div>
-                      <div className="text-[10px] text-slate-400 mt-1">Target ฿{formatMoney(target)}</div>
-                    </div>
-                  );
-                })()}
-
-                {/* 5. Livnex - สีส้ม */}
-                {(() => {
-                  const livnexData = globalFilteredBookings.filter(b => b.livnex_complete_date);
-                  const value = livnexData.reduce((sum, b) => sum + (b.net_contract_value || 0), 0);
-                  const target = 2500000000;
-                  const pct = target > 0 ? (value / target * 100) : 0;
-                  const changePercent = 12.3;
-                  const changeValue = 45000000;
-                  const isPositive = changePercent >= 0;
-                  return (
-                    <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-sm">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
-                          <Layers className="w-4 h-4 text-orange-600" />
-                        </div>
-                        <div className={`flex items-center gap-1 text-[10px] font-medium ${isPositive ? 'text-emerald-500' : 'text-red-500'}`}>
-                          <span>{isPositive ? '▲' : '▼'}{changePercent.toFixed(1)}%</span>
-                          <span className="text-slate-300">|</span>
-                          <span>฿{formatMoney(changeValue)}</span>
-                        </div>
-                      </div>
-                      <div className="text-sm font-bold text-orange-600">฿{formatMoney(value)}</div>
-                      <div className="text-xs font-medium text-slate-700">Livnex</div>
-                      <div className="mt-2 flex items-center gap-1.5">
-                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                          <div className="h-full bg-orange-500 rounded-full" style={{ width: `${Math.min(pct, 100)}%` }} />
-                        </div>
-                        <span className="text-[10px] font-bold text-orange-500">{pct.toFixed(0)}%</span>
-                      </div>
-                      <div className="text-[10px] text-slate-400 mt-1">Target ฿{formatMoney(target)}</div>
-                    </div>
-                  );
-                })()}
-
-                {/* 6. Pre-LivNex - สีฟ้า */}
-                {(() => {
-                  const preLivnexData = globalFilteredBookings.filter(b => b.pre_livnex_contract_appointment_date);
-                  const value = preLivnexData.reduce((sum, b) => sum + (b.net_contract_value || 0), 0);
-                  const target = 1800000000;
-                  const pct = target > 0 ? (value / target * 100) : 0;
-                  const changePercent = 8.7;
-                  const changeValue = 32000000;
-                  const isPositive = changePercent >= 0;
-                  return (
-                    <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-sm">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="w-8 h-8 bg-cyan-100 rounded-lg flex items-center justify-center">
-                          <Layers className="w-4 h-4 text-cyan-600" />
-                        </div>
-                        <div className={`flex items-center gap-1 text-[10px] font-medium ${isPositive ? 'text-emerald-500' : 'text-red-500'}`}>
-                          <span>{isPositive ? '▲' : '▼'}{changePercent.toFixed(1)}%</span>
-                          <span className="text-slate-300">|</span>
-                          <span>฿{formatMoney(changeValue)}</span>
-                        </div>
-                      </div>
-                      <div className="text-sm font-bold text-cyan-600">฿{formatMoney(value)}</div>
-                      <div className="text-xs font-medium text-slate-700">Pre-LivNex</div>
-                      <div className="mt-2 flex items-center gap-1.5">
-                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                          <div className="h-full bg-cyan-500 rounded-full" style={{ width: `${Math.min(pct, 100)}%` }} />
-                        </div>
-                        <span className="text-[10px] font-bold text-cyan-500">{pct.toFixed(0)}%</span>
-                      </div>
-                      <div className="text-[10px] text-slate-400 mt-1">Target ฿{formatMoney(target)}</div>
-                    </div>
-                  );
-                })()}
-
-                {/* 7. Cancel */}
-                {(() => {
-                  const cancelData = globalFilteredBookings.filter(b => b.stage === 'cancelled');
-                  const cancelValue = cancelData.reduce((sum, b) => sum + (b.net_contract_value || 0), 0);
-                  const changePercent = -2.4;
-                  const changeValue = -18000000;
-                  const isPositive = changePercent >= 0;
-                  return (
-                    <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-sm">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
-                          <X className="w-4 h-4 text-red-600" />
-                        </div>
-                        <div className={`flex items-center gap-1 text-[10px] font-medium ${isPositive ? 'text-emerald-500' : 'text-red-500'}`}>
-                          <span>{isPositive ? '▲' : '▼'}{changePercent.toFixed(1)}%</span>
-                          <span className="text-slate-300">|</span>
-                          <span>฿{formatMoney(Math.abs(changeValue))}</span>
-                        </div>
-                      </div>
-                      <div className="text-sm font-bold text-red-600">฿{formatMoney(cancelValue)}</div>
-                      <div className="text-xs font-medium text-slate-700">Cancel</div>
-                      <div className="text-[10px] text-slate-400 mt-1">{cancelData.length} รายการ</div>
-                    </div>
-                  );
-                })()}
-
-              </div>
-
-              <TransferCharts />
-
-              {/* ════════ ภาพรวมยอดยกเลิกรายเดือน ════════ */}
+              {/* KPI Cards — ข้อมูลจาก chart-data.ts ตรงกับ graph ด้านล่าง */}
               {(() => {
-                const avgVal = 4.8;
-                const isCV = cancelDisplayMode === 'value';
-                const cv = (v: number) => isCV ? +(v * avgVal).toFixed(1) : v;
-                const cUnit = isCV ? 'ล้าน฿' : 'ราย';
+                const kBook = MONTHLY_SALES_DATA.reduce((s, d) => s + d.Book, 0);
+                const kContract = MONTHLY_SALES_DATA.reduce((s, d) => s + d.Contract, 0);
+                const kMTOPBook = MONTHLY_SALES_DATA.reduce((s, d) => s + d.เป้าBook, 0);
+                const kUnsigned = kBook - kContract;
 
-                const cancelDataRaw = [
-                  { month: 'ม.ค.',  ยกเลิก: 5,  LivNex: 2, PreLivNex: 0,  Booking: 32 },
-                  { month: 'ก.พ.',  ยกเลิก: 8,  LivNex: 3, PreLivNex: 0,  Booking: 44 },
-                  { month: 'มี.ค.', ยกเลิก: 11, LivNex: 5, PreLivNex: 1,  Booking: 55 },
-                  { month: 'เม.ย.', ยกเลิก: 3,  LivNex: 1, PreLivNex: 0,  Booking: 28 },
-                  { month: 'พ.ค.',  ยกเลิก: 7,  LivNex: 3, PreLivNex: 0,  Booking: 42 },
-                  { month: 'มิ.ย.', ยกเลิก: 12, LivNex: 5, PreLivNex: 1,  Booking: 58 },
-                  { month: 'ก.ค.',  ยกเลิก: 6,  LivNex: 2, PreLivNex: 0,  Booking: 38 },
-                  { month: 'ส.ค.',  ยกเลิก: 9,  LivNex: 4, PreLivNex: 0,  Booking: 48 },
-                  { month: 'ก.ย.',  ยกเลิก: 0,  LivNex: 0, PreLivNex: 0,  Booking: 50 },
-                  { month: 'ต.ค.',  ยกเลิก: 0,  LivNex: 0, PreLivNex: 0,  Booking: 46 },
-                  { month: 'พ.ย.',  ยกเลิก: 0,  LivNex: 0, PreLivNex: 0,  Booking: 52 },
-                  { month: 'ธ.ค.',  ยกเลิก: 0,  LivNex: 0, PreLivNex: 0,  Booking: 30 },
-                ];
-                let cumCancel = 0;
-                const cancelData = cancelDataRaw.map(d => {
-                  cumCancel += d.ยกเลิก;
-                  const ยกเลิกจริง = d.ยกเลิก - d.LivNex - d.PreLivNex;
-                  return { ...d, 'ไป LivNex': cv(d.LivNex), 'ไป Pre-LivNex': cv(d.PreLivNex), ยกเลิกจริง: cv(ยกเลิกจริง), ยกเลิกสะสม: cv(cumCancel), _total: cv(d.ยกเลิก) };
-                });
-                const totalCancel = cancelDataRaw.reduce((s, d) => s + d.ยกเลิก, 0);
-                const totalLivNex = cancelDataRaw.reduce((s, d) => s + d.LivNex, 0);
-                const totalPreLivNex = cancelDataRaw.reduce((s, d) => s + d.PreLivNex, 0);
-                const totalReal = totalCancel - totalLivNex - totalPreLivNex;
+                const kTransfer = MONTHLY_TRANSFER_DATA.reduce((s, d) => s + d.โอนจากBacklog + d.โอนจากขายในเดือน, 0);
+                const kFromBacklog = MONTHLY_TRANSFER_DATA.reduce((s, d) => s + d.โอนจากBacklog, 0);
+                const kFromNew = MONTHLY_TRANSFER_DATA.reduce((s, d) => s + d.โอนจากขายในเดือน, 0);
+                const kMTOPTransfer = MONTHLY_TRANSFER_DATA.reduce((s, d) => s + d.MTOP, 0);
 
-                const niceYMax = (dataMax: number) => {
-                  const step = [5, 10, 15, 20, 25, 50, 100].find(s => dataMax / s <= 4) || Math.ceil(dataMax / 4);
-                  return (Math.ceil(dataMax / step) + 1) * step;
-                };
+                const kLivNex = MONTHLY_SALES_DATA.reduce((s, d) => s + d.LivNex, 0);
+                const kLivNexNew = MONTHLY_SALES_DATA.reduce((s, d) => s + d.LivNexใหม่, 0);
+                const kLivNexCancel = MONTHLY_SALES_DATA.reduce((s, d) => s + d.LivNexจากยกเลิก, 0);
+                const kTargetLivNex = MONTHLY_SALES_DATA.reduce((s, d) => s + d.เป้าLivNex, 0);
+
+                const kPreLivNex = MONTHLY_SALES_DATA.reduce((s, d) => s + d.PreLivNex, 0);
+                const kPreLivNexNew = MONTHLY_SALES_DATA.reduce((s, d) => s + d.PreLivNexใหม่, 0);
+                const kPreLivNexCancel = MONTHLY_SALES_DATA.reduce((s, d) => s + d.PreLivNexจากยกเลิก, 0);
+                const kTargetPreLivNex = MONTHLY_SALES_DATA.reduce((s, d) => s + d.เป้าPreLivNex, 0);
+
+                const kCancel = MONTHLY_CANCEL_DATA.reduce((s, d) => s + d.ยกเลิก, 0);
+                const kCancelToLN = MONTHLY_CANCEL_DATA.reduce((s, d) => s + d.ซื้อLivNex, 0);
+                const kCancelToPLN = MONTHLY_CANCEL_DATA.reduce((s, d) => s + d.ซื้อPreLivNex, 0);
+                const kNetCancel = kCancel - kCancelToLN - kCancelToPLN;
+                const kRecoveryPct = kCancel > 0 ? Math.round((kCancelToLN + kCancelToPLN) / kCancel * 100) : 0;
+
+                // Backlog = initial + total book - total transfer
+                const kBacklog = BACKLOG_INITIAL + kBook - kTransfer;
+
+                // หาเดือนล่าสุดที่มีข้อมูลจริง
+                const lastActualIdx = MONTHLY_SALES_DATA.reduce((last, d, i) => d.Book > 0 ? i : last, -1);
+                const ytdSlice = lastActualIdx >= 0 ? lastActualIdx + 1 : 0;
+
+                // เป้า YTD (สะสมเฉพาะเดือนที่มีข้อมูลจริง)
+                const kMTOPBookYTD = MONTHLY_SALES_DATA.slice(0, ytdSlice).reduce((s, d) => s + d.เป้าBook, 0);
+                const kMTOPTransferYTD = MONTHLY_TRANSFER_DATA.slice(0, ytdSlice).reduce((s, d) => s + d.MTOP, 0);
+                const kTargetLivNexYTD = MONTHLY_SALES_DATA.slice(0, ytdSlice).reduce((s, d) => s + d.เป้าLivNex, 0);
+                const kTargetPreLivNexYTD = MONTHLY_SALES_DATA.slice(0, ytdSlice).reduce((s, d) => s + d.เป้าPreLivNex, 0);
+
+                const pctBook = kMTOPBook > 0 ? Math.round(kBook / kMTOPBook * 100) : 0;
+                const pctTransfer = kMTOPTransfer > 0 ? Math.round(kTransfer / kMTOPTransfer * 100) : 0;
+                const pctLivNex = kTargetLivNex > 0 ? Math.round(kLivNex / kTargetLivNex * 100) : 0;
+                const pctPreLivNex = kTargetPreLivNex > 0 ? Math.round(kPreLivNex / kTargetPreLivNex * 100) : 0;
 
                 return (
-                  <div className="bg-white rounded-xl border border-slate-200 p-5">
-                    <div className="flex items-center justify-between mb-2">
-                      <div>
-                        <h2 className="font-semibold text-slate-900">ภาพรวมยอดยกเลิกรายเดือน</h2>
+                  <div className="grid grid-cols-6 gap-3">
+                    {/* 1. ยอดจอง */}
+                    <div className="bg-emerald-600 rounded-xl p-3 shadow-sm">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="w-7 h-7 bg-emerald-500 rounded-lg flex items-center justify-center">
+                          <TrendingUp className="w-3.5 h-3.5 text-white" />
+                        </div>
+                        <div className="text-right leading-tight">
+                          <div className="text-[10px] font-medium text-emerald-200">เป้ารวม {kMTOPBook.toLocaleString()}</div>
+                          <div className="text-[10px] font-medium text-emerald-300">YTD {kMTOPBookYTD.toLocaleString()}</div>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-4 text-[10px]">
-                        <span className="text-slate-500">ยกเลิกทั้งปี <span className="font-bold text-red-500">{cv(totalCancel)}</span> {cUnit}</span>
-                        <span className="text-slate-500">ไป LivNex <span className="font-bold text-orange-500">{cv(totalLivNex)}</span></span>
-                        <span className="text-slate-500">ไป Pre-LivNex <span className="font-bold text-indigo-500">{cv(totalPreLivNex)}</span></span>
-                        <span className="text-slate-500">ยกเลิกจริง <span className="font-bold text-red-500">{cv(totalReal)}</span></span>
-                        <select value={cancelDisplayMode} onChange={e => setCancelDisplayMode(e.target.value as 'unit' | 'value')}
-                          className="text-[10px] border border-slate-200 rounded px-1.5 py-0.5 text-slate-600 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-300">
-                          <option value="unit">จำนวน (Unit)</option>
-                          <option value="value">มูลค่า (ล้าน฿)</option>
-                        </select>
+                      <div className="text-lg font-bold text-white leading-tight">{kBook.toLocaleString()}</div>
+                      <div className="text-[11px] font-semibold text-emerald-100">ยอดจอง (Book)</div>
+                      <div className="mt-1.5 flex items-center gap-1.5">
+                        <div className="flex-1 h-1.5 bg-emerald-800/40 rounded-full overflow-hidden">
+                          <div className="h-full bg-white rounded-full" style={{ width: `${Math.min(pctBook, 100)}%` }} />
+                        </div>
+                        <span className={`text-[10px] font-bold ${pctBook >= 80 ? 'text-emerald-100' : pctBook >= 60 ? 'text-yellow-200' : 'text-red-200'}`}>{pctBook}%</span>
+                      </div>
+                      <div className="text-[10px] text-emerald-200 mt-1">สัญญา {kContract.toLocaleString()} | รอสัญญา {kUnsigned.toLocaleString()}</div>
+                    </div>
+
+                    {/* 2. โอนจริง */}
+                    <div className="bg-blue-600 rounded-xl p-3 shadow-sm">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="w-7 h-7 bg-blue-500 rounded-lg flex items-center justify-center">
+                          <Banknote className="w-3.5 h-3.5 text-white" />
+                        </div>
+                        <div className="text-right leading-tight">
+                          <div className="text-[10px] font-medium text-blue-200">เป้ารวม {kMTOPTransfer.toLocaleString()}</div>
+                          <div className="text-[10px] font-medium text-blue-300">YTD {kMTOPTransferYTD.toLocaleString()}</div>
+                        </div>
+                      </div>
+                      <div className="text-lg font-bold text-white leading-tight">{kTransfer.toLocaleString()}</div>
+                      <div className="text-[11px] font-semibold text-blue-100">โอนจริง (Transfer)</div>
+                      <div className="mt-1.5 flex items-center gap-1.5">
+                        <div className="flex-1 h-1.5 bg-blue-800/40 rounded-full overflow-hidden">
+                          <div className="h-full bg-white rounded-full" style={{ width: `${Math.min(pctTransfer, 100)}%` }} />
+                        </div>
+                        <span className={`text-[10px] font-bold ${pctTransfer >= 80 ? 'text-blue-100' : pctTransfer >= 60 ? 'text-yellow-200' : 'text-red-200'}`}>{pctTransfer}%</span>
+                      </div>
+                      <div className="text-[10px] text-blue-200 mt-1">Backlog {kFromBacklog.toLocaleString()} | ขายใหม่ {kFromNew.toLocaleString()}</div>
+                    </div>
+
+                    {/* 3. LivNex */}
+                    <div className="bg-orange-600 rounded-xl p-3 shadow-sm">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="w-7 h-7 bg-orange-500 rounded-lg flex items-center justify-center">
+                          <Layers className="w-3.5 h-3.5 text-white" />
+                        </div>
+                        <div className="text-right leading-tight">
+                          <div className="text-[10px] font-medium text-orange-200">เป้ารวม {kTargetLivNex.toLocaleString()}</div>
+                          <div className="text-[10px] font-medium text-orange-300">YTD {kTargetLivNexYTD.toLocaleString()}</div>
+                        </div>
+                      </div>
+                      <div className="text-lg font-bold text-white leading-tight">{kLivNex.toLocaleString()}</div>
+                      <div className="text-[11px] font-semibold text-orange-100">LivNex</div>
+                      <div className="mt-1.5 flex items-center gap-1.5">
+                        <div className="flex-1 h-1.5 bg-orange-800/40 rounded-full overflow-hidden">
+                          <div className="h-full bg-white rounded-full" style={{ width: `${Math.min(pctLivNex, 100)}%` }} />
+                        </div>
+                        <span className={`text-[10px] font-bold ${pctLivNex >= 80 ? 'text-orange-100' : pctLivNex >= 60 ? 'text-yellow-200' : 'text-red-200'}`}>{pctLivNex}%</span>
+                      </div>
+                      <div className="text-[10px] text-orange-200 mt-1">ขายใหม่ {kLivNexNew} | จากยกเลิก {kLivNexCancel}</div>
+                    </div>
+
+                    {/* 4. Pre-LivNex */}
+                    <div className="bg-cyan-600 rounded-xl p-3 shadow-sm">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="w-7 h-7 bg-cyan-500 rounded-lg flex items-center justify-center">
+                          <Layers className="w-3.5 h-3.5 text-white" />
+                        </div>
+                        <div className="text-right leading-tight">
+                          <div className="text-[10px] font-medium text-cyan-200">เป้ารวม {kTargetPreLivNex.toLocaleString()}</div>
+                          <div className="text-[10px] font-medium text-cyan-300">YTD {kTargetPreLivNexYTD.toLocaleString()}</div>
+                        </div>
+                      </div>
+                      <div className="text-lg font-bold text-white leading-tight">{kPreLivNex.toLocaleString()}</div>
+                      <div className="text-[11px] font-semibold text-cyan-100">Pre-LivNex</div>
+                      <div className="mt-1.5 flex items-center gap-1.5">
+                        <div className="flex-1 h-1.5 bg-cyan-800/40 rounded-full overflow-hidden">
+                          <div className="h-full bg-white rounded-full" style={{ width: `${Math.min(pctPreLivNex, 100)}%` }} />
+                        </div>
+                        <span className={`text-[10px] font-bold ${pctPreLivNex >= 80 ? 'text-cyan-100' : pctPreLivNex >= 60 ? 'text-yellow-200' : 'text-red-200'}`}>{pctPreLivNex}%</span>
+                      </div>
+                      <div className="text-[10px] text-cyan-200 mt-1">ขายใหม่ {kPreLivNexNew} | จากยกเลิก {kPreLivNexCancel}</div>
+                    </div>
+
+                    {/* 5. ยกเลิก */}
+                    <div className="bg-red-600 rounded-xl p-3 shadow-sm">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="w-7 h-7 bg-red-500 rounded-lg flex items-center justify-center">
+                          <X className="w-3.5 h-3.5 text-white" />
+                        </div>
+                        <span className={`text-[10px] font-bold ${kRecoveryPct >= 30 ? 'text-emerald-200' : 'text-yellow-200'}`}>Recovery {kRecoveryPct}%</span>
+                      </div>
+                      <div className="text-lg font-bold text-white leading-tight">{kCancel.toLocaleString()}</div>
+                      <div className="text-[11px] font-semibold text-red-100">ยกเลิก</div>
+                      <div className="mt-1.5 flex items-center gap-1">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-800 text-white font-medium">ยกเลิกจริง {kNetCancel}</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-600 text-white font-medium">LN {kCancelToLN}</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-600 text-white font-medium">PLN {kCancelToPLN}</span>
                       </div>
                     </div>
-                    <div className="flex items-center justify-end gap-4 mb-1 text-[10px] text-slate-500">
-                      <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#f97316' }} /> ไป LivNex</span>
-                      <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#6366f1' }} /> ไป Pre-LivNex</span>
-                      <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#dc2626' }} /> ยกเลิกจริง</span>
-                      <span className="flex items-center gap-1"><span className="w-6 border-t-2" style={{ borderColor: '#991b1b' }} /> ยกเลิกสะสม</span>
+
+                    {/* 6. Backlog */}
+                    <div className="bg-amber-600 rounded-xl p-3 shadow-sm">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="w-7 h-7 bg-amber-500 rounded-lg flex items-center justify-center">
+                          <Clock className="w-3.5 h-3.5 text-white" />
+                        </div>
+                        <span className="text-[10px] font-medium text-amber-200">เริ่มปี {BACKLOG_INITIAL.toLocaleString()}</span>
+                      </div>
+                      <div className="text-lg font-bold text-white leading-tight">{kBacklog.toLocaleString()}</div>
+                      <div className="text-[11px] font-semibold text-amber-100">Backlog (รอโอน)</div>
+                      <div className="mt-1.5 flex items-center gap-1.5">
+                        <div className="flex-1 h-1.5 bg-amber-800/40 rounded-full overflow-hidden">
+                          <div className="h-full bg-white rounded-full" style={{ width: `${Math.min(kBacklog / BACKLOG_INITIAL * 100, 100)}%` }} />
+                        </div>
+                        <span className="text-[10px] font-bold text-amber-100">{kBacklog > BACKLOG_INITIAL ? '+' : ''}{kBacklog - BACKLOG_INITIAL}</span>
+                      </div>
+                      <div className="text-[10px] text-amber-200 mt-1">+จอง {kBook.toLocaleString()} −โอน {kTransfer.toLocaleString()}</div>
                     </div>
-                    <ResponsiveContainer width="100%" height={320}>
-                      <ComposedChart data={cancelData} margin={{ left: 0, right: 10, top: 25, bottom: 5 }} barCategoryGap="15%">
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="month" tick={{ fontSize: 11, fontWeight: 600 }} />
-                        <YAxis yAxisId="left" tick={{ fontSize: 11 }} allowDecimals={false} domain={[0, niceYMax]} />
-                        <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} allowDecimals={false} domain={[0, niceYMax]} label={{ value: 'สะสม', angle: 90, position: 'insideRight', style: { fontSize: 10, fill: '#94a3b8' } }} />
-                        <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                        <Bar yAxisId="left" dataKey="ไป LivNex" stackId="cancel" fill="#f97316">
-                          <LabelList
-                            content={((props: any) => {
-                              const { x, y, width, height, index } = props;
-                              if (x == null || y == null || width == null || height == null || index == null) return null;
-                              const d = cancelData[index];
-                              if (!d['ไป LivNex']) return null;
-                              const pct = d._total > 0 ? Math.round((d['ไป LivNex'] / d._total) * 100) : 0;
-                              return height > 14 ? (
-                                <text x={x + width / 2} y={y + height / 2 + 3} textAnchor="middle" style={{ fontSize: 8, fontWeight: 700, fill: '#fff' }}>
-                                  {d['ไป LivNex']}({pct}%)
-                                </text>
-                              ) : null;
-                            }) as any}
-                          />
-                        </Bar>
-                        <Bar yAxisId="left" dataKey="ไป Pre-LivNex" stackId="cancel" fill="#6366f1">
-                          <LabelList
-                            content={((props: any) => {
-                              const { x, y, width, height, index } = props;
-                              if (x == null || y == null || width == null || height == null || index == null) return null;
-                              const d = cancelData[index];
-                              if (!d['ไป Pre-LivNex']) return null;
-                              const pct = d._total > 0 ? Math.round((d['ไป Pre-LivNex'] / d._total) * 100) : 0;
-                              return height > 14 ? (
-                                <text x={x + width / 2} y={y + height / 2 + 3} textAnchor="middle" style={{ fontSize: 8, fontWeight: 700, fill: '#fff' }}>
-                                  {d['ไป Pre-LivNex']}({pct}%)
-                                </text>
-                              ) : null;
-                            }) as any}
-                          />
-                        </Bar>
-                        <Bar yAxisId="left" dataKey="ยกเลิกจริง" stackId="cancel" fill="#dc2626">
-                          <LabelList
-                            content={((props: any) => {
-                              const { x, y, width, height, index } = props;
-                              if (x == null || y == null || width == null || height == null || index == null) return null;
-                              const d = cancelData[index];
-                              if (!d.ยกเลิกจริง) return null;
-                              const pct = d._total > 0 ? Math.round((d.ยกเลิกจริง / d._total) * 100) : 0;
-                              return (
-                                <>
-                                  {height > 14 && (
-                                    <text x={x + width / 2} y={y + height / 2 + 3} textAnchor="middle" style={{ fontSize: 8, fontWeight: 700, fill: '#fff' }}>
-                                      {d.ยกเลิกจริง}({pct}%)
-                                    </text>
-                                  )}
-                                  <text x={x + width / 2} y={y - 4} textAnchor="middle" style={{ fontSize: 9, fontWeight: 700, fill: '#b91c1c' }}>
-                                    {d._total}
-                                  </text>
-                                </>
-                              );
-                            }) as any}
-                          />
-                        </Bar>
-                        <Line yAxisId="right" type="monotone" dataKey="ยกเลิกสะสม" stroke="#991b1b" strokeWidth={2} dot={{ r: 3, fill: '#991b1b' }}>
-                          <LabelList
-                            content={((props: any) => {
-                              const { x, y, value } = props;
-                              if (x == null || y == null || !value) return null;
-                              return (
-                                <text x={x} y={y - 8} textAnchor="middle" style={{ fontSize: 9, fontWeight: 700, fill: '#991b1b' }}>
-                                  {value}
-                                </text>
-                              );
-                            }) as any}
-                          />
-                        </Line>
-                      </ComposedChart>
-                    </ResponsiveContainer>
                   </div>
                 );
               })()}
+
+              <TransferCharts budDisplayMode={budDisplayMode} />
             </div>
           )}
 
@@ -1117,64 +958,153 @@ export default function Home() {
 
               {/* ════════ งานค้างในแต่ละ Process ════════ */}
               {(() => {
-                const notDone = globalFilteredBookings.filter(b => b.stage !== 'transferred' && b.stage !== 'cancelled');
-                const processes = [
-                  { key: 'booking', label: 'จอง', count: notDone.filter(b => !b.contract_date).length },
-                  { key: 'doc_bureau', label: 'เอกสารตรวจบูโร', count: notDone.filter(b => b.contract_date && !b.doc_bureau_date).length },
-                  { key: 'doc_bank', label: 'เตรียมเอกสารธนาคาร', count: notDone.filter(b => b.contract_date && !b.doc_complete_bank_jd_date).length },
-                  { key: 'doc_jd', label: 'เตรียมเอกสาร JD', count: notDone.filter(b => b.contract_date && !b.doc_complete_jd_date).length },
-                  // สินเชื่อ
-                  { key: 'submit_bank', label: 'ส่งเอกสารให้ธนาคาร', count: notDone.filter(b => (b.doc_bureau_date || b.doc_complete_bank_jd_date) && b.banks_submitted.length === 0).length },
-                  { key: 'bureau', label: 'ผลบูโร', count: notDone.filter(b => b.banks_submitted.length > 0 && !b.bureau_actual_result_date).length },
-                  { key: 'preapprove', label: 'อนุมัติเบื้องต้น', count: notDone.filter(b => b.bureau_actual_result_date && !b.bank_preapprove_actual_date).length },
-                  { key: 'final', label: 'อนุมัติจริง', count: notDone.filter(b => b.bank_preapprove_actual_date && !b.bank_final_actual_date).length },
-                  // ตรวจบ้าน
-                  { key: 'inspect1', label: 'ตรวจครั้งที่ 1', count: notDone.filter(b => b.stage === 'inspection' && !b.inspect1_actual_date).length },
-                  { key: 'inspect2', label: 'ตรวจครั้งที่ 2', count: notDone.filter(b => b.stage === 'inspection' && b.inspect1_actual_date && b.inspect1_result?.includes('ไม่') && !b.inspect2_actual_date).length },
-                  { key: 'inspect3', label: 'ตรวจครั้งที่ 3', count: notDone.filter(b => b.stage === 'inspection' && b.inspect2_actual_date && b.inspect2_result?.includes('ไม่') && !b.inspect3_actual_date).length },
-                  { key: 'inspect3plus', label: 'ตรวจมากกว่า 3', count: notDone.filter(b => b.stage === 'inspection' && b.inspect3_actual_date && b.inspect3_result?.includes('ไม่')).length },
-                  // โอน
-                  { key: 'contract_bank', label: 'สัญญา Bank', count: notDone.filter(b => b.bank_final_actual_date && !b.bank_contract_date).length },
-                  { key: 'transfer_pkg', label: 'ส่งชุดโอน', count: notDone.filter(b => b.bank_contract_date && !b.transfer_package_sent_date).length },
-                  { key: 'title_clear', label: 'ปลอดโฉนด', count: notDone.filter(b => b.transfer_package_sent_date && !b.title_clear_date).length },
-                  { key: 'transfer_appt', label: 'นัดโอน', count: notDone.filter(b => b.title_clear_date && !b.transfer_appointment_date).length },
-                  { key: 'transfer_actual', label: 'โอนจริง', count: notDone.filter(b => b.transfer_appointment_date && !b.transfer_actual_date).length },
-                ];
+                const agingKeys = [...AGING_BUCKETS];
 
-                const groupColor: Record<string, string> = {
-                  booking: '#6366f1', doc_bureau: '#6366f1', doc_bank: '#6366f1', doc_jd: '#6366f1',
-                  submit_bank: '#f59e0b', bureau: '#f59e0b', preapprove: '#f59e0b', final: '#f59e0b',
-                  inspect1: '#06b6d4', inspect2: '#06b6d4', inspect3: '#06b6d4', inspect3plus: '#06b6d4',
-                  contract_bank: '#10b981', transfer_pkg: '#10b981', title_clear: '#10b981', transfer_appt: '#10b981', transfer_actual: '#10b981',
+                // สีตาม SLA: ภายใน SLA = เขียว, เลย SLA = เหลือง→ส้ม→แดง
+                const GREEN_SHADES = ['#064e3b','#065f46','#047857','#059669','#0d9448','#16a34a'];
+                const OVER_COLORS = ['#eab308','#f59e0b','#f97316','#ea580c','#dc2626','#b91c1c','#991b1b','#7f1d1d'];
+                const getAgingColor = (bucket: string, sla: number) => {
+                  const day = bucket === '15+' ? 16 : parseInt(bucket);
+                  if (day <= sla) {
+                    // ภายใน SLA → เขียวไล่เฉด
+                    const idx = Math.min(Math.floor((day - 1) / Math.max(sla / GREEN_SHADES.length, 1)), GREEN_SHADES.length - 1);
+                    return GREEN_SHADES[idx];
+                  } else {
+                    // เลย SLA → เหลือง→แดง ตามจำนวนวันที่เกิน
+                    const overDays = day - sla;
+                    const maxOver = 16 - sla; // จำนวนวันเกินสูงสุดที่เป็นไปได้
+                    const idx = Math.min(Math.floor((overDays - 1) / Math.max(maxOver / OVER_COLORS.length, 1)), OVER_COLORS.length - 1);
+                    return OVER_COLORS[idx];
+                  }
                 };
-                const barData = processes.map(p => ({ process: p.label, count: p.count, color: groupColor[p.key] }));
 
                 return (
                   <div className="bg-white rounded-xl border border-slate-200 p-5">
-                    <div className="flex items-center justify-between mb-2">
-                      <div>
-                        <h2 className="font-semibold text-slate-900">งานค้างในแต่ละ Process</h2>
-                        <p className="text-[11px] text-slate-400 mt-0.5">จำนวน Booking ที่ค้างอยู่ในแต่ละขั้นตอน</p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-1 text-[10px] text-slate-600"><span className="w-3 h-3 rounded-sm bg-indigo-500" /> เอกสาร</div>
-                        <div className="flex items-center gap-1 text-[10px] text-slate-600"><span className="w-3 h-3 rounded-sm bg-amber-500" /> สินเชื่อ</div>
-                        <div className="flex items-center gap-1 text-[10px] text-slate-600"><span className="w-3 h-3 rounded-sm bg-cyan-500" /> ตรวจบ้าน</div>
-                        <div className="flex items-center gap-1 text-[10px] text-slate-600"><span className="w-3 h-3 rounded-sm bg-emerald-500" /> โอน</div>
-                      </div>
+                    {/* Header */}
+                    <div className="mb-3">
+                      <h2 className="font-semibold text-slate-900">งานค้างในแต่ละ Process</h2>
+                      <p className="text-[11px] text-slate-400 mt-0.5">จำนวน Booking ที่ค้างอยู่ในแต่ละขั้นตอน แยกตาม Aging</p>
                     </div>
-                    <ResponsiveContainer width="100%" height={320}>
-                      <BarChart data={barData} margin={{ left: 0, right: 10, top: 20, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="process" tick={{ fontSize: 9, fontWeight: 600 }} interval={0} angle={-30} textAnchor="end" height={50} />
-                        <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                        <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} formatter={(value) => [`${value} รายการ`, 'งานค้าง']} />
-                        <Bar dataKey="count" name="งานค้าง">
-                          {barData.map((d, i) => <Cell key={i} fill={d.color} />)}
-                          <LabelList dataKey="count" position="top" style={{ fontSize: 10, fontWeight: 700, fill: '#334155' }} />
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
+                    {/* Legend */}
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex items-center h-3 rounded overflow-hidden">
+                          {GREEN_SHADES.slice(0, 3).map((c, i) => <div key={i} className="h-full w-3" style={{ backgroundColor: c }} />)}
+                        </div>
+                        <span className="text-[10px] text-slate-500">ภายใน SLA</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex items-center h-3 rounded overflow-hidden">
+                          {OVER_COLORS.map((c, i) => <div key={i} className="h-full w-3" style={{ backgroundColor: c }} />)}
+                        </div>
+                        <span className="text-[10px] text-slate-500">เกิน SLA</span>
+                      </div>
+                      <span className="mx-2 text-slate-300">|</span>
+                      <span className="text-[10px] text-slate-400 font-medium">หมวด:</span>
+                      <div className="flex items-center gap-1 text-[10px] text-slate-600"><span className="w-3 h-3 rounded-sm bg-indigo-500" /> เอกสาร</div>
+                      <div className="flex items-center gap-1 text-[10px] text-slate-600"><span className="w-3 h-3 rounded-sm bg-amber-500" /> สินเชื่อ</div>
+                      <div className="flex items-center gap-1 text-[10px] text-slate-600"><span className="w-3 h-3 rounded-sm bg-cyan-500" /> ตรวจบ้าน</div>
+                      <div className="flex items-center gap-1 text-[10px] text-slate-600"><span className="w-3 h-3 rounded-sm bg-emerald-500" /> โอน</div>
+                    </div>
+
+                    {/* ─── Heatmap Table + Booking List ─── */}
+                    {(() => {
+                      const filteredBookings = heatmapCell
+                        ? (backlogBookingMap[`${heatmapCell.processKey}|${heatmapCell.agingDay}`] || [])
+                        : [];
+                      const selProc = heatmapCell ? PROCESS_BACKLOG.find(p => p.key === heatmapCell.processKey) : null;
+                      return (
+                      <div className="grid grid-cols-10 gap-3">
+                        {/* ซ้าย: Heatmap */}
+                        <div className="col-span-7 overflow-x-auto">
+                          <table className="w-full text-[11px]">
+                            <thead>
+                              <tr className="border-b border-slate-200">
+                                <th className="text-left py-3 px-2 text-slate-500 font-medium whitespace-nowrap" style={{ minWidth: 72 }}>หมวด</th>
+                                <th className="text-left py-3 px-1 text-slate-500 font-medium whitespace-nowrap" style={{ minWidth: 100 }}>กระบวนการ</th>
+                                <th className="text-center py-3 px-1 text-slate-500 font-medium w-10">SLA</th>
+                                <th className="text-center py-3 px-2 text-slate-500 font-medium w-10">ค้าง</th>
+                                {agingKeys.map(b => <th key={b} className="text-center py-3 px-0 text-slate-500 font-medium text-[10px]" style={{ minWidth: 24 }}>{b}</th>)}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {PROCESS_BACKLOG.map(p => (
+                                <tr key={p.key} className="border-b border-slate-100 hover:bg-slate-50">
+                                  <td className="py-4 px-2">
+                                    <span className="inline-flex items-center gap-1">
+                                      <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: GROUP_COLORS[p.group] }} />
+                                      <span className="text-slate-500">{p.group}</span>
+                                    </span>
+                                  </td>
+                                  <td className="py-4 px-2 font-medium text-slate-800 whitespace-nowrap">{p.label}</td>
+                                  <td className="py-4 px-1 text-center text-[10px] font-bold text-blue-600">{p.sla}d</td>
+                                  <td className="py-4 px-2 text-center font-bold text-slate-900">{p.count}</td>
+                                  {agingKeys.map(b => {
+                                    const v = p.aging[b];
+                                    const isSelected = heatmapCell?.processKey === p.key && heatmapCell?.agingDay === b;
+                                    const cellColor = getAgingColor(b, p.sla);
+                                    return (
+                                      <td key={b}
+                                        className={`text-center font-bold cursor-pointer transition-colors ${isSelected ? 'outline outline-3 outline-yellow-400 -outline-offset-1' : 'border border-white/20'}`}
+                                        style={{ backgroundColor: v > 0 ? (isSelected ? '#1e293b' : cellColor) : '#f1f5f9', color: v > 0 ? (isSelected ? '#fde047' : '#fff') : '#cbd5e1' }}
+                                        onClick={() => v > 0 && setHeatmapCell(
+                                          heatmapCell?.processKey === p.key && heatmapCell?.agingDay === b ? null : { processKey: p.key, agingDay: b }
+                                        )}>
+                                        {v > 0 ? v : '-'}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* ขวา: Booking List */}
+                        <div className="col-span-3 border-l border-slate-200 pl-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="text-xs font-bold text-slate-700">
+                              {heatmapCell && selProc
+                                ? <>{selProc.group} › {selProc.label} › <span style={{ color: AGING_COLORS[heatmapCell.agingDay as keyof typeof AGING_COLORS] }}>{heatmapCell.agingDay} วัน</span></>
+                                : 'คลิกที่ช่องใน Heatmap เพื่อดูรายการ'}
+                            </h4>
+                            {heatmapCell && <span className="text-[10px] font-bold text-slate-500">{filteredBookings.length} รายการ</span>}
+                          </div>
+                          {heatmapCell && (
+                            <button onClick={() => setHeatmapCell(null)} className="text-[10px] text-blue-600 hover:underline mb-2">ยกเลิก filter</button>
+                          )}
+                          <div className="overflow-y-auto space-y-1" style={{ maxHeight: 520 }}>
+                            {!heatmapCell ? (
+                              <div className="text-center text-slate-400 text-xs py-12">
+                                <svg className="w-8 h-8 mx-auto mb-2 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" /></svg>
+                                คลิกช่องสีใน Heatmap<br/>เพื่อแสดงรายการใบจอง
+                              </div>
+                            ) : filteredBookings.length === 0 ? (
+                              <div className="text-center text-slate-400 text-xs py-8">ไม่มีรายการ</div>
+                            ) : filteredBookings.map((bk, i) => (
+                              <div key={`${bk.id}-${i}`}
+                                className="flex items-start gap-2 p-2 rounded bg-white border border-slate-100 hover:border-blue-400 hover:bg-blue-50 cursor-pointer text-[11px] transition"
+                                onClick={() => { setDefaultTab(undefined); setSelectedBooking(bk); }}>
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-bold text-blue-700">{bk.id}</div>
+                                  <div className="text-slate-700 truncate">{bk.customer_name}</div>
+                                  <div className="text-slate-400 truncate">{bk.project_name} • Unit {bk.unit_no}</div>
+                                  <div className="text-slate-500 truncate">{bk.sale_name} <span className="text-slate-400">({bk.current_owner_team})</span></div>
+                                </div>
+                                <div className="text-right shrink-0 space-y-0.5">
+                                  <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold text-white"
+                                    style={{ backgroundColor: AGING_COLORS[heatmapCell.agingDay as keyof typeof AGING_COLORS] || '#94a3b8' }}>
+                                    {heatmapCell.agingDay} วัน
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      );
+                    })()}
+
                   </div>
                 );
               })()}
@@ -1393,198 +1323,86 @@ export default function Home() {
 
               <div className="grid grid-cols-10 gap-4 items-stretch">
               <div className="col-span-3 flex">
-              {/* ════════ เวลาอนุมัติเฉลี่ย แต่ละ Step ของธนาคาร + JD ════════ */}
+              {/* ════════ เวลาอนุมัติเฉลี่ย แต่ละ Step ของธนาคาร + JD (Heatmap style) ════════ */}
               {(() => {
-                const parseD = (d: string) => { const [dd,mm,yy] = d.split('/'); return new Date(+yy, +mm-1, +dd); };
-                const daysDiff = (a: string | null, b: string | null) => {
-                  if (!a || !b) return null;
-                  return Math.round((parseD(b).getTime() - parseD(a).getTime()) / 86400000);
-                };
+                // สี SLA-based เหมือน tracking heatmap
+                const BA_GREEN = ['#064e3b','#065f46','#047857','#059669','#0d9448','#16a34a'];
+                const BA_OVER  = ['#eab308','#f59e0b','#f97316','#ea580c','#dc2626','#b91c1c','#991b1b','#7f1d1d'];
 
-                // ธนาคารทั้งหมดตาม master (ไม่รวม CASH)
-                const allBanks = ['GHB','GSB','SCB','KBANK','KTB','TTB','BAY','LH','BBL','UOB','CIMB','KKP','iBank','TISCO','สหกรณ์','JD'];
-                const bankColors: Record<string, string> = {
-                  'GHB': '#e11d48', 'GSB': '#f472b6', 'SCB': '#7c3aed', 'KBANK': '#16a34a',
-                  'KTB': '#0891b2', 'TTB': '#ea580c', 'BAY': '#eab308', 'LH': '#84cc16',
-                  'BBL': '#2563eb', 'UOB': '#db2777', 'CIMB': '#b91c1c', 'KKP': '#6366f1',
-                  'iBank': '#0d9488', 'TISCO': '#a855f7', 'สหกรณ์': '#78716c', 'JD': '#059669',
-                };
-
-                const stepNames = ['ส่ง → บูโร', 'บูโร → เบื้องต้น', 'เบื้องต้น → อนุมัติจริง', 'รวม ส่ง → อนุมัติจริง'];
-
-                // Collect per-bank step data
-                type BankStep = { bank: string; vals: (number | null)[] };
-                const bankStepMap: Record<string, number[][]> = {};
-
-                globalFilteredBookings.forEach(b => {
-                  const bureauDate = b.bureau_actual_result_date;
-                  b.banks_submitted.forEach(bs => {
-                    if (bs.bank === 'CASH' || !bs.submit_date) return;
-                    if (!bankStepMap[bs.bank]) bankStepMap[bs.bank] = [[], [], [], []];
-                    const arr = bankStepMap[bs.bank];
-
-                    // Step 0: ส่ง → บูโร
-                    const d0 = daysDiff(bs.submit_date, bureauDate);
-                    if (d0 !== null && d0 >= 0) arr[0].push(d0);
-
-                    if (bs.bank === 'JD') {
-                      // JD: ไม่มีเบื้องต้น, step 2 = บูโร → อนุมัติจริง
-                      const d2 = daysDiff(bureauDate, bs.result_date);
-                      if (d2 !== null && d2 >= 0) arr[2].push(d2);
-                    } else {
-                      // Step 1: บูโร → เบื้องต้น
-                      const d1 = daysDiff(bureauDate, bs.preapprove_date);
-                      if (d1 !== null && d1 >= 0) arr[1].push(d1);
-                      // Step 2: เบื้องต้น → อนุมัติจริง
-                      const d2 = daysDiff(bs.preapprove_date, bs.result_date);
-                      if (d2 !== null && d2 >= 0) arr[2].push(d2);
-                    }
-
-                    // Step 3: รวม ส่ง → อนุมัติจริง
-                    const dTotal = daysDiff(bs.submit_date, bs.result_date);
-                    if (dTotal !== null && dTotal >= 0) arr[3].push(dTotal);
-                  });
-                });
-
-                // Build heatmap data: rows = banks, cols = steps
-                const heatData = allBanks.map(bk => {
-                  const row: { bank: string; values: (number | null)[] } = { bank: bk, values: [] };
-                  stepNames.forEach((_, si) => {
-                    const vals = bankStepMap[bk]?.[si] || [];
-                    row.values.push(vals.length > 0 ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length) : null);
-                  });
-                  return row;
-                });
-
-                // Rank per step column (เร็วสุด = ลำดับ 1, ค่าเท่ากัน = ลำดับเดียวกัน)
-                // rankMap[stepIdx][bank] = { rank, total }
-                const rankMap: Record<number, Record<string, { rank: number; total: number }>> = {};
-                stepNames.forEach((_, si) => {
-                  const entries = heatData
-                    .filter(r => r.values[si] !== null)
-                    .map(r => ({ bank: r.bank, val: r.values[si] as number }));
-                  // sort by value ascending
-                  entries.sort((a, b) => a.val - b.val);
-                  // assign rank — tied values get the same rank
-                  rankMap[si] = {};
-                  const total = entries.length;
-                  let currentRank = 1;
-                  entries.forEach((e, idx) => {
-                    if (idx > 0 && e.val > entries[idx - 1].val) currentRank = idx + 1;
-                    rankMap[si][e.bank] = { rank: currentRank, total };
-                  });
-                });
-
-                // Color by rank ratio — Excel-style gradient: เขียวจัด → เขียว → เหลือง → ส้ม → แดง → แดงจัด
-                const heatColorByRank = (si: number, bank: string, v: number | null): string => {
-                  if (v === null) return '';
-                  const info = rankMap[si]?.[bank];
-                  if (!info || info.total <= 1) return 'text-white';
-                  const ratio = (info.rank - 1) / (info.total - 1); // 0=best → 1=worst
-                  // interpolate: green(34,197,94) → yellow(250,204,21) → orange(249,115,22) → red(220,38,38) → darkred(153,27,27)
-                  let r: number, g: number, b: number;
-                  if (ratio <= 0.25) {
-                    const t = ratio / 0.25;
-                    r = Math.round(34 + t * (250 - 34));
-                    g = Math.round(197 + t * (204 - 197));
-                    b = Math.round(94 + t * (21 - 94));
-                  } else if (ratio <= 0.5) {
-                    const t = (ratio - 0.25) / 0.25;
-                    r = Math.round(250 + t * (249 - 250));
-                    g = Math.round(204 + t * (115 - 204));
-                    b = Math.round(21 + t * (22 - 21));
-                  } else if (ratio <= 0.75) {
-                    const t = (ratio - 0.5) / 0.25;
-                    r = Math.round(249 + t * (220 - 249));
-                    g = Math.round(115 + t * (38 - 115));
-                    b = Math.round(22 + t * (38 - 22));
+                const getBankColor = (days: number | null, sla: number): string => {
+                  if (days === null) return '#f1f5f9';
+                  if (days <= sla) {
+                    // ภายใน SLA → เขียวทั้งหมด แค่คนละเฉด (1→เฉดแรก, sla→เฉดสุดท้าย)
+                    if (sla <= 1) return BA_GREEN[0];
+                    const idx = Math.round(((days - 1) / (sla - 1)) * (BA_GREEN.length - 1));
+                    return BA_GREEN[Math.min(idx, BA_GREEN.length - 1)];
                   } else {
-                    const t = (ratio - 0.75) / 0.25;
-                    r = Math.round(220 + t * (153 - 220));
-                    g = Math.round(38 + t * (27 - 38));
-                    b = Math.round(38 + t * (27 - 38));
+                    // เกิน SLA → เหลืองไปแดงจัดๆ (ยิ่งเกินมาก ยิ่งแดง)
+                    const overDays = days - sla;
+                    const idx = Math.min(overDays - 1, BA_OVER.length - 1);
+                    return BA_OVER[idx];
                   }
-                  return ratio > 0.5 ? 'text-white' : 'text-slate-900';
                 };
-                const heatBg = (si: number, bank: string, v: number | null): string | undefined => {
-                  if (v === null) return '#f8fafc';
-                  const info = rankMap[si]?.[bank];
-                  if (!info || info.total <= 1) return 'rgb(34,197,94)';
-                  const ratio = (info.rank - 1) / (info.total - 1);
-                  let r: number, g: number, b: number;
-                  if (ratio <= 0.25) {
-                    const t = ratio / 0.25;
-                    r = Math.round(34 + t * (250 - 34));  g = Math.round(197 + t * (204 - 197));  b = Math.round(94 + t * (21 - 94));
-                  } else if (ratio <= 0.5) {
-                    const t = (ratio - 0.25) / 0.25;
-                    r = Math.round(250 + t * (249 - 250));  g = Math.round(204 + t * (115 - 204));  b = Math.round(21 + t * (22 - 21));
-                  } else if (ratio <= 0.75) {
-                    const t = (ratio - 0.5) / 0.25;
-                    r = Math.round(249 + t * (220 - 249));  g = Math.round(115 + t * (38 - 115));  b = Math.round(22 + t * (38 - 22));
-                  } else {
-                    const t = (ratio - 0.75) / 0.25;
-                    r = Math.round(220 + t * (153 - 220));  g = Math.round(38 + t * (27 - 38));  b = Math.round(38 + t * (27 - 38));
-                  }
-                  return `rgb(${r},${g},${b})`;
-                };
-
-                // Count bookings per bank
-                const bankCount: Record<string, number> = {};
-                globalFilteredBookings.forEach(b => {
-                  b.banks_submitted.forEach(bs => {
-                    if (bs.bank !== 'CASH' && bs.submit_date) bankCount[bs.bank] = (bankCount[bs.bank] || 0) + 1;
-                  });
-                });
 
                 return (
-                  <div className="bg-white rounded-xl border border-slate-200 p-3 w-full">
-                    <div className="mb-2">
+                  <div className="bg-white rounded-xl border border-slate-200 p-4 w-full">
+                    <div className="mb-3">
                       <h2 className="font-semibold text-slate-900 text-sm">เวลาอนุมัติเฉลี่ย</h2>
-                      <p className="text-[10px] text-slate-400">สีเข้ม = ใช้เวลามาก</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">เฉลี่ยวัน แยกแต่ละ Step ของธนาคาร — สีตาม SLA ของแต่ละ Step</p>
                     </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-[9px] table-fixed">
-                        <thead>
-                          <tr>
-                            <th className="text-left py-1 px-1 text-slate-500 font-semibold" style={{ width: '56px' }}></th>
-                            <th className="text-center py-1 px-0.5 text-slate-400 font-medium" style={{ width: '22px' }}>N</th>
-                            {['ส่ง→บูโร', 'บูโร→ต้น', 'ต้น→จริง', 'รวม'].map(s => (
-                              <th key={s} className="text-center py-1 px-0.5 text-slate-500 font-semibold">{s}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {heatData.map(row => (
-                            <tr key={row.bank}>
-                              <td className="py-0 px-1 font-bold text-slate-700 whitespace-nowrap border border-white text-[9px]">
-                                <span className="inline-block w-1.5 h-1.5 rounded-sm mr-0.5" style={{ backgroundColor: bankColors[row.bank] }} />
-                                {row.bank}
-                              </td>
-                              <td className="text-center py-0 px-0.5 text-slate-400 tabular-nums border border-white">{bankCount[row.bank] || '—'}</td>
-                              {row.values.map((v, ci) => {
-                                const info = rankMap[ci]?.[row.bank];
-                                return (
-                                  <td key={ci} className={`text-center py-1 px-0.5 font-bold tabular-nums border border-white ${heatColorByRank(ci, row.bank, v)}`} style={{ backgroundColor: heatBg(ci, row.bank, v) }}>
-                                    {v !== null ? (<>{v}d<span className="text-[7px] opacity-60"> #{info?.rank}</span></>) : <span className="text-slate-300">—</span>}
-                                  </td>
-                                );
-                              })}
-                            </tr>
+                    {/* Legend */}
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex items-center h-3 rounded overflow-hidden">
+                          {BA_GREEN.slice(0, 3).map((c, i) => <div key={i} className="h-full w-3" style={{ backgroundColor: c }} />)}
+                        </div>
+                        <span className="text-[10px] text-slate-500">ภายใน SLA</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex items-center h-3 rounded overflow-hidden">
+                          {BA_OVER.slice(0, 5).map((c, i) => <div key={i} className="h-full w-3" style={{ backgroundColor: c }} />)}
+                        </div>
+                        <span className="text-[10px] text-slate-500">เกิน SLA</span>
+                      </div>
+                    </div>
+                    <table className="w-full text-[11px]">
+                      <thead>
+                        <tr className="border-b border-slate-200">
+                          <th className="text-left py-2 px-2 text-slate-500 font-medium whitespace-nowrap" style={{ minWidth: 60 }}>ธนาคาร</th>
+                          <th className="text-center py-2 px-1 text-slate-500 font-medium w-8">N</th>
+                          {BANK_APPROVAL_STEPS.map(s => (
+                            <th key={s.key} className="text-center py-2 px-1 text-slate-500 font-medium whitespace-nowrap">
+                              <div>{s.label}</div>
+                              <div className="text-[9px] text-blue-500 font-bold">SLA {s.sla} วัน</div>
+                            </th>
                           ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    <div className="flex items-center gap-0.5 mt-3 text-[10px] text-slate-400">
-                      <span className="mr-1">เร็ว</span>
-                      <span className="w-6 h-3 rounded" style={{ backgroundColor: 'rgb(34,197,94)' }} />
-                      <span className="w-6 h-3 rounded" style={{ backgroundColor: 'rgb(142,200,57)' }} />
-                      <span className="w-6 h-3 rounded" style={{ backgroundColor: 'rgb(250,204,21)' }} />
-                      <span className="w-6 h-3 rounded" style={{ backgroundColor: 'rgb(249,159,22)' }} />
-                      <span className="w-6 h-3 rounded" style={{ backgroundColor: 'rgb(249,115,22)' }} />
-                      <span className="w-6 h-3 rounded" style={{ backgroundColor: 'rgb(220,38,38)' }} />
-                      <span className="w-6 h-3 rounded" style={{ backgroundColor: 'rgb(153,27,27)' }} />
-                      <span className="ml-1">ช้า</span>
-                    </div>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {BANK_APPROVAL_DATA.map(row => (
+                          <tr key={row.bank} className="border-b border-slate-100 hover:bg-slate-50">
+                            <td className="py-3 px-2 font-medium text-slate-800 whitespace-nowrap">
+                              <span className="inline-flex items-center gap-1">
+                                <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: row.color }} />
+                                {row.bank}
+                              </span>
+                            </td>
+                            <td className="py-3 px-1 text-center text-slate-500 tabular-nums">{row.count}</td>
+                            {BANK_APPROVAL_STEPS.map(step => {
+                              const v = row.avgDays[step.key];
+                              const cellColor = getBankColor(v, step.sla);
+                              return (
+                                <td key={step.key}
+                                  className="text-center font-bold tabular-nums border border-white/20"
+                                  style={{ backgroundColor: cellColor, color: v !== null ? '#fff' : '#cbd5e1' }}>
+                                  {v !== null ? v : '—'}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 );
               })()}
