@@ -84,6 +84,7 @@ const [notiOpen, setNotiOpen] = useState(false);
     datePreset: 'all' as string,
     dateFrom: '' as string,
     dateTo: '' as string,
+    slaOverdue: false,
   });
 
   // Date preset helper
@@ -160,6 +161,34 @@ const [notiOpen, setNotiOpen] = useState(false);
 
   const summary = useMemo(() => getSummary(), []);
 
+  // SLA thresholds per process step (days)
+  const SLA_STEPS: { prev: (b: Booking) => string | null; curr: (b: Booking) => string | null; sla: number }[] = [
+    { prev: b => b.contract_date, curr: b => b.doc_bureau_date, sla: 2 },
+    { prev: b => b.doc_bureau_date, curr: b => b.banks_submitted[0]?.submit_date ?? null, sla: 5 },
+    { prev: b => b.banks_submitted[0]?.submit_date ?? null, curr: b => b.bureau_actual_result_date, sla: 1 },
+    { prev: b => b.bureau_actual_result_date, curr: b => b.bank_preapprove_actual_date, sla: 7 },
+    { prev: b => b.bank_preapprove_actual_date, curr: b => b.bank_final_actual_date, sla: 7 },
+    { prev: b => b.inspect1_appointment_date, curr: b => b.inspect1_actual_date, sla: 5 },
+    { prev: b => b.bank_final_actual_date, curr: b => b.bank_contract_date, sla: 7 },
+    { prev: b => b.bank_contract_date, curr: b => b.transfer_package_sent_date, sla: 7 },
+    { prev: b => b.title_clear_date, curr: b => b.transfer_appointment_date, sla: 1 },
+    { prev: b => b.transfer_appointment_date, curr: b => b.transfer_actual_date, sla: 4 },
+  ];
+
+  const parseDate = (d: string) => { const [dd,mm,yy] = d.split('/'); return new Date(+yy, +mm-1, +dd); };
+  const today = new Date();
+
+  const isBookingOverSLA = (b: Booking): boolean => {
+    if (b.stage === 'transferred' || b.stage === 'cancelled') return false;
+    return SLA_STEPS.some(step => {
+      const prevDate = step.prev(b);
+      const currDate = step.curr(b);
+      if (!prevDate || currDate) return false; // step not started or already completed
+      const days = Math.round((today.getTime() - parseDate(prevDate).getTime()) / 86400000);
+      return days > step.sla;
+    });
+  };
+
   // Apply global filters first, then local filters
   const globalFilteredBookings = useMemo(() => {
     let result = [...bookings];
@@ -200,6 +229,9 @@ const [notiOpen, setNotiOpen] = useState(false);
         const bookingDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
         return bookingDate <= toDate;
       });
+    }
+    if (globalFilters.slaOverdue) {
+      result = result.filter(b => isBookingOverSLA(b));
     }
     return result;
   }, [globalFilters]);
@@ -566,19 +598,31 @@ const [notiOpen, setNotiOpen] = useState(false);
                   </button>
                 ))}
               </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-semibold text-slate-400 uppercase">แสดงผล</label>
-                <select value={budDisplayMode} onChange={e => setBudDisplayMode(e.target.value as 'unit' | 'net' | 'contract')}
-                  className="px-2 py-1 bg-white border border-slate-200 rounded text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-300">
-                  <option value="unit">จำนวน (Unit)</option>
-                  <option value="net">ราคาขายสุทธิ (ล้าน฿)</option>
-                  <option value="contract">ราคาหน้าสัญญา (ล้าน฿)</option>
-                </select>
-              </div>
+              <button
+                onClick={() => setGlobalFilters(prev => ({ ...prev, slaOverdue: !prev.slaOverdue }))}
+                className={`px-3 py-1 rounded-full text-[11px] font-semibold transition self-end ${
+                  globalFilters.slaOverdue
+                    ? 'bg-red-500 text-white shadow-sm'
+                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                }`}
+              >
+                เกิน SLA {(() => { const c = bookings.filter(b => isBookingOverSLA(b)).length; return c > 0 ? `(${c})` : ''; })()}
+              </button>
+              {currentView === 'dashboard-tracking' && (
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-semibold text-slate-400 uppercase">แสดงผล</label>
+                  <select value={budDisplayMode} onChange={e => setBudDisplayMode(e.target.value as 'unit' | 'net' | 'contract')}
+                    className="px-2 py-1 bg-white border border-slate-200 rounded text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-300">
+                    <option value="unit">จำนวน (Unit)</option>
+                    <option value="net">ราคาขายสุทธิ (ล้าน฿)</option>
+                    <option value="contract">ราคาหน้าสัญญา (ล้าน฿)</option>
+                  </select>
+                </div>
+              )}
               <div className="flex-1" />
-              {(globalFilters.bu.length > 0 || globalFilters.opm.length > 0 || globalFilters.project.length > 0 || globalFilters.status.length > 0 || globalFilters.responsible.length > 0 || globalFilters.dateFrom || globalFilters.dateTo) && (
+              {(globalFilters.bu.length > 0 || globalFilters.opm.length > 0 || globalFilters.project.length > 0 || globalFilters.status.length > 0 || globalFilters.responsible.length > 0 || globalFilters.dateFrom || globalFilters.dateTo || globalFilters.slaOverdue) && (
                 <button
-                  onClick={() => setGlobalFilters({ bu: [], opm: [], project: [], status: [], responsible: [], datePreset: 'all', dateFrom: '', dateTo: '' })}
+                  onClick={() => setGlobalFilters({ bu: [], opm: [], project: [], status: [], responsible: [], datePreset: 'all', dateFrom: '', dateTo: '', slaOverdue: false })}
                   className="flex items-center gap-1 px-2 py-1 text-[11px] text-red-500 hover:bg-red-50 rounded transition self-end"
                 >
                   <X className="w-3 h-3" />
