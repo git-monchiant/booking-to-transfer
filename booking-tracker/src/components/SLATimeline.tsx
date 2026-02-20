@@ -3,6 +3,22 @@
 import { useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { Booking, getResultFlag } from '@/data/bookings';
+import { PROCESS_SLA, PROJECTS } from '@/data/masters';
+
+// Occupation → PROCESS_SLA suffix
+const OCC_SUFFIX: Record<string, string> = {
+  'พนักงาน': 'emp', 'เจ้าของกิจการ/อาชีพอิสระ': 'biz',
+  'ข้าราชการ': 'gov', 'ต่างชาติ': 'foreign',
+  'เกษียณ/บำนาญ': 'retire', 'สวัสดิการ': 'welfare',
+};
+
+// Lookup SLA from PROCESS_SLA — returns "Xd" string
+const findSla = (key: string, pType?: 'Condo' | 'House'): string => {
+  const rules = PROCESS_SLA.filter(r => r.processKey === key);
+  if (pType) { const t = rules.find(r => r.projectType === pType); if (t) return `${t.slaDays}d`; }
+  const g = rules.find(r => !r.projectType);
+  return g ? `${g.slaDays}d` : '';
+};
 
 // SLA Timeline — text-character tree view (├ └ │)
 export function SLATimeline({ booking }: { booking: Booking }) {
@@ -18,6 +34,33 @@ export function SLATimeline({ booking }: { booking: Booking }) {
   };
   const isPass = (r: string | null) => getResultFlag(r) === 'pass';
   const isFail = (r: string | null) => getResultFlag(r) === 'fail';
+
+  // ── Resolve occupation / projectType / inspectionMethod ──
+  const suffix = OCC_SUFFIX[booking.customer_occupation || ''] || 'emp';
+  const project = PROJECTS.find(p => p.code === booking.project_code);
+  const pType = project?.project_status as 'Condo' | 'House' | undefined;
+  const inspSuffix = booking.inspection_method === 'จ้างตรวจ' ? 'hired' : 'self';
+  const isCash = booking.credit_request_type === 'โอนสด';
+
+  // ── SLA values from PROCESS_SLA ──
+  const sla = {
+    doc_bureau: findSla('doc_bureau'),
+    doc_bank: findSla('doc_bank'),
+    doc_jd: findSla('doc_jd'),
+    jd_livnex: findSla('jd_livnex'),
+    bureau: findSla(`bureau_${suffix}`),
+    preapprove: findSla(`preapprove_${suffix}`),
+    final: findSla(`final_${suffix}`),
+    inspect_appt: isCash ? findSla('inspect_appt_cash') : findSla('inspect_appt_loan'),
+    inspect1: findSla(`inspect1_${inspSuffix}`),
+    inspect2: findSla(`inspect2_${inspSuffix}`, pType),
+    inspect3: findSla(`inspect3_${inspSuffix}`, pType),
+    contract_bank: findSla('contract_bank'),
+    transfer_pkg: findSla('transfer_pkg'),
+    title_clear: findSla('title_clear'),
+    transfer_appt: findSla('transfer_appt'),
+    transfer_actual: findSla('transfer_actual'),
+  };
 
   // Key dates
   const bureauDate = booking.bureau_actual_result_date;
@@ -114,6 +157,15 @@ export function SLATimeline({ booking }: { booking: Booking }) {
   const gInspect = G(true);  // ตรวจบ้าน is not last root → guide continues
   const gTransfer = G(false); // โอน is last root → no guide
 
+  // Inspection SLA per round
+  const inspSla = (round: number) => round === 1 ? sla.inspect1 : round === 2 ? sla.inspect2 : sla.inspect3;
+
+  // Occupation label
+  const occLabel = booking.customer_occupation || 'พนักงาน';
+  // Inspection label
+  const inspLabel = booking.inspection_method === 'จ้างตรวจ' ? 'จ้างตรวจ' : 'ตรวจเอง';
+  const pTypeLabel = pType || 'Condo';
+
   return (
     <div>
       {/* Header */}
@@ -128,19 +180,25 @@ export function SLATimeline({ booking }: { booking: Booking }) {
 
       {/* Tree */}
       <div className="text-[11px]">
-        {/* Root steps */}
-        {node({ label: `จอง${booking.customer_occupation ? ` (${booking.customer_occupation})` : ''}`, date: booking.booking_date, prev: null, owner: booking.sale_name }, false)}
-        {node({ label: `สัญญา${booking.customer_occupation ? ` (${booking.customer_occupation})` : ''}`, date: booking.contract_date, prev: booking.booking_date, owner: booking.sale_name }, false)}
-        {node({ label: 'เอกสารเช็คบูโร', date: booking.doc_bureau_date, prev: booking.contract_date || booking.booking_date, owner: booking.credit_owner, sla: '1-2d' }, false)}
-        {node({ label: 'เอกสารครบ Bank', date: docBankDate, prev: booking.booking_date, owner: booking.credit_owner, sla: 'start' }, false)}
-        {node({ label: 'เอกสารครบ JD', date: docJdDate, prev: booking.booking_date, owner: booking.credit_owner, sla: 'start' }, false)}
+        {/* ── Milestone ── */}
+        {node({ label: `จอง (${occLabel})`, date: booking.booking_date, prev: null, owner: booking.sale_name }, false)}
+        {node({ label: 'ทำสัญญา', date: booking.contract_date, prev: booking.booking_date, owner: booking.sale_name }, false)}
+        {node({ label: 'ผ่อนดาวน์ครบ', date: booking.down_payment_complete_date, prev: booking.contract_date || booking.booking_date }, false)}
+
+        {/* ── เอกสาร ── */}
+        {node({ label: 'เอกสารตรวจบูโร', date: booking.doc_bureau_date, prev: booking.booking_date, owner: booking.credit_owner, sla: sla.doc_bureau }, false)}
+        {node({ label: 'เตรียมเอกสารธนาคาร', date: docBankDate, prev: booking.booking_date, owner: booking.credit_owner, sla: sla.doc_bank }, false)}
+        {node({ label: 'เตรียมเอกสาร JD', date: docJdDate, prev: docBankDate, owner: booking.credit_owner, sla: sla.doc_jd }, false)}
+
+        {/* ── JD - LivNex Able ── */}
+        {node({ label: 'JD - LivNex Able', date: booking.jd_final_actual_date, prev: docBankDate, result: booking.livnex_able_status, owner: booking.credit_owner, sla: sla.jd_livnex }, false)}
 
         {/* ═══ สินเชื่อ ═══ */}
-        {branchHead('สินเชื่อ', 'text-amber-600', 'bg-amber-400', false)}
-        {node({ label: 'ส่งเอกสารให้ธนาคาร', date: firstSubmitDate, prev: booking.doc_bureau_date || booking.doc_complete_bank_jd_date, owner: booking.credit_owner }, false, gCredit)}
-        {node({ label: 'บูโร', date: bureauDate, prev: firstSubmitDate || booking.doc_bureau_date, result: booking.bureau_result, owner: booking.credit_owner, sla: '1d' }, false, gCredit)}
-        {node({ label: 'อนุมัติเบื้องต้น', date: preapproveDate, prev: bureauDate || firstSubmitDate, result: booking.bank_preapprove_result, owner: booking.credit_owner, sla: '7d' }, false, gCredit)}
-        {node({ label: 'อนุมัติจริง', date: finalApproveDate, prev: preapproveDate || bureauDate, result: booking.bank_final_result, owner: booking.credit_owner, sla: '7d' }, false, gCredit)}
+        {branchHead(`สินเชื่อ (${occLabel})`, 'text-amber-600', 'bg-amber-400', false)}
+        {node({ label: 'ส่งเอกสารให้ธนาคาร', date: firstSubmitDate, prev: booking.doc_bureau_date || docBankDate, owner: booking.credit_owner }, false, gCredit)}
+        {node({ label: 'ผลบูโร', date: bureauDate, prev: booking.booking_date, result: booking.bureau_result, owner: booking.credit_owner, sla: sla.bureau }, false, gCredit)}
+        {node({ label: 'อนุมัติเบื้องต้น', date: preapproveDate, prev: docBankDate, result: booking.bank_preapprove_result, owner: booking.credit_owner, sla: sla.preapprove }, false, gCredit)}
+        {node({ label: 'อนุมัติจริง', date: finalApproveDate, prev: docBankDate, result: booking.bank_final_result, owner: booking.credit_owner, sla: sla.final }, false, gCredit)}
 
         {booking.banks_submitted.map((bs, idx) => {
           const isSelected = bs.bank === booking.selected_bank;
@@ -167,9 +225,9 @@ export function SLATimeline({ booking }: { booking: Booking }) {
               {/* Bank children */}
               {isOpen && (
                 <>
-                  {node({ label: 'บูโร', date: bureauDate, prev: bs.submit_date || booking.doc_bureau_date, result: booking.bureau_result, owner: booking.credit_owner, sla: '1d' }, false, childPre)}
-                  {bs.bank !== 'JD' && node({ label: 'อนุมัติเบื้องต้น', date: bs.preapprove_date, prev: bureauDate || bs.submit_date, result: bs.preapprove_result, owner: booking.credit_owner, sla: '7d' }, false, childPre)}
-                  {node({ label: 'อนุมัติจริง', date: bs.result_date, prev: bs.bank === 'JD' ? (bureauDate || bs.submit_date) : bs.preapprove_date, result: bs.result, owner: booking.credit_owner, sla: '7d' }, true, childPre)}
+                  {node({ label: 'ผลบูโร', date: bureauDate, prev: bs.submit_date || booking.doc_bureau_date, result: booking.bureau_result, owner: booking.credit_owner, sla: sla.bureau }, false, childPre)}
+                  {!isJD && node({ label: 'อนุมัติเบื้องต้น', date: bs.preapprove_date, prev: docBankDate, result: bs.preapprove_result, owner: booking.credit_owner, sla: sla.preapprove }, false, childPre)}
+                  {node({ label: isJD ? 'JD - LivNex Able' : 'อนุมัติจริง', date: bs.result_date, prev: isJD ? docBankDate : bs.preapprove_date, result: bs.result, owner: booking.credit_owner, sla: isJD ? sla.jd_livnex : sla.final }, true, childPre)}
                 </>
               )}
             </div>
@@ -177,15 +235,16 @@ export function SLATimeline({ booking }: { booking: Booking }) {
         })}
 
         {/* ═══ ตรวจบ้าน ═══ */}
-        {branchHead('ตรวจบ้าน', 'text-sky-600', 'bg-sky-400', false)}
+        {branchHead(`ตรวจบ้าน (${inspLabel}/${pTypeLabel})`, 'text-sky-600', 'bg-sky-400', false)}
         {node({ label: 'QC 5.5 ห้องพร้อมตรวจ', date: booking.unit_ready_inspection_date, prev: booking.contract_date || booking.booking_date, owner: booking.inspection_officer }, false, gInspect)}
-        {node({ label: 'นัดลูกค้าตรวจ', date: booking.inspect1_appt, prev: booking.unit_ready_inspection_date, owner: booking.cs_owner, sla: '1d' }, false, gInspect)}
+        {node({ label: isCash ? 'โทรนัดตรวจ (โอนสด)' : 'โทรนัดตรวจ (กู้ธนาคาร)', date: booking.inspect1_appt, prev: isCash ? booking.booking_date : bureauDate, owner: booking.cs_owner, sla: sla.inspect_appt }, false, gInspect)}
 
         {visibleRounds.map((r) => {
           const prevDate = r.round === 1
             ? booking.inspect1_appt
             : inspRounds[r.round - 2].ready || inspRounds[r.round - 2].actual;
           const failed = isFail(r.result);
+          const roundSla = inspSla(r.round);
 
           if (failed) {
             return (
@@ -200,28 +259,31 @@ export function SLATimeline({ booking }: { booking: Booking }) {
                       <span className={`text-[10px] ${r.actual ? 'text-slate-500' : 'text-slate-300'}`}>{r.actual || '—'}</span>
                     </div>
                   </div>
+                  <span className="text-[10px] text-slate-400 tabular-nums shrink-0 w-10 text-right leading-[22px]">{roundSla}</span>
+                  <span className="text-[10px] font-medium tabular-nums shrink-0 w-8 text-right leading-[22px] text-slate-300" />
+                  <span className="text-[10px] text-slate-500 shrink-0 w-[200px] text-left pl-2 leading-[22px] truncate" />
                 </div>
-                {node({ label: 'เก็บงาน', date: r.ready, prev: r.actual, owner: booking.inspection_officer, sla: '7-14d' }, true, gInspect + G(true))}
+                {node({ label: 'เก็บงาน', date: r.ready, prev: r.actual, owner: booking.inspection_officer, sla: inspSla(r.round + 1) }, true, gInspect + G(true))}
               </div>
             );
           }
           return (
             <div key={r.round}>
-              {node({ label: `ตรวจครั้งที่ ${r.round}`, date: r.actual, prev: prevDate, result: r.result, owner: booking.cs_owner, sla: '3-5d' }, false, gInspect)}
+              {node({ label: `ตรวจครั้งที่ ${r.round}`, date: r.actual, prev: prevDate, result: r.result, owner: booking.cs_owner, sla: roundSla }, false, gInspect)}
             </div>
           );
         })}
 
-        {node({ label: 'ลูกค้ารับมอบ', date: booking.handover_accept_date, prev: lastInspOrRepair, owner: booking.cs_owner, sla: '3d' }, true, gInspect)}
+        {node({ label: 'ลูกค้ารับมอบ', date: booking.handover_accept_date, prev: lastInspOrRepair, owner: booking.cs_owner }, true, gInspect)}
 
         {/* ═══ โอน ═══ */}
         {branchHead('โอน', 'text-teal-600', 'bg-teal-400', true)}
-        {node({ label: 'สัญญา Bank', date: bankContractDate, prev: finalApproveDate || preapproveDate, owner: booking.credit_owner, sla: '7d' }, false, gTransfer)}
-        {node({ label: 'ส่งชุดโอน', date: transferPkg, prev: bankContractDate || finalApproveDate, owner: booking.credit_owner, sla: '7d' }, false, gTransfer)}
-        {node({ label: 'ปลอดโฉนด', date: booking.title_clear_date, prev: transferPkg || bankContractDate, owner: booking.credit_owner }, false, gTransfer)}
+        {node({ label: 'สัญญา Bank', date: bankContractDate, prev: finalApproveDate || preapproveDate, owner: booking.credit_owner, sla: sla.contract_bank }, false, gTransfer)}
+        {node({ label: 'ส่งชุดโอน', date: transferPkg, prev: bankContractDate || finalApproveDate, owner: booking.credit_owner, sla: sla.transfer_pkg }, false, gTransfer)}
+        {node({ label: 'ปลอดโฉนด', date: booking.title_clear_date, prev: transferPkg || bankContractDate, owner: booking.credit_owner, sla: sla.title_clear }, false, gTransfer)}
         {node({ label: 'เป้าโอน', date: booking.transfer_target_date, prev: null }, false, gTransfer)}
-        {node({ label: 'นัดโอน', date: booking.transfer_appointment_date, prev: booking.title_clear_date || transferPkg, owner: booking.sale_name, sla: '1d' }, false, gTransfer)}
-        {node({ label: 'โอนจริง', date: booking.transfer_actual_date, prev: booking.transfer_appointment_date, owner: booking.sale_name, sla: '1-4d' }, true, gTransfer)}
+        {node({ label: 'นัดโอน', date: booking.transfer_appointment_date, prev: booking.title_clear_date || transferPkg, owner: booking.sale_name, sla: sla.transfer_appt }, false, gTransfer)}
+        {node({ label: 'โอนจริง', date: booking.transfer_actual_date, prev: booking.transfer_appointment_date, owner: booking.sale_name, sla: sla.transfer_actual }, true, gTransfer)}
       </div>
     </div>
   );

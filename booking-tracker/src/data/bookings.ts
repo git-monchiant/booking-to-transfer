@@ -20,7 +20,7 @@ export {
 } from './masters';
 // ChatMessage types exported directly from this file (not masters)
 
-import type { Stage, BankCode, BankSubmission, Team, ResultFlag } from './masters';
+import type { Stage, BankCode, BankSubmission, Team, ResultFlag, BureauResult, BankPreapproveResult, BankFinalResult, JDFinalResult } from './masters';
 import { STAGES, TEAMS, getResultFlag } from './masters';
 
 // ===== SEEDED RANDOM (เพื่อให้ Server และ Client ได้ค่าเดียวกัน) =====
@@ -94,7 +94,7 @@ export interface Booking {
   contract_date: string | null;     // วันที่ทำสัญญา "25/12/2025"
   down_payment_complete_date: string | null; // วันที่ครบดาวน์
   booking_type: string | null;      // ประเภทการจอง: "ขายโอน" | "LivNex" | "ผ่อนดาวน์"
-  credit_request_type: string;      // ประเภทสินเชื่อ: "โอนสด" | "กู้"
+  credit_request_type: string;      // ประเภทสินเชื่อ: "กู้ธนาคาร" | "โอนสด" | "สวัสดิการ"
   net_contract_value: number;       // มูลค่าสัญญาสุทธิ e.g., 1830000
 
   // ═════════════════════════════════════════════
@@ -129,25 +129,25 @@ export interface Booking {
   // ผลอนุมัติ — บูโร
   bureau_target_result_date_biz: string | null;       // Target (ไม่นับ Sat-Sun)
   bureau_actual_result_date: string | null;           // วันที่ได้ผลจริง
-  bureau_result: string | null;                       // ผลบูโร "ปกติ" | "ค้างชำระ"
+  bureau_result: BureauResult | null;                  // ผลบูโร
   bureau_flag: ResultFlag;
 
   // ผลอนุมัติ — Bank เบื้องต้น (Pre-approve)
   bank_preapprove_target_date_biz: string | null;     // Target (ไม่นับ Sat-Sun)
   bank_preapprove_actual_date: string | null;         // วันที่ได้ผลจริง
-  bank_preapprove_result: string | null;              // ผล "อนุมัติ" | "ไม่อนุมัติ"
+  bank_preapprove_result: BankPreapproveResult | null; // ผลเบื้องต้น
   bank_preapprove_flag: ResultFlag;                   // computed: pass ถ้ามี ≥1 ธนาคาร preapprove ผ่าน
 
   // ผลอนุมัติ — Bank อนุมัติจริง (Final)
   bank_final_target_date_biz: string | null;          // Target (ไม่นับ Sat-Sun)
   bank_final_actual_date: string | null;              // วันที่ได้ผลจริง
-  bank_final_result: string | null;                   // ผล "อนุมัติ" | "ไม่อนุมัติ"
+  bank_final_result: BankFinalResult | null;           // ผลอนุมัติจริง
   bank_final_flag: ResultFlag;                        // computed: pass ถ้ามี ≥1 ธนาคาร อนุมัติจริง
 
   // ผลอนุมัติ — JD
   jd_final_target_date: string | null;                // Target (ไม่นับ Sat-Sun)
   jd_final_actual_date: string | null;                // วันที่ได้ผลจริง
-  jd_final_result: string | null;                     // ผล "อนุมัติ" | "ไม่อนุมัติ"
+  jd_final_result: JDFinalResult | null;               // ผล JD Final
 
   // ธนาคารที่ยื่น
   banks_submitted: BankSubmission[]; // ธนาคารที่ส่ง 1-3 แห่ง (รวม JD)
@@ -387,10 +387,10 @@ export const bookings: Booking[] = computeFlags([
     // 4. Customer
     customer_name: 'นางสาวกฤษณ์ชนิยา แซ่อุ๊ย',
     customer_tel: '062-835-7187',
-    customer_profile_text: 'Book Date : 18 ธ.ค.2568\nรายได้ 300,000 บาท/เดือน\nไม่มีภาระ\nซื้อเงินสด',
+    customer_profile_text: 'Book Date : 18 ธ.ค.2568\nรายได้ 300,000 บาท/เดือน\nไม่มีภาระ\nกู้ผ่านแล้ว เลือกโอนสด',
     customer_age: 47,
     customer_age_range: '40-50',
-    customer_occupation: 'ค้าขาย',
+    customer_occupation: 'เจ้าของกิจการ/อาชีพอิสระ',
     customer_monthly_income: 300000,
     customer_debt: 'ไม่มี',
     customer_ltv: 'N/A',
@@ -404,32 +404,34 @@ export const bookings: Booking[] = computeFlags([
     down_payment_complete_date: '25/05/2026',
     credit_request_type: 'โอนสด',
     banks_submitted: [
-      { bank: 'CASH', submit_date: null, preapprove_date: null, preapprove_result: null, result: 'อนุมัติ - เงินสด', result_date: null, approved_amount: 1830000, remark: 'โอนสด' },
-      { bank: 'JD', submit_date: null, preapprove_date: null, preapprove_result: null, result: null, result_date: null, approved_amount: null, remark: 'โอนสด - ไม่ต้องยื่น JD' }
+      { bank: 'CASH', submit_date: null, preapprove_date: null, preapprove_result: null, result: null, result_date: null, approved_amount: null, interest_rate_3y: null, remark: 'กู้ผ่านแล้ว เลือกโอนสด' },
+      { bank: 'KBANK', submit_date: '20/12/2025', preapprove_date: '27/12/2025', preapprove_result: 'อนุมัติ - ไม่มีเงื่อนไข', result: 'อนุมัติ - เต็มวงเงิน', result_date: '05/01/2026', approved_amount: 1830000, interest_rate_3y: 3.65, remark: null },
+      { bank: 'SCB', submit_date: '20/12/2025', preapprove_date: '28/12/2025', preapprove_result: 'อนุมัติ - มีหนี้', result: 'อนุมัติ - ไม่เต็มวงเงิน', result_date: '06/01/2026', approved_amount: 1650000, interest_rate_3y: 3.55, remark: null },
+      { bank: 'JD', submit_date: '20/12/2025', preapprove_date: null, preapprove_result: null, result: 'อนุมัติ - ไม่มีเงื่อนไข', result_date: '03/01/2026', approved_amount: null, interest_rate_3y: null, remark: null }
     ],
-    selected_bank: 'CASH',
+    selected_bank: 'CASH', // กู้ผ่านแล้วแต่เลือกโอนสด
 
-    // 6. Credit
-    credit_status: 'โอนสด',
+    // 6. Credit — กู้ผ่านแล้ว แต่ลูกค้าเลือกโอนสดแทน
+    credit_status: 'อนุมัติแล้ว (เลือกโอนสด)',
     credit_owner: '1.2) วิลาวัณย์ (อุ๊)',
-    doc_bureau_date: null,
-    doc_complete_bank_jd_date: null,
-    doc_complete_jd_date: null,
+    doc_bureau_date: '19/12/2025',
+    doc_complete_bank_jd_date: '19/12/2025',
+    doc_complete_jd_date: '19/12/2025',
     bank_request_more_doc_date: null,
     jd_request_more_doc_date: null,
-    bureau_target_result_date_biz: null,
-    bureau_actual_result_date: null,
-    bureau_result: null,
-    bank_preapprove_target_date_biz: null,
-    bank_preapprove_actual_date: null,
-    bank_preapprove_result: null,
-    bank_final_target_date_biz: null,
-    bank_final_actual_date: null,
-    bank_final_result: null,
-    jd_final_target_date: null,
-    jd_final_actual_date: null,
-    jd_final_result: null,
-    co_remark: 'ลูกค้าแจ้งโอนสด จึงไม่มีผลบูโร',
+    bureau_target_result_date_biz: '24/12/2025',
+    bureau_actual_result_date: '23/12/2025',
+    bureau_result: 'บูโรปกติ - ไม่มีหนี้',
+    bank_preapprove_target_date_biz: '30/12/2025',
+    bank_preapprove_actual_date: '27/12/2025',
+    bank_preapprove_result: 'อนุมัติ - ไม่มีเงื่อนไข',
+    bank_final_target_date_biz: '09/01/2026',
+    bank_final_actual_date: '05/01/2026',
+    bank_final_result: 'อนุมัติ - เต็มวงเงิน',
+    jd_final_target_date: '05/01/2026',
+    jd_final_actual_date: '03/01/2026',
+    jd_final_result: 'อนุมัติ - ไม่มีเงื่อนไข',
+    co_remark: 'กู้ผ่านทุกธนาคาร ลูกค้าเลือกโอนสดแทน',
 
     // 7. Inspection
     inspection_status: 'รับนัดตรวจ',
@@ -566,7 +568,7 @@ export const bookings: Booking[] = computeFlags([
     customer_profile_text: 'Book Date : 5 ม.ค.2569\nรายได้ 85,000 บาท/เดือน\nมีภาระสินเชื่อรถ 8,000/เดือน\nขอสินเชื่อ SCB',
     customer_age: 35,
     customer_age_range: '30-40',
-    customer_occupation: 'พนักงานบริษัท',
+    customer_occupation: 'พนักงาน',
     customer_monthly_income: 85000,
     customer_debt: '8,000 บาท/เดือน',
     customer_ltv: '90%',
@@ -578,11 +580,11 @@ export const bookings: Booking[] = computeFlags([
     booking_type: 'ผ่อนดาวน์',
 
     down_payment_complete_date: '05/03/2026',
-    credit_request_type: 'สินเชื่อธนาคาร',
+    credit_request_type: 'กู้ธนาคาร',
     banks_submitted: [
-      { bank: 'SCB', submit_date: '15/01/2026', preapprove_date: '27/01/2026', preapprove_result: 'อนุมัติ - ไม่มีเงื่อนไข', result: 'รอผล', result_date: null, approved_amount: null, remark: null },
-      { bank: 'KBANK', submit_date: '15/01/2026', preapprove_date: '28/01/2026', preapprove_result: 'อนุมัติ - มีหนี้', result: 'รอผล', result_date: null, approved_amount: null, remark: 'มีสินเชื่อรถ 8,000/เดือน' },
-      { bank: 'JD', submit_date: '15/01/2026', preapprove_date: null, preapprove_result: null, result: 'รอผล', result_date: null, approved_amount: null, remark: null }
+      { bank: 'SCB', submit_date: '15/01/2026', preapprove_date: '27/01/2026', preapprove_result: 'อนุมัติ - ไม่มีเงื่อนไข', result: null, result_date: null, approved_amount: null, interest_rate_3y: null, remark: null },
+      { bank: 'KBANK', submit_date: '15/01/2026', preapprove_date: '28/01/2026', preapprove_result: 'อนุมัติ - มีหนี้', result: null, result_date: null, approved_amount: null, interest_rate_3y: null, remark: 'มีสินเชื่อรถ 8,000/เดือน' },
+      { bank: 'JD', submit_date: '15/01/2026', preapprove_date: null, preapprove_result: null, result: null, result_date: null, approved_amount: null, interest_rate_3y: null, remark: null }
     ],
     selected_bank: null,
 
@@ -596,7 +598,7 @@ export const bookings: Booking[] = computeFlags([
     jd_request_more_doc_date: null,
     bureau_target_result_date_biz: '23/01/2026',
     bureau_actual_result_date: null,
-    bureau_result: 'รอผล',
+    bureau_result: null,
     bank_preapprove_target_date_biz: '30/01/2026',
     bank_preapprove_actual_date: null,
     bank_preapprove_result: null,
@@ -724,7 +726,7 @@ export const bookings: Booking[] = computeFlags([
 
     // 2. Project
     project_code: '1802',
-    project_name: '01802 - เสนา วิลล์ บางนา กม.7',
+    project_name: '01802 - เสนา โซลาร์ พหลโยธิน',
     building_zone: 'B',
     unit_no: '78',
     house_reg_no: '78/5',
@@ -743,7 +745,7 @@ export const bookings: Booking[] = computeFlags([
     customer_profile_text: 'Book Date : 10 ธ.ค.2568\nรายได้ 150,000 บาท/เดือน\nไม่มีภาระ\nขอสินเชื่อ KBANK',
     customer_age: 52,
     customer_age_range: '50-60',
-    customer_occupation: 'ธุรกิจส่วนตัว',
+    customer_occupation: 'เจ้าของกิจการ/อาชีพอิสระ',
     customer_monthly_income: 150000,
     customer_debt: 'ไม่มี',
     customer_ltv: '80%',
@@ -755,10 +757,10 @@ export const bookings: Booking[] = computeFlags([
     booking_type: 'ผ่อนดาวน์',
 
     down_payment_complete_date: '10/02/2026',
-    credit_request_type: 'สินเชื่อธนาคาร',
+    credit_request_type: 'กู้ธนาคาร',
     banks_submitted: [
-      { bank: 'KBANK', submit_date: '20/12/2025', preapprove_date: '28/12/2025', preapprove_result: 'อนุมัติ - ไม่มีเงื่อนไข', result: 'อนุมัติ - เต็มวงเงิน', result_date: '10/01/2026', approved_amount: 3600000, remark: null },
-      { bank: 'JD', submit_date: '20/12/2025', preapprove_date: null, preapprove_result: null, result: 'ไม่อนุมัติ - มีประวัติ', result_date: '30/12/2025', approved_amount: null, remark: null }
+      { bank: 'KBANK', submit_date: '20/12/2025', preapprove_date: '28/12/2025', preapprove_result: 'อนุมัติ - ไม่มีเงื่อนไข', result: 'อนุมัติ - เต็มวงเงิน', result_date: '10/01/2026', approved_amount: 3600000, interest_rate_3y: 3.65, remark: null },
+      { bank: 'JD', submit_date: '20/12/2025', preapprove_date: null, preapprove_result: null, result: 'ไม่อนุมัติ - มีประวัติ', result_date: '30/12/2025', approved_amount: null, interest_rate_3y: null, remark: null }
     ],
     selected_bank: 'KBANK',
 
@@ -936,11 +938,11 @@ export const bookings: Booking[] = computeFlags([
     booking_type: 'ขายโอน',
 
     down_payment_complete_date: '01/12/2025',
-    credit_request_type: 'สินเชื่อธนาคาร',
+    credit_request_type: 'กู้ธนาคาร',
     banks_submitted: [
-      { bank: 'BBL', submit_date: '10/12/2025', preapprove_date: '18/12/2025', preapprove_result: 'อนุมัติ - ไม่มีเงื่อนไข', result: 'อนุมัติ - เต็มวงเงิน', result_date: '25/12/2025', approved_amount: 1785000, remark: 'ข้าราชการ อนุมัติไว' },
-      { bank: 'SCB', submit_date: '10/12/2025', preapprove_date: '20/12/2025', preapprove_result: 'อนุมัติ - ไม่เต็มจำนวน', result: 'อนุมัติ - ไม่เต็มวงเงิน', result_date: '28/12/2025', approved_amount: 1700000, remark: 'วงเงินต่ำกว่า BBL เล็กน้อย' },
-      { bank: 'JD', submit_date: '10/12/2025', preapprove_date: null, preapprove_result: null, result: 'อนุมัติ - ไม่มีเงื่อนไข', result_date: '22/12/2025', approved_amount: null, remark: null }
+      { bank: 'BBL', submit_date: '10/12/2025', preapprove_date: '18/12/2025', preapprove_result: 'อนุมัติ - ไม่มีเงื่อนไข', result: 'อนุมัติ - เต็มวงเงิน', result_date: '25/12/2025', approved_amount: 1785000, interest_rate_3y: 3.40, remark: 'ข้าราชการ อนุมัติไว' },
+      { bank: 'SCB', submit_date: '10/12/2025', preapprove_date: '20/12/2025', preapprove_result: 'อนุมัติ - ไม่เต็มจำนวน', result: 'อนุมัติ - ไม่เต็มวงเงิน', result_date: '28/12/2025', approved_amount: 1700000, interest_rate_3y: 3.55, remark: 'วงเงินต่ำกว่า BBL เล็กน้อย' },
+      { bank: 'JD', submit_date: '10/12/2025', preapprove_date: null, preapprove_result: null, result: 'อนุมัติ - ไม่มีเงื่อนไข', result_date: '22/12/2025', approved_amount: null, interest_rate_3y: null, remark: null }
     ],
     selected_bank: 'BBL',
 
@@ -1100,7 +1102,7 @@ export const bookings: Booking[] = computeFlags([
     customer_profile_text: 'Book Date : 15 พ.ย.2568\nรายได้ 200,000 บาท/เดือน\nไม่มีภาระ\nขอสินเชื่อ TTB',
     customer_age: 38,
     customer_age_range: '30-40',
-    customer_occupation: 'ผู้บริหาร',
+    customer_occupation: 'พนักงาน',
     customer_monthly_income: 200000,
     customer_debt: 'ไม่มี',
     customer_ltv: '80%',
@@ -1112,11 +1114,11 @@ export const bookings: Booking[] = computeFlags([
     booking_type: 'ผ่อนดาวน์',
 
     down_payment_complete_date: '15/11/2025',
-    credit_request_type: 'สินเชื่อธนาคาร',
+    credit_request_type: 'กู้ธนาคาร',
     banks_submitted: [
-      { bank: 'TTB', submit_date: '25/11/2025', preapprove_date: '03/12/2025', preapprove_result: 'อนุมัติ - ไม่มีเงื่อนไข', result: 'อนุมัติ - เต็มวงเงิน', result_date: '12/12/2025', approved_amount: 4160000, remark: 'VIP ผู้บริหาร' },
-      { bank: 'KBANK', submit_date: '25/11/2025', preapprove_date: '04/12/2025', preapprove_result: 'อนุมัติ - ไม่เต็มจำนวน', result: 'อนุมัติ - ไม่เต็มวงเงิน', result_date: '13/12/2025', approved_amount: 4000000, remark: null },
-      { bank: 'JD', submit_date: '25/11/2025', preapprove_date: null, preapprove_result: null, result: 'อนุมัติ - ไม่มีเงื่อนไข', result_date: '14/12/2025', approved_amount: null, remark: null }
+      { bank: 'TTB', submit_date: '25/11/2025', preapprove_date: '03/12/2025', preapprove_result: 'อนุมัติ - ไม่มีเงื่อนไข', result: 'อนุมัติ - เต็มวงเงิน', result_date: '12/12/2025', approved_amount: 4160000, interest_rate_3y: 3.45, remark: 'VIP ผู้บริหาร' },
+      { bank: 'KBANK', submit_date: '25/11/2025', preapprove_date: '04/12/2025', preapprove_result: 'อนุมัติ - ไม่เต็มจำนวน', result: 'อนุมัติ - ไม่เต็มวงเงิน', result_date: '13/12/2025', approved_amount: 4000000, interest_rate_3y: 3.65, remark: null },
+      { bank: 'JD', submit_date: '25/11/2025', preapprove_date: null, preapprove_result: null, result: 'อนุมัติ - ไม่มีเงื่อนไข', result_date: '14/12/2025', approved_amount: null, interest_rate_3y: null, remark: null }
     ],
     selected_bank: 'TTB',
 
@@ -1252,14 +1254,14 @@ export const bookings: Booking[] = computeFlags([
     contract_date: '28/11/2025',
     down_payment_complete_date: '28/11/2025',
     booking_type: 'ขายโอน',
-    credit_request_type: 'กู้',
+    credit_request_type: 'กู้ธนาคาร',
     net_contract_value: 2950000,
     customer_name: 'นางสาวปิยะดา ชัยวัฒน์',
     customer_tel: '081-234-5678',
     customer_profile_text: 'Book Date : 20 พ.ย.2568\nรายได้ 45,000/เดือน\nไม่มีภาระ',
     customer_age: 29,
     customer_age_range: '20-30',
-    customer_occupation: 'พนักงานบริษัท',
+    customer_occupation: 'พนักงาน',
     customer_monthly_income: 45000,
     customer_debt: 'ไม่มี',
     customer_ltv: '90%',
@@ -1275,7 +1277,7 @@ export const bookings: Booking[] = computeFlags([
     jd_request_more_doc_date: null,
     bureau_target_result_date_biz: '28/11/2025',
     bureau_actual_result_date: '27/11/2025',
-    bureau_result: 'ปกติ',
+    bureau_result: 'บูโรปกติ - ไม่มีหนี้',
     bank_preapprove_target_date_biz: '04/12/2025',
     bank_preapprove_actual_date: '03/12/2025',
     bank_preapprove_result: 'อนุมัติ - ไม่มีเงื่อนไข',
@@ -1284,10 +1286,10 @@ export const bookings: Booking[] = computeFlags([
     bank_final_result: 'อนุมัติ - เต็มวงเงิน',
     jd_final_target_date: '06/12/2025',
     jd_final_actual_date: '05/12/2025',
-    jd_final_result: 'อนุมัติ',
+    jd_final_result: 'อนุมัติ - ไม่มีเงื่อนไข',
     banks_submitted: [
-      { bank: 'SCB', submit_date: '25/11/2025', preapprove_date: '03/12/2025', preapprove_result: 'อนุมัติ - ไม่มีเงื่อนไข', result: 'อนุมัติ - เต็มวงเงิน', result_date: '10/12/2025', approved_amount: 2655000, remark: null },
-      { bank: 'JD', submit_date: '25/11/2025', preapprove_date: null, preapprove_result: null, result: 'อนุมัติ', result_date: '05/12/2025', approved_amount: null, remark: null },
+      { bank: 'SCB', submit_date: '25/11/2025', preapprove_date: '03/12/2025', preapprove_result: 'อนุมัติ - ไม่มีเงื่อนไข', result: 'อนุมัติ - เต็มวงเงิน', result_date: '10/12/2025', approved_amount: 2655000, interest_rate_3y: 3.55, remark: null },
+      { bank: 'JD', submit_date: '25/11/2025', preapprove_date: null, preapprove_result: null, result: 'อนุมัติ', result_date: '05/12/2025', approved_amount: null, interest_rate_3y: null, remark: null },
     ],
     selected_bank: 'SCB',
     co_remark: null,
@@ -1371,14 +1373,14 @@ export const bookings: Booking[] = computeFlags([
     contract_date: '02/12/2025',
     down_payment_complete_date: '02/12/2025',
     booking_type: 'ขายโอน',
-    credit_request_type: 'กู้',
+    credit_request_type: 'กู้ธนาคาร',
     net_contract_value: 1850000,
     customer_name: 'นายสุทธิพงษ์ เจริญผล',
     customer_tel: '095-678-9012',
     customer_profile_text: 'Book Date : 25 พ.ย.2568\nรายได้ 35,000/เดือน',
     customer_age: 32,
     customer_age_range: '30-40',
-    customer_occupation: 'วิศวกร',
+    customer_occupation: 'พนักงาน',
     customer_monthly_income: 35000,
     customer_debt: 'ผ่อนรถ 5,000/เดือน',
     customer_ltv: '90%',
@@ -1394,7 +1396,7 @@ export const bookings: Booking[] = computeFlags([
     jd_request_more_doc_date: null,
     bureau_target_result_date_biz: '03/12/2025',
     bureau_actual_result_date: '02/12/2025',
-    bureau_result: 'ปกติ',
+    bureau_result: 'บูโรปกติ - ไม่มีหนี้',
     bank_preapprove_target_date_biz: '09/12/2025',
     bank_preapprove_actual_date: '08/12/2025',
     bank_preapprove_result: 'อนุมัติ - ไม่มีเงื่อนไข',
@@ -1403,10 +1405,10 @@ export const bookings: Booking[] = computeFlags([
     bank_final_result: 'อนุมัติ - เต็มวงเงิน',
     jd_final_target_date: '10/12/2025',
     jd_final_actual_date: '09/12/2025',
-    jd_final_result: 'อนุมัติ',
+    jd_final_result: 'อนุมัติ - ไม่มีเงื่อนไข',
     banks_submitted: [
-      { bank: 'KBANK', submit_date: '29/11/2025', preapprove_date: '08/12/2025', preapprove_result: 'อนุมัติ - ไม่มีเงื่อนไข', result: 'อนุมัติ - เต็มวงเงิน', result_date: '15/12/2025', approved_amount: 1665000, remark: null },
-      { bank: 'JD', submit_date: '29/11/2025', preapprove_date: null, preapprove_result: null, result: 'อนุมัติ', result_date: '09/12/2025', approved_amount: null, remark: null },
+      { bank: 'KBANK', submit_date: '29/11/2025', preapprove_date: '08/12/2025', preapprove_result: 'อนุมัติ - ไม่มีเงื่อนไข', result: 'อนุมัติ - เต็มวงเงิน', result_date: '15/12/2025', approved_amount: 1665000, interest_rate_3y: 3.65, remark: null },
+      { bank: 'JD', submit_date: '29/11/2025', preapprove_date: null, preapprove_result: null, result: 'อนุมัติ', result_date: '09/12/2025', approved_amount: null, interest_rate_3y: null, remark: null },
     ],
     selected_bank: 'KBANK',
     co_remark: null,
@@ -1486,14 +1488,14 @@ export const bookings: Booking[] = computeFlags([
     contract_date: '07/12/2025',
     down_payment_complete_date: '07/12/2025',
     booking_type: 'ขายโอน',
-    credit_request_type: 'กู้',
+    credit_request_type: 'กู้ธนาคาร',
     net_contract_value: 3450000,
     customer_name: 'นายกิตติภพ วงศ์ประเสริฐ',
     customer_tel: '086-789-0123',
     customer_profile_text: 'Book Date : 30 พ.ย.2568\nรายได้ 55,000/เดือน',
     customer_age: 41,
     customer_age_range: '40-50',
-    customer_occupation: 'เจ้าของกิจการ',
+    customer_occupation: 'เจ้าของกิจการ/อาชีพอิสระ',
     customer_monthly_income: 55000,
     customer_debt: 'ไม่มี',
     customer_ltv: '85%',
@@ -1509,7 +1511,7 @@ export const bookings: Booking[] = computeFlags([
     jd_request_more_doc_date: null,
     bureau_target_result_date_biz: '08/12/2025',
     bureau_actual_result_date: '06/12/2025',
-    bureau_result: 'ปกติ',
+    bureau_result: 'บูโรปกติ - ไม่มีหนี้',
     bank_preapprove_target_date_biz: '12/12/2025',
     bank_preapprove_actual_date: '11/12/2025',
     bank_preapprove_result: 'อนุมัติ - ไม่มีเงื่อนไข',
@@ -1518,10 +1520,10 @@ export const bookings: Booking[] = computeFlags([
     bank_final_result: 'อนุมัติ - เต็มวงเงิน',
     jd_final_target_date: '14/12/2025',
     jd_final_actual_date: '13/12/2025',
-    jd_final_result: 'อนุมัติ',
+    jd_final_result: 'อนุมัติ - ไม่มีเงื่อนไข',
     banks_submitted: [
-      { bank: 'BBL', submit_date: '04/12/2025', preapprove_date: '11/12/2025', preapprove_result: 'อนุมัติ - ไม่มีเงื่อนไข', result: 'อนุมัติ - เต็มวงเงิน', result_date: '18/12/2025', approved_amount: 2932500, remark: null },
-      { bank: 'JD', submit_date: '04/12/2025', preapprove_date: null, preapprove_result: null, result: 'อนุมัติ', result_date: '13/12/2025', approved_amount: null, remark: null },
+      { bank: 'BBL', submit_date: '04/12/2025', preapprove_date: '11/12/2025', preapprove_result: 'อนุมัติ - ไม่มีเงื่อนไข', result: 'อนุมัติ - เต็มวงเงิน', result_date: '18/12/2025', approved_amount: 2932500, interest_rate_3y: 3.40, remark: null },
+      { bank: 'JD', submit_date: '04/12/2025', preapprove_date: null, preapprove_result: null, result: 'อนุมัติ', result_date: '13/12/2025', approved_amount: null, interest_rate_3y: null, remark: null },
     ],
     selected_bank: 'BBL',
     co_remark: null,
@@ -1624,7 +1626,7 @@ export const bookings: Booking[] = computeFlags([
     customer_profile_text: 'Book Date : 10 ธ.ค.2568\nรายได้ 25,000 บาท/เดือน\nมีภาระหนี้ 8,000/เดือน\nค้างชำระ KTC',
     customer_age: 33,
     customer_age_range: '30-40',
-    customer_occupation: 'พนักงานบริษัท',
+    customer_occupation: 'พนักงาน',
     customer_monthly_income: 25000,
     customer_debt: 'มีภาระ 8,000/เดือน',
     customer_ltv: '95%',
@@ -1636,11 +1638,11 @@ export const bookings: Booking[] = computeFlags([
     booking_type: 'ขายโอน',
 
     down_payment_complete_date: null,
-    credit_request_type: 'กู้',
+    credit_request_type: 'กู้ธนาคาร',
     banks_submitted: [
-      { bank: 'KBANK', submit_date: '15/12/2025', preapprove_date: '22/12/2025', preapprove_result: 'ไม่อนุมัติ', result: 'ไม่อนุมัติ - ค้างชำระ', result_date: '22/12/2025', approved_amount: null, remark: 'ติด NCB ค้างชำระ KTC' },
-      { bank: 'SCB', submit_date: '15/12/2025', preapprove_date: '24/12/2025', preapprove_result: 'ไม่อนุมัติ', result: 'ไม่อนุมัติ - ค้างชำระ', result_date: '24/12/2025', approved_amount: null, remark: 'ติด NCB ค้างชำระ KTC' },
-      { bank: 'JD', submit_date: '15/12/2025', preapprove_date: null, preapprove_result: null, result: 'อนุมัติ', result_date: '20/12/2025', approved_amount: 3250000, remark: null },
+      { bank: 'KBANK', submit_date: '15/12/2025', preapprove_date: '22/12/2025', preapprove_result: 'ไม่อนุมัติ - ขอธนาคารอื่น', result: null, result_date: null, approved_amount: null, interest_rate_3y: null, remark: 'ติด NCB ค้างชำระ KTC — บูโรไม่ผ่าน ไม่ดำเนินการต่อ' },
+      { bank: 'SCB', submit_date: '15/12/2025', preapprove_date: '24/12/2025', preapprove_result: 'ไม่อนุมัติ - ขอธนาคารอื่น', result: null, result_date: null, approved_amount: null, interest_rate_3y: null, remark: 'ติด NCB ค้างชำระ KTC — บูโรไม่ผ่าน ไม่ดำเนินการต่อ' },
+      { bank: 'JD', submit_date: '15/12/2025', preapprove_date: null, preapprove_result: null, result: 'ไม่อนุมัติ - มีบัญชีสินเชื่อค้างชำระ 2 บัญชีขึ้นไป', result_date: '20/12/2025', approved_amount: null, interest_rate_3y: null, remark: 'ติด NCB' },
     ],
     selected_bank: null,
 
@@ -1654,17 +1656,17 @@ export const bookings: Booking[] = computeFlags([
     jd_request_more_doc_date: null,
     bureau_target_result_date_biz: '18/12/2025',
     bureau_actual_result_date: '17/12/2025',
-    bureau_result: 'ค้างชำระ',
+    bureau_result: 'บูโร - ค้างชำระ 60 วัน',
     bank_preapprove_target_date_biz: '24/12/2025',
     bank_preapprove_actual_date: '22/12/2025',
-    bank_preapprove_result: 'ไม่อนุมัติ',
+    bank_preapprove_result: 'ไม่อนุมัติ - ขอธนาคารอื่น',
     bank_final_target_date_biz: null,
     bank_final_actual_date: null,
     bank_final_result: null,
     jd_final_target_date: '22/12/2025',
     jd_final_actual_date: '20/12/2025',
-    jd_final_result: 'อนุมัติ',
-    co_remark: 'ลูกค้าติด NCB ค้างชำระ KTC ทุกธนาคารไม่อนุมัติ ยกเว้น JD - ลูกค้าไม่รับ JD ขอยกเลิก',
+    jd_final_result: 'ไม่อนุมัติ - มีบัญชีสินเชื่อค้างชำระ 2 บัญชีขึ้นไป',
+    co_remark: 'ลูกค้าติด NCB ค้างชำระ KTC ทุกธนาคาร + JD ไม่อนุมัติ ลูกค้าขอยกเลิก',
 
     // 7. Inspection
     inspection_status: 'ยกเลิก',
@@ -1804,11 +1806,13 @@ const PROJECT_NAMES = [
   '01811 - เสนา คอนโด อ่อนนุช',
   // BUD H1
   '01805 - เสนา ทาวน์ รังสิต',
-  '70401 - เสนา วีว่า ศรีราชา',
+  '70401 - เสนา วีว่า ศรีราชา - อัสสัมชัญ',
+  'BPSN - บ้านบูรพา',
   // BUD H2
+  '00601 - เสนา อเวนิว บางปะกง - บ้านโพธิ์',
   '01803 - เสนา เอโค่ บางนา',
   '01808 - เสนา ไลฟ์ บางปู',
-  '00601 - เสนา อเวนิว บางปะกง',
+  'BPU - เสนา เวล่า สุขุมวิท-บางปู',
 ];
 
 const CUSTOMER_NAMES = [
@@ -1824,7 +1828,7 @@ const STAGES_LIST: Stage[] = ['booking', 'contract', 'credit', 'inspection', 're
 const TEAMS_LIST: Team[] = ['Sale', 'CO', 'CS', 'Construction', 'Legal', 'Finance'];
 
 // Helper function to generate random banks (1-3) - always includes Proptiane
-function generateBankSubmissions(price: number, hasBankFinal: boolean, hasBureauResult: boolean): BankSubmission[] {
+function generateBankSubmissions(price: number, hasBankFinal: boolean, hasBureauResult: boolean, bureauPass: boolean): BankSubmission[] {
   // Generate exactly 5 banks (not including Proptiane)
   const numberOfBanks = 5;
   const selectedBanks: BankCode[] = [];
@@ -1843,58 +1847,81 @@ function generateBankSubmissions(price: number, hasBankFinal: boolean, hasBureau
     // First bank is primary - most likely to be approved
     const isPrimary = index === 0;
     const isJaidee = bank === 'JD';
-    let result: string | null = 'รอผล';
+    let result: string | null = null;
     let approvedAmount: number | null = null;
 
     const APPROVE_RESULTS = ['อนุมัติ - เต็มวงเงิน', 'อนุมัติ - ไม่เต็มวงเงิน', 'อนุมัติ - ต้องซื้อพ่วง', 'อนุมัติ - มีประวัติค้างชำระ'];
     const REJECT_RESULTS = ['ไม่อนุมัติ - DSR เกิน', 'ไม่อนุมัติ - รายได้ไม่เพียงพอ', 'ไม่อนุมัติ - ขอธนาคารอื่น', 'ไม่อนุมัติ - ขอยก case'];
 
-    if (hasBankFinal && isPrimary) {
+    // Pre-approve: generate if bureau has result (JD ไม่มีเบื้องต้น)
+    let preapproveDate: string | null = null;
+    let preapproveResult: BankPreapproveResult | null = null;
+    let resultDate: string | null = null;
+
+    if (hasBureauResult && !isJaidee) {
+      preapproveDate = '25/01/2026';
+      if (bureauPass) {
+        // บูโรผ่าน → preapprove สุ่มผ่าน/ไม่ผ่าน
+        const r = seededRandom.next();
+        const PREAPPROVE_OK = ['อนุมัติ - ไม่มีเงื่อนไข', 'อนุมัติ - มีหนี้', 'อนุมัติ - ไม่เต็มจำนวน', 'อนุมัติ'] as const satisfies readonly BankPreapproveResult[];
+        const PREAPPROVE_NG = ['ไม่อนุมัติ - ขอธนาคารอื่น', 'ไม่อนุมัติ - ขอยกเลิก'] as const satisfies readonly BankPreapproveResult[];
+        preapproveResult = r > 0.25
+          ? PREAPPROVE_OK[Math.floor(seededRandom.next() * PREAPPROVE_OK.length)]
+          : PREAPPROVE_NG[Math.floor(seededRandom.next() * PREAPPROVE_NG.length)];
+      } else {
+        // บูโรไม่ผ่าน → preapprove ต้องไม่อนุมัติเท่านั้น
+        const PREAPPROVE_NG = ['ไม่อนุมัติ - ขอธนาคารอื่น', 'ไม่อนุมัติ - ขอยกเลิก'] as const satisfies readonly BankPreapproveResult[];
+        preapproveResult = PREAPPROVE_NG[Math.floor(seededRandom.next() * PREAPPROVE_NG.length)];
+      }
+    }
+
+    const preapprovePass = preapproveResult !== null && !preapproveResult.startsWith('ไม่อนุมัติ');
+
+    // Final result: ต้อง preapprove ผ่านก่อนเท่านั้น
+    if (hasBankFinal && isPrimary && preapprovePass) {
       result = APPROVE_RESULTS[Math.floor(seededRandom.next() * APPROVE_RESULTS.length)];
       approvedAmount = Math.round(price * (0.85 + seededRandom.next() * 0.1));
-    } else if (hasBureauResult) {
+    } else if (hasBureauResult && preapprovePass) {
       const r = seededRandom.next();
       if (r > 0.3) {
         result = APPROVE_RESULTS[Math.floor(seededRandom.next() * APPROVE_RESULTS.length)];
         approvedAmount = Math.round(price * (0.75 + seededRandom.next() * 0.15));
       } else if (r > 0.15) {
         result = REJECT_RESULTS[Math.floor(seededRandom.next() * REJECT_RESULTS.length)];
-      } else {
-        result = 'รอผล';
       }
+      // else: result stays null (รอผล)
     }
+    // preapprove ไม่ผ่าน → result = null (ไม่มีทางถึง final)
 
     // Jaidee (JD): ไม่มีวงเงิน — อนุมัติเข้าโครงการ LivNex/Pre-LivNex
+    // JD ไม่มี preapprove — ตรงไปที่ result เลย แต่ยังต้องดู bureauPass
     if (isJaidee && hasBureauResult) {
-      const JD_APPROVE = ['อนุมัติ - ไม่มีเงื่อนไข', 'อนุมัติ - แต่ต้องเพิ่มเงินหาร', 'อนุมัติ - แต่ต้องเพิ่มผู้กู้', 'อนุมัติ - แต่ทำกู้ร่วม'];
-      const JD_REJECT = ['ไม่อนุมัติ - DSR ไม่ผ่าน', 'ไม่อนุมัติ - ยื่นซ้ำ', 'ไม่อนุมัติ - มีบัญชีสินเชื่อค้างชำระ 2 บัญชีขึ้นไป', 'ไม่อนุมัติ'];
-      const r = seededRandom.next();
-      if (r > 0.3) {
-        result = JD_APPROVE[Math.floor(seededRandom.next() * JD_APPROVE.length)];
-      } else if (r > 0.15) {
-        result = JD_REJECT[Math.floor(seededRandom.next() * JD_REJECT.length)];
+      if (bureauPass) {
+        const JD_APPROVE = ['อนุมัติ - ไม่มีเงื่อนไข', 'อนุมัติ - แต่ต้องเพิ่มเงินหาร', 'อนุมัติ - แต่ต้องเพิ่มผู้กู้', 'อนุมัติ - แต่ทำกู้ร่วม'];
+        const JD_REJECT = ['ไม่อนุมัติ - DSR ไม่ผ่าน', 'ไม่อนุมัติ - ยื่นซ้ำ', 'ไม่อนุมัติ - มีบัญชีสินเชื่อค้างชำระ 2 บัญชีขึ้นไป', 'ไม่อนุมัติ - ขอยก case'];
+        const r = seededRandom.next();
+        if (r > 0.3) {
+          result = JD_APPROVE[Math.floor(seededRandom.next() * JD_APPROVE.length)];
+        } else if (r > 0.15) {
+          result = JD_REJECT[Math.floor(seededRandom.next() * JD_REJECT.length)];
+        }
       } else {
-        result = 'รอผล';
+        // บูโรไม่ผ่าน → JD ก็ไม่อนุมัติ
+        const JD_REJECT = ['ไม่อนุมัติ - DSR ไม่ผ่าน', 'ไม่อนุมัติ - มีบัญชีสินเชื่อค้างชำระ 2 บัญชีขึ้นไป', 'ไม่อนุมัติ - ขอยก case'];
+        result = JD_REJECT[Math.floor(seededRandom.next() * JD_REJECT.length)];
       }
       approvedAmount = null; // JD ไม่มีวงเงิน
     }
 
-    // Pre-approve: generate if bureau passed (JD ไม่มีเบื้องต้น)
-    let preapproveDate: string | null = null;
-    let preapproveResult: string | null = null;
-    let resultDate: string | null = null;
-
-    if (hasBureauResult && !isJaidee) {
-      preapproveDate = '25/01/2026';
-      const r = seededRandom.next();
-      preapproveResult = r > 0.25
-        ? ['อนุมัติ - ไม่มีเงื่อนไข', 'อนุมัติ - มีหนี้', 'อนุมัติ - ไม่เต็มจำนวน', 'อนุมัติ'][Math.floor(seededRandom.next() * 4)]
-        : ['ไม่อนุมัติ - ขอธนาคารอื่น', 'ไม่อนุมัติ - ขอยกเลิก'][Math.floor(seededRandom.next() * 2)];
-    }
-
-    if (result && result !== 'รอผล') {
+    if (result) {
       resultDate = '02/02/2026';
     }
+
+    // ดอกเบี้ยเฉลี่ย 3 ปี — สุ่มระหว่าง 2.5-4.0% ถ้าอนุมัติ
+    const BASE_RATES: Record<string, number> = { GHB: 2.90, GSB: 3.15, SCB: 3.55, KBANK: 3.65, KTB: 3.30, TTB: 3.45, BAY: 3.50, LH: 3.75, BBL: 3.40, UOB: 3.60, CIMB: 3.50, KKP: 3.85, iBank: 3.25, TISCO: 3.80 };
+    const baseRate = BASE_RATES[bank] || 3.50;
+    const hasApproval = result && !result.startsWith('ไม่อนุมัติ');
+    const interestRate = (hasApproval && !isJaidee) ? Math.round((baseRate + (seededRandom.next() - 0.5) * 0.4) * 100) / 100 : null;
 
     return {
       bank,
@@ -1906,6 +1933,7 @@ function generateBankSubmissions(price: number, hasBankFinal: boolean, hasBureau
       result_date: resultDate,
       result_flag: getResultFlag(result),
       approved_amount: approvedAmount,
+      interest_rate_3y: interestRate,
       remark: null
     };
   });
@@ -1997,14 +2025,35 @@ function generateBulkBookings(): any[] {
     const hasBureauResult = stage === 'inspection' || stage === 'ready' || seededRandom.next() > 0.5;
     const hasBankFinal = stage === 'ready' || (stage === 'inspection' && seededRandom.next() > 0.3);
 
+    // Generate bureau result first — ต้องรู้ก่อนเพื่อ cascade ให้ banks_submitted สอดคล้อง
+    const bureauResult: BureauResult | null = hasBureauResult
+      ? (['บูโรปกติ - ไม่มีหนี้', 'บูโรปกติ - มีหนี้', 'บูโร - ค้างชำระ 60 วัน', 'บูโรปกติ - มีหนี้'] as const)[Math.floor(seededRandom.next() * 4)]
+      : null;
+    const bureauPass = bureauResult !== null && !bureauResult.startsWith('บูโร - ค้างชำระ');
+
+    // Generate booking-level preapprove (ต้องรู้ก่อน final)
+    const preapproveResult: BankPreapproveResult | null = hasBureauResult
+      ? (bureauPass
+          ? (seededRandom.next() > 0.15
+              ? (['อนุมัติ - ไม่มีเงื่อนไข', 'อนุมัติ - มีหนี้', 'อนุมัติ - ต้องมีผู้กู้ร่วม', 'อนุมัติ'] as const)[Math.floor(seededRandom.next() * 4)]
+              : 'ไม่อนุมัติ - ขอธนาคารอื่น')
+          : 'ไม่อนุมัติ - ขอธนาคารอื่น') // บูโรไม่ผ่าน → preapprove ไม่อนุมัติ
+      : null;
+    const preapprovePass = preapproveResult !== null && !preapproveResult.startsWith('ไม่อนุมัติ');
+
+    // Final only possible if preapprove passed
+    const actualHasBankFinal = hasBankFinal && preapprovePass;
+    const finalResult: BankFinalResult | null = actualHasBankFinal
+      ? (seededRandom.next() > 0.12
+          ? (['อนุมัติ - เต็มวงเงิน', 'อนุมัติ - ไม่เต็มวงเงิน', 'อนุมัติ - ต้องซื้อพ่วง'] as const)[Math.floor(seededRandom.next() * 3)]
+          : 'ไม่อนุมัติ - DSR เกิน')
+      : null;
+
     // Generate multi-bank submissions (1-3 banks)
     const isCash = seededRandom.next() > 0.85; // 15% cash
     const banksSubmitted: BankSubmission[] = isCash
-      ? [
-          { bank: 'CASH' as BankCode, submit_date: null, preapprove_date: null, preapprove_result: null, preapprove_flag: null, result: 'อนุมัติ - เงินสด', result_date: null, result_flag: 'pass', approved_amount: price, remark: 'โอนสด' },
-          { bank: 'JD' as BankCode, submit_date: null, preapprove_date: null, preapprove_result: null, preapprove_flag: null, result: null, result_date: null, result_flag: null, approved_amount: null, remark: 'โอนสด - ไม่ต้องยื่น JD' }
-        ]
-      : generateBankSubmissions(price, hasBankFinal, hasBureauResult);
+      ? [] // โอนสด — ไม่มี bank submissions
+      : generateBankSubmissions(price, actualHasBankFinal, hasBureauResult, bureauPass);
 
     // Inspection appointments based on stage
     const hasInspect1 = stage === 'inspection' || stage === 'ready';
@@ -2047,7 +2096,7 @@ function generateBulkBookings(): any[] {
       customer_profile_text: `Book Date : 15 ม.ค.2569\nรายได้ ${Math.floor(price / 100).toLocaleString()} บาท/เดือน`,
       customer_age: Math.floor(seededRandom.next() * 30) + 25,
       customer_age_range: ['25-30', '30-40', '40-50', '50-60'][Math.floor(seededRandom.next() * 4)],
-      customer_occupation: ['พนักงานบริษัท', 'ข้าราชการ', 'ค้าขาย', 'ธุรกิจส่วนตัว'][Math.floor(seededRandom.next() * 4)],
+      customer_occupation: ['พนักงาน', 'เจ้าของกิจการ/อาชีพอิสระ', 'ข้าราชการ', 'ต่างชาติ', 'เกษียณ/บำนาญ', 'สวัสดิการ'][Math.floor(seededRandom.next() * 6)],
       customer_monthly_income: Math.floor(price / 100),
       customer_debt: seededRandom.next() > 0.6 ? 'ไม่มี' : `${Math.floor(seededRandom.next() * 20000)} บาท/เดือน`,
       customer_ltv: isCash ? 'N/A' : '90%',
@@ -2059,34 +2108,35 @@ function generateBulkBookings(): any[] {
       booking_type: ['ขายโอน', 'LivNex', 'ผ่อนดาวน์'][Math.floor(seededRandom.next() * 3)],
   
       down_payment_complete_date: '15/03/2026',
-      credit_request_type: isCash ? 'โอนสด' : 'สินเชื่อธนาคาร',
+      credit_request_type: isCash ? 'โอนสด' : 'กู้ธนาคาร',
       banks_submitted: banksSubmitted,
-      selected_bank: (() => {
+      selected_bank: isCash ? 'CASH' : (() => {
         const approvedBanks = banksSubmitted.filter(bs => bs.result_flag === 'pass' && bs.bank !== 'JD');
         if (approvedBanks.length > 0) return approvedBanks[Math.floor(seededRandom.next() * approvedBanks.length)].bank;
         return null;
       })(),
 
-      // 6. Credit
-      credit_status: hasBankFinal ? 'อนุมัติแล้ว' : hasBureauResult ? 'รอผลธนาคาร' : 'รอผล Bureau',
+      // 6. Credit — ใช้ค่าที่ generate ข้างบน (bureau → preapprove → final cascade)
+      // โอนสด → ไม่มี credit flow ทั้งหมด
+      credit_status: isCash ? 'โอนสด' : actualHasBankFinal ? 'อนุมัติแล้ว' : hasBureauResult ? (bureauPass ? 'รอผลธนาคาร' : 'บูโรไม่ผ่าน') : 'รอผล Bureau',
       credit_owner: '1.1) สมหญิง (หญิง)',
-      doc_bureau_date: stage !== 'booking' ? `${10 + Math.floor(seededRandom.next() * 20)}/01/2026` : null,
-      doc_complete_bank_jd_date: stage !== 'booking' && seededRandom.next() > 0.3 ? `${15 + Math.floor(seededRandom.next() * 13)}/01/2026` : null,
-      doc_complete_jd_date: hasBureauResult && seededRandom.next() > 0.4 ? `${20 + Math.floor(seededRandom.next() * 8)}/01/2026` : null,
+      doc_bureau_date: isCash ? null : stage !== 'booking' ? `${10 + Math.floor(seededRandom.next() * 20)}/01/2026` : null,
+      doc_complete_bank_jd_date: isCash ? null : stage !== 'booking' && seededRandom.next() > 0.3 ? `${15 + Math.floor(seededRandom.next() * 13)}/01/2026` : null,
+      doc_complete_jd_date: isCash ? null : hasBureauResult && seededRandom.next() > 0.4 ? `${20 + Math.floor(seededRandom.next() * 8)}/01/2026` : null,
       bank_request_more_doc_date: null,
       jd_request_more_doc_date: null,
-      bureau_target_result_date_biz: `${25 + Math.floor(seededRandom.next() * 5)}/01/2026`,
-      bureau_actual_result_date: hasBureauResult ? `${26 + Math.floor(seededRandom.next() * 4)}/01/2026` : null,
-      bureau_result: hasBureauResult ? ['บูโรปกติ - ไม่มีหนี้', 'บูโรปกติ - มีหนี้', 'บูโร ค้างชำระ', 'บูโรปกติ - มีหนี้'][Math.floor(seededRandom.next() * 4)] : null,
-      bank_preapprove_target_date_biz: `${1 + Math.floor(seededRandom.next() * 7)}/02/2026`,
-      bank_preapprove_actual_date: hasBureauResult && seededRandom.next() > 0.2 ? `${2 + Math.floor(seededRandom.next() * 6)}/02/2026` : null,
-      bank_preapprove_result: hasBureauResult ? (seededRandom.next() > 0.15 ? ['อนุมัติ - ไม่มีเงื่อนไข', 'อนุมัติ - มีหนี้', 'อนุมัติ - ต้องมีผู้กู้ร่วม', 'อนุมัติ'][Math.floor(seededRandom.next() * 4)] : 'ไม่อนุมัติ - รายได้ไม่เพียงพอ') : null,
-      bank_final_target_date_biz: `${10 + Math.floor(seededRandom.next() * 5)}/02/2026`,
-      bank_final_actual_date: hasBankFinal ? `${11 + Math.floor(seededRandom.next() * 4)}/02/2026` : null,
-      bank_final_result: hasBankFinal ? (seededRandom.next() > 0.12 ? ['อนุมัติ - เต็มวงเงิน', 'อนุมัติ - ไม่เต็มวงเงิน', 'อนุมัติ - ต้องซื้อพ่วง'][Math.floor(seededRandom.next() * 3)] : 'ไม่อนุมัติ') : null,
-      jd_final_target_date: hasBankFinal ? `${18 + Math.floor(seededRandom.next() * 5)}/02/2026` : null,
-      jd_final_actual_date: hasBankFinal && seededRandom.next() > 0.3 ? `${17 + Math.floor(seededRandom.next() * 5)}/02/2026` : null,
-      jd_final_result: hasBankFinal ? (seededRandom.next() > 0.2 ? ['อนุมัติ - ไม่มีเงื่อนไข', 'อนุมัติ - แต่ต้องเพิ่มเงินหาร', 'อนุมัติ - แต่ทำกู้ร่วม'][Math.floor(seededRandom.next() * 3)] : 'ไม่อนุมัติ - รายได้ไม่เพียงพอ') : null,
+      bureau_target_result_date_biz: isCash ? null : `${25 + Math.floor(seededRandom.next() * 5)}/01/2026`,
+      bureau_actual_result_date: isCash ? null : hasBureauResult ? `${26 + Math.floor(seededRandom.next() * 4)}/01/2026` : null,
+      bureau_result: isCash ? null : bureauResult,
+      bank_preapprove_target_date_biz: isCash ? null : `${1 + Math.floor(seededRandom.next() * 7)}/02/2026`,
+      bank_preapprove_actual_date: isCash ? null : hasBureauResult && seededRandom.next() > 0.2 ? `${2 + Math.floor(seededRandom.next() * 6)}/02/2026` : null,
+      bank_preapprove_result: isCash ? null : preapproveResult,
+      bank_final_target_date_biz: isCash ? null : `${10 + Math.floor(seededRandom.next() * 5)}/02/2026`,
+      bank_final_actual_date: isCash ? null : actualHasBankFinal ? `${11 + Math.floor(seededRandom.next() * 4)}/02/2026` : null,
+      bank_final_result: isCash ? null : finalResult,
+      jd_final_target_date: isCash ? null : actualHasBankFinal ? `${18 + Math.floor(seededRandom.next() * 5)}/02/2026` : null,
+      jd_final_actual_date: isCash ? null : actualHasBankFinal && seededRandom.next() > 0.3 ? `${17 + Math.floor(seededRandom.next() * 5)}/02/2026` : null,
+      jd_final_result: isCash ? null : actualHasBankFinal ? (seededRandom.next() > 0.2 ? (['อนุมัติ - ไม่มีเงื่อนไข', 'อนุมัติ - แต่ต้องเพิ่มเงินหาร', 'อนุมัติ - แต่ทำกู้ร่วม'] as const)[Math.floor(seededRandom.next() * 3)] : 'ไม่อนุมัติ - DSR ไม่ผ่าน') : null,
       co_remark: null,
 
       // 7. Inspection
@@ -2119,7 +2169,7 @@ function generateBulkBookings(): any[] {
       cs_owner: 'มานพ / ศิริพร',
 
       // 8. Transfer
-      bank_contract_date: hasBankFinal ? '20/02/2026' : null,
+      bank_contract_date: actualHasBankFinal ? '20/02/2026' : null,
       transfer_package_sent_date: stage === 'ready' ? '22/02/2026' : null,
       title_clear_date: stage === 'ready' ? '25/02/2026' : null,
       title_clear_notify_date: stage === 'ready' ? '26/02/2026' : null,
@@ -2132,15 +2182,17 @@ function generateBulkBookings(): any[] {
       cancel_date: null,
       cancel_reason: null,
 
-      // 9. LivNex - livnex_able_status = ผล JD อนุมัติจริง (ใช้ JD_FINAL_RESULTS master)
-      livnex_able_status: seededRandom.next() > 0.5 ? 'อนุมัติ - ไม่มีเงื่อนไข' :
-        (seededRandom.next() > 0.5 ? 'ไม่อนุมัติ - DSR ไม่ผ่าน' : 'ขอเอกสารเพิ่ม'),
+      // 9. LivNex - livnex_able_status = ผล JD อนุมัติจริง (บูโรไม่ผ่าน → JD ไม่อนุมัติ)
+      livnex_able_status: isCash ? null : !bureauPass ? (hasBureauResult ? 'ไม่อนุมัติ - DSR ไม่ผ่าน' : null) :
+        (seededRandom.next() > 0.5 ? 'อนุมัติ - ไม่มีเงื่อนไข' :
+        (seededRandom.next() > 0.5 ? 'ไม่อนุมัติ - DSR ไม่ผ่าน' : 'ขอเอกสารเพิ่ม')),
       livnex_credit_status: seededRandom.next() > 0.7 ? '11. เซ็นสัญญา Livnex' :
         (seededRandom.next() > 0.5 ? '05. JD ไม่อนุมัติ' : 'ไม่มีข้อมูลใน REM Livnex'),
       livnex_contract_sign_status: seededRandom.next() > 0.7 ? 'เซ็นสัญญาแล้ว นัดชำระเงิน' : null,
       livnex_move_in_date: seededRandom.next() > 0.8 ? '15 Feb 2026' : null,
-      livnex_able_reason: seededRandom.next() > 0.6 ? 'อนุมัติ - ไม่มีเงื่อนไข' :
-        (seededRandom.next() > 0.5 ? 'ไม่อนุมัติ - DSR เกิน' : null),
+      livnex_able_reason: isCash ? null : !bureauPass ? (hasBureauResult ? 'บูโรไม่ผ่าน' : null) :
+        (seededRandom.next() > 0.6 ? 'อนุมัติ - ไม่มีเงื่อนไข' :
+        (seededRandom.next() > 0.5 ? 'ไม่อนุมัติ - DSR เกิน' : null)),
       livnex_followup_note: seededRandom.next() > 0.7 ? 'รอติดตามผลการพิจารณา' : null,
       livnex_able_completion_result: seededRandom.next() > 0.5 ? 'สนใจ' : 'ไม่สนใจ',
       livnex_complete_date: null,

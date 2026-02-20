@@ -256,7 +256,7 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange, cu
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="absolute inset-0 bg-black/25 backdrop-blur-[1px]" onClick={onClose} />
 
-      <div className="relative w-full max-w-3xl bg-slate-50 shadow-2xl overflow-y-auto flex flex-col">
+      <div className="relative w-full max-w-4xl bg-slate-50 shadow-2xl overflow-y-auto flex flex-col">
 
         {/* ── Sticky Header ── */}
         <div className={`sticky top-0 z-10 border-b px-6 py-3 shadow-sm ${
@@ -496,13 +496,16 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange, cu
             {/* ผลอนุมัติ — flow cards: บูโร › Bank เบื้องต้น › Bank อนุมัติจริง */}
             <div className="px-3 py-1.5 flex items-center justify-between bg-slate-50/80 border-b border-slate-100">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">ผลอนุมัติ</span>
-              {b.selected_bank && <span className="text-[10px] text-slate-400">ธนาคาร: <span className="text-slate-600 font-medium">{bankDisplayName(b.selected_bank)}</span></span>}
+              {b.credit_request_type === 'โอนสด'
+                ? <span className="text-[10px] text-emerald-600 font-semibold">โอนสด{b.bureau_result ? ' (กู้ผ่านแล้ว)' : ''}</span>
+                : b.selected_bank && <span className="text-[10px] text-slate-400">ธนาคาร: <span className="text-slate-600 font-medium">{bankDisplayName(b.selected_bank)}</span></span>}
             </div>
             {(() => {
+              const selectedBs = b.selected_bank ? b.banks_submitted.find(bs => bs.bank === b.selected_bank) : null;
               const steps = [
-                { label: 'บูโร', target: b.bureau_target_result_date_biz, actual: b.bureau_actual_result_date, result: b.bureau_result, flag: b.bureau_flag },
-                { label: 'Bank เบื้องต้น', target: b.bank_preapprove_target_date_biz, actual: b.bank_preapprove_actual_date, result: b.bank_preapprove_result, flag: b.bank_preapprove_flag },
-                { label: 'Bank อนุมัติจริง', target: b.bank_final_target_date_biz, actual: b.bank_final_actual_date, result: b.bank_final_result, flag: b.bank_final_flag },
+                { label: 'บูโร', target: b.bureau_target_result_date_biz, actual: b.bureau_actual_result_date, result: b.bureau_result, flag: b.bureau_flag, rate: null as number | null },
+                { label: 'Bank เบื้องต้น', target: b.bank_preapprove_target_date_biz, actual: b.bank_preapprove_actual_date, result: b.bank_preapprove_result, flag: b.bank_preapprove_flag, rate: selectedBs?.interest_rate_3y ?? null },
+                { label: 'Bank อนุมัติจริง', target: b.bank_final_target_date_biz, actual: b.bank_final_actual_date, result: b.bank_final_result, flag: b.bank_final_flag, rate: selectedBs?.interest_rate_3y ?? null },
               ];
               const lastDone = steps.reduce((acc, s, i) => s.result ? i : acc, -1);
               return (
@@ -538,12 +541,13 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange, cu
                                 <span className={`text-[9px] tabular-nums ${step.actual ? 'text-slate-700 font-medium' : 'text-slate-300'}`}>{step.actual || '—'}</span>
                               </div>
                             </div>
-                            <div className="mt-auto pt-1.5 border-t border-slate-100 flex">
+                            <div className="mt-auto pt-1.5 border-t border-slate-100 flex items-end justify-between">
                               {hasResult ? (
                                 <ResultChip value={step.result} />
                               ) : (
                                 <span className="inline-flex px-1.5 py-0.5 rounded border text-[10px] font-medium bg-slate-50 text-slate-400 border-slate-200">รอผล</span>
                               )}
+                              {step.rate != null && <span className="text-[9px] text-blue-600 font-semibold tabular-nums">{step.rate.toFixed(2)}%</span>}
                             </div>
                           </div>
                         </div>
@@ -570,23 +574,29 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange, cu
                     <div className="flex items-center gap-2">
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         {/* Bank credit */}
-                        <span className={`font-semibold ${isApproved ? 'text-emerald-700' : 'text-amber-600'}`}>
-                          {isApproved ? '✓ สินเชื่อผ่าน' : '⏳ รอผลสินเชื่อ'}
-                        </span>
-                        {selected ? (
-                          <>
-                            <span className="text-slate-500">{bankDisplayName(selected.bank)}</span>
-                            {selected.approved_amount && <span className="text-emerald-700 font-medium">฿{formatMoney(selected.approved_amount)}</span>}
-                          </>
+                        {b.credit_request_type === 'โอนสด' ? (
+                          <span className="font-semibold text-emerald-700">โอนสด{b.bureau_result ? ' (กู้ผ่านแล้ว)' : ''}</span>
                         ) : (
-                          <span className="text-slate-400">ยังไม่เลือก</span>
+                          <>
+                            <span className={`font-semibold ${isApproved ? 'text-emerald-700' : 'text-amber-600'}`}>
+                              {isApproved ? '✓ สินเชื่อผ่าน' : '⏳ รอผลสินเชื่อ'}
+                            </span>
+                            {selected ? (
+                              <>
+                                <span className="text-slate-500">{bankDisplayName(selected.bank)}</span>
+                                {selected.approved_amount && <span className="text-emerald-700 font-medium">฿{formatMoney(selected.approved_amount)}{selected.interest_rate_3y != null && <span className="text-blue-600"> | {selected.interest_rate_3y.toFixed(2)}%</span>}</span>}
+                              </>
+                            ) : (
+                              <span className="text-slate-400">ยังไม่เลือก</span>
+                            )}
+                          </>
                         )}
                         {b.co_remark && <span className="text-slate-400 text-[10px] italic">&ldquo;{b.co_remark}&rdquo;</span>}
                         {/* Separator */}
                         <span className="w-px h-4 bg-slate-200 mx-3" />
                         {/* LivNex / JD */}
                         <span className={`font-semibold ${jdPass ? 'text-indigo-700' : jdFail ? 'text-red-600' : 'text-slate-500'}`}>
-                          {jdPass ? '✓' : jdFail ? '✗' : '⏳'} Livnex able
+                          {jdPass ? '✓' : jdFail ? '✗' : '⏳'} JD - LivNex Able
                         </span>
                         {jdHasResult ? (
                           <ResultBadge value={b.livnex_able_status} />
@@ -620,7 +630,11 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange, cu
                               <div className="flex items-center gap-3 px-3 py-1.5 bg-slate-50/60">
                                 <BankChip code={bs.bank} />
                                 <span className="text-slate-400 text-[10px]">ยื่น {bs.submit_date || '—'}</span>
-                                {!isJD && bs.approved_amount ? <span className="ml-auto font-semibold text-emerald-600">฿{formatMoney(bs.approved_amount)}</span> : null}
+                                {!isJD && bs.approved_amount ? (
+                                  <span className="ml-auto font-semibold text-emerald-600">
+                                    ฿{formatMoney(bs.approved_amount)}{bs.interest_rate_3y != null && <span className="text-blue-600"> | {bs.interest_rate_3y.toFixed(2)}%</span>}
+                                  </span>
+                                ) : null}
                               </div>
                               <div className="grid divide-x divide-slate-100 grid-cols-3" style={isJD ? { gridTemplateColumns: '1fr 2fr' } : undefined}>
                                 {steps.map((step, si) => {
@@ -874,8 +888,8 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange, cu
             {/* Summary — ด้านล่าง */}
             <div className="px-3 py-2 border-t border-slate-100 bg-slate-50/40">
               <div className="flex items-center gap-3 text-xs flex-wrap">
-                {/* Livnex Able — ได้/ไม่ได้/รอ */}
-                <span className="text-slate-500">Livnex Able: {(() => {
+                {/* JD - LivNex Able — ได้/ไม่ได้/รอ */}
+                <span className="text-slate-500">JD - LivNex Able: {(() => {
                   if (!b.livnex_able_status) return <span className="text-slate-400">รอตรวจสอบ</span>;
                   const f = b.livnex_able_flag;
                   return <span className={`font-semibold ${f === 'pass' ? 'text-emerald-600' : f === 'fail' ? 'text-red-500' : 'text-amber-600'}`}>{f === 'pass' ? 'ได้' : f === 'fail' ? 'ไม่ได้' : 'รอผล'}</span>;

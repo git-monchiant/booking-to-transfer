@@ -44,12 +44,6 @@ export const TEAM_CONFIG: Record<Team, { label: string; color: string }> = {
 };
 
 // ─────────────────────────────────────────────
-// GRADES & KPI
-// ─────────────────────────────────────────────
-export type Grade = 'A' | 'B' | 'C' | 'D' | 'F';
-export type KPIResult = 'PASS' | 'FAIL' | 'N/A';
-
-// ─────────────────────────────────────────────
 // BANKS (ธนาคาร)
 // ─────────────────────────────────────────────
 export const BANKS_LIST = [
@@ -106,13 +100,14 @@ export interface BankSubmission {
   submit_date: string | null;
   // เบื้องต้น (Pre-approve)
   preapprove_date: string | null;
-  preapprove_result: string | null;
+  preapprove_result: BankPreapproveResult | null;
   preapprove_flag: ResultFlag;
-  // อนุมัติจริง (Final)
+  // อนุมัติจริง (Final) — string เพราะ mix Bank (BankFinalResult) + JD (JDResult)
   result: string | null;
   result_date: string | null;
   result_flag: ResultFlag;
   approved_amount: number | null;
+  interest_rate_3y: number | null;     // อัตราดอกเบี้ยเฉลี่ย 3 ปีแรก (% ต่อปี)
   remark: string | null;
 }
 
@@ -226,7 +221,7 @@ export const JD_RESULTS = [
 export type JDResult = typeof JD_RESULTS[number];
 
 // ─────────────────────────────────────────────
-// ผลการอนุมัติ — JD จริง (Final) / Livnex Able
+// ผลการอนุมัติ — JD จริง (Final) / JD - LivNex Able
 // ─────────────────────────────────────────────
 export const JD_FINAL_RESULTS = [
   'อนุมัติ - ไม่มีเงื่อนไข',
@@ -301,10 +296,10 @@ export interface Project {
   code: string;
   name: string;
   company: Company;
-  project_status: string;
-  opm: string;
-  bud: string;
-  type: string;
+  project_status: ProjectStatus;
+  opm: OPMCode;
+  bud: BUDCode;
+  type: ProjectType;
 }
 
 export const PROJECTS: Project[] = [
@@ -380,7 +375,7 @@ export const PROCESS_MASTER: ProcessDef[] = [
   { key: 'doc_bank',        label: 'เตรียมเอกสารธนาคาร', group: 'เอกสาร' },
   { key: 'doc_jd',          label: 'เตรียมเอกสาร JD',    group: 'เอกสาร' },
   // ── LivNex ──
-  { key: 'jd_livnex',       label: 'JD-LivNex able',     group: 'LivNex' },
+  { key: 'jd_livnex',       label: 'JD - LivNex Able',   group: 'LivNex' },
   // ── สินเชื่อ — ลูกค้าพนักงาน ──
   { key: 'bureau_emp',      label: 'ผลบูโร',            group: 'สินเชื่อ', subGroup: 'ลูกค้าพนักงาน' },
   { key: 'preapprove_emp',  label: 'อนุมัติเบื้องต้น',    group: 'สินเชื่อ', subGroup: 'ลูกค้าพนักงาน' },
@@ -437,6 +432,7 @@ export interface SlaRule {
   processKey: string;
   slaDays: number;
   fromProcess: string;
+  projectType?: 'Condo' | 'House';   // ถ้าไม่ระบุ = ใช้ทุกประเภท
 }
 
 export const PROCESS_SLA: SlaRule[] = [
@@ -473,15 +469,22 @@ export const PROCESS_SLA: SlaRule[] = [
   // ── ตรวจบ้าน ──
   { processKey: 'inspect_appt_cash', slaDays: 1,  fromProcess: 'booking' },              // หรือ downpayment_complete
   { processKey: 'inspect_appt_loan', slaDays: 1,  fromProcess: 'bureau' },               // bureau = ผลบูโร ตาม occupation
-  // ── ตรวจบ้าน — ลูกค้าจ้างตรวจ ──
+  // ── ตรวจบ้าน — ลูกค้าจ้างตรวจ (Condo) ──
   { processKey: 'inspect1_hired',     slaDays: 5,  fromProcess: 'booking' },
-  { processKey: 'inspect2_hired',     slaDays: 10, fromProcess: 'inspect1_hired' },  // นับจากวันตรวจจริง รอบ 1
-  { processKey: 'inspect3_hired',     slaDays: 10, fromProcess: 'inspect2_hired' },  // นับจากวันตรวจจริง รอบ 2
-  { processKey: 'inspect3plus_hired', slaDays: 10, fromProcess: 'inspect3_hired' },  // นับจากวันตรวจจริง รอบ 3
-  // ── ตรวจบ้าน — ลูกค้าตรวจเอง ──
+  { processKey: 'inspect2_hired',     slaDays: 10, fromProcess: 'inspect1_hired', projectType: 'Condo' },  // นับจากวันตรวจจริง รอบ 1
+  { processKey: 'inspect3_hired',     slaDays: 10, fromProcess: 'inspect2_hired', projectType: 'Condo' },  // นับจากวันตรวจจริง รอบ 2
+  { processKey: 'inspect3plus_hired', slaDays: 10, fromProcess: 'inspect3_hired', projectType: 'Condo' },  // นับจากวันตรวจจริง รอบ 3
+  // ── ตรวจบ้าน — ลูกค้าจ้างตรวจ (House/แนวราบ) ──
+  { processKey: 'inspect2_hired',     slaDays: 15, fromProcess: 'inspect1_hired', projectType: 'House' },
+  { processKey: 'inspect3_hired',     slaDays: 15, fromProcess: 'inspect2_hired', projectType: 'House' },
+  { processKey: 'inspect3plus_hired', slaDays: 15, fromProcess: 'inspect3_hired', projectType: 'House' },
+  // ── ตรวจบ้าน — ลูกค้าตรวจเอง (Condo) ──
   { processKey: 'inspect1_self',     slaDays: 7,  fromProcess: 'booking' },
-  { processKey: 'inspect2_self',     slaDays: 5,  fromProcess: 'inspect1_self' },   // นับจากวันตรวจจริง รอบ 1
-  { processKey: 'inspect3_self',     slaDays: 5,  fromProcess: 'inspect2_self' },
+  { processKey: 'inspect2_self',     slaDays: 5,  fromProcess: 'inspect1_self', projectType: 'Condo' },   // นับจากวันตรวจจริง รอบ 1
+  { processKey: 'inspect3_self',     slaDays: 5,  fromProcess: 'inspect2_self', projectType: 'Condo' },
+  // ── ตรวจบ้าน — ลูกค้าตรวจเอง (House/แนวราบ) ──
+  { processKey: 'inspect2_self',     slaDays: 10, fromProcess: 'inspect1_self', projectType: 'House' },
+  { processKey: 'inspect3_self',     slaDays: 10, fromProcess: 'inspect2_self', projectType: 'House' },
   // ── โอน ──
   { processKey: 'contract_bank',   slaDays: 5,  fromProcess: 'final_approve' },
   { processKey: 'transfer_pkg',    slaDays: 5,  fromProcess: 'contract_bank' },

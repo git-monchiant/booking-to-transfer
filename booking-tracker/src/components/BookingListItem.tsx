@@ -62,7 +62,7 @@ export function BookingListItem({ booking, currentView, onClick }: BookingListIt
                     <span className={`font-medium ${
                       booking.livnex_able_flag === 'pass' ? 'text-indigo-600' :
                       booking.livnex_able_flag === 'fail' ? 'text-red-500' : 'text-slate-500'
-                    }`}>LivNex Able : {booking.livnex_able_status}</span>
+                    }`}>JD - LivNex Able : {booking.livnex_able_status}</span>
                   </>)}
                 </div>
               </div>
@@ -128,7 +128,10 @@ export function BookingListItem({ booking, currentView, onClick }: BookingListIt
                 <CreditPipeline booking={booking} />
                 <div className="flex items-center gap-1 mt-auto pt-0.5 border-t border-slate-100">
                   <div className="flex flex-wrap gap-0.5 flex-1 min-w-0">
-                    {booking.banks_submitted.map(bs => (
+                    {booking.credit_request_type === 'โอนสด' && (
+                      <span className={`inline-flex px-1.5 py-px text-[9px] font-bold text-white uppercase ${BANK_COLORS['CASH'] || 'bg-slate-600'}`}>CASH</span>
+                    )}
+                    {booking.banks_submitted.filter(bs => bs.bank !== 'CASH').map(bs => (
                       <span key={bs.bank} className={`inline-flex px-1.5 py-px text-[9px] font-bold text-white uppercase ${BANK_COLORS[bs.bank] || 'bg-slate-500'}`} title={[bs.bank, bs.result, bs.approved_amount ? `฿${formatMoney(bs.approved_amount)}` : ''].filter(Boolean).join(' · ')}>
                         {bs.bank}
                       </span>

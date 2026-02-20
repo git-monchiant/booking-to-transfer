@@ -1315,16 +1315,11 @@ const [notiOpen, setNotiOpen] = useState(false);
                   return Math.round((parseD(b).getTime() - parseD(a).getTime()) / 86400000);
                 };
 
-                // Group bookings by occupation category
-                const occMap: Record<string, string> = {
-                  'พนักงานบริษัท': 'พนักงาน', 'ผู้บริหาร': 'พนักงาน', 'วิศวกร': 'พนักงาน',
-                  'ค้าขาย': 'เจ้าของกิจการ', 'ธุรกิจส่วนตัว': 'เจ้าของกิจการ', 'เจ้าของกิจการ': 'เจ้าของกิจการ',
-                  'ข้าราชการ': 'ข้าราชการ',
-                };
-                const occGroup = (occ: string | null) => occ ? (occMap[occ] || 'อื่นๆ') : 'อื่นๆ';
+                // Group bookings by occupation — ใช้ค่าจาก CUSTOMER_OCCUPATIONS master โดยตรง
+                const occGroup = (occ: string | null) => occ || 'อื่นๆ';
 
-                const occupations = ['พนักงาน', 'เจ้าของกิจการ', 'ข้าราชการ'];
-                const occColors: Record<string, string> = { 'พนักงาน': '#3b82f6', 'เจ้าของกิจการ': '#f59e0b', 'ข้าราชการ': '#8b5cf6' };
+                const occupations = ['พนักงาน', 'เจ้าของกิจการ/อาชีพอิสระ', 'ข้าราชการ', 'ต่างชาติ', 'เกษียณ/บำนาญ', 'สวัสดิการ'];
+                const occColors: Record<string, string> = { 'พนักงาน': '#3b82f6', 'เจ้าของกิจการ/อาชีพอิสระ': '#f59e0b', 'ข้าราชการ': '#8b5cf6', 'ต่างชาติ': '#06b6d4', 'เกษียณ/บำนาญ': '#10b981', 'สวัสดิการ': '#ec4899' };
 
                 type B = typeof globalFilteredBookings[0];
                 const firstSubmitDate = (b: B) => {
