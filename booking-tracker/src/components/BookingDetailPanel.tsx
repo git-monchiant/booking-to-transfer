@@ -686,9 +686,9 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange, cu
               colWidths={['10%', '14%', '14%', '14%', '14%', '']}
 
               rows={([
-                ['ตรวจ 1', b.inspect1_notify_target_date_biz, b.inspect1_ready_date, b.inspect1_appointment_date, b.inspect1_actual_date, b.inspect1_result],
-                ['ตรวจ 2', b.inspect2_ready_target_date_biz, b.inspect2_ready_date, b.inspect2_appointment_date, b.inspect2_actual_date, b.inspect2_result],
-                ['ตรวจ 3', b.inspect3_ready_target_date_biz, b.inspect3_ready_date, b.inspect3_appointment_date, b.inspect3_actual_date, b.inspect3_result],
+                ['ตรวจ 1', b.inspect1_schedule, b.inspect1_ready, b.inspect1_appt, b.inspect1_date, b.inspect1_result],
+                ['ตรวจ 2', b.inspect2_schedule, b.inspect2_ready, b.inspect2_appt, b.inspect2_date, b.inspect2_result],
+                ['ตรวจ 3', b.inspect3_schedule, b.inspect3_ready, b.inspect3_appt, b.inspect3_date, b.inspect3_result],
               ] as const).map(([round, target, ready, appt, actual, result]) => [
                 <span key="r" className="font-medium text-slate-600">{round}</span>,
                 <Val key="t" v={target} />,
@@ -1127,8 +1127,8 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange, cu
             const dPreapproveToFinal = _d(b.bank_preapprove_actual_date, b.bank_final_actual_date);
             const dFinalToContract = _d(b.bank_final_actual_date, b.bank_contract_date);
             const dContractToTransferPkg = _d(b.bank_contract_date, b.transfer_package_sent_date);
-            const dInspect1 = _d(b.inspect1_appointment_date, b.inspect1_actual_date);
-            const dHandover = _d(b.inspect1_actual_date || b.inspect1_appointment_date, b.handover_accept_date);
+            const dInspect1 = _d(b.inspect1_appt, b.inspect1_date);
+            const dHandover = _d(b.inspect1_date || b.inspect1_appt, b.handover_accept_date);
             const dTransferApptToActual = _d(b.transfer_appointment_date, b.transfer_actual_date);
 
             // Identify slow & fast steps
@@ -1173,7 +1173,7 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange, cu
               // ═══ Track status — สินเชื่อ vs ตรวจบ้าน (2 track ทำคู่ขนานได้) ═══
               const creditDone = b.credit_status === 'อนุมัติแล้ว' || b.credit_status === 'โอนสด';
               const inspDone = b.inspection_status === 'ผ่านแล้ว' || b.inspection_status === 'โอนแล้ว';
-              const inspStarted = !!b.inspect1_appointment_date || !!b.inspect1_actual_date;
+              const inspStarted = !!b.inspect1_appt || !!b.inspect1_date;
               const inspFailing = b.inspection_status === 'รอแก้งาน';
               const unitReady = !!b.unit_ready_inspection_date;
               const creditInProgress = !creditDone && (!!b.doc_bureau_date || !!b.bureau_result || !!b.bank_preapprove_result);
@@ -1390,7 +1390,7 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange, cu
                   {b.stage !== 'transferred' && b.stage !== 'cancelled' && (() => {
                     const creditDone2 = b.credit_status === 'อนุมัติแล้ว' || b.credit_status === 'โอนสด';
                     const inspDone2 = b.inspection_status === 'ผ่านแล้ว' || b.inspection_status === 'โอนแล้ว';
-                    const inspStarted2 = !!b.inspect1_appointment_date || !!b.inspect1_actual_date;
+                    const inspStarted2 = !!b.inspect1_appt || !!b.inspect1_date;
                     const unitReady2 = !!b.unit_ready_inspection_date;
                     const items: { priority: 'urgent' | 'high' | 'normal' | 'parallel'; who: string; text: string }[] = [];
 

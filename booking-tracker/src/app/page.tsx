@@ -71,7 +71,34 @@ export default function Home() {
 const [notiOpen, setNotiOpen] = useState(false);
   const [budDisplayMode, setBudDisplayMode] = useState<'unit' | 'net' | 'contract'>('unit');
   const [selectedProcess, setSelectedProcess] = useState<string>(PROCESS_BACKLOG[0].key);
-  const [heatmapCell, setHeatmapCell] = useState<{ processKey: string; agingDay: string } | null>(null);
+  const [heatmapCell, setHeatmapCell] = useState<{ processKey: string; agingDay: string } | null>(
+    () => {
+      const first = PROCESS_BACKLOG[0];
+      if (!first) return null;
+      const firstBucket = AGING_BUCKETS.find(b => first.aging[b] > 0);
+      return firstBucket ? { processKey: first.key, agingDay: firstBucket } : null;
+    }
+  );
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
+    () => {
+      const s = new Set<string>();
+      // ทุกกลุ่ม: เปิดอันแรก ปิดที่เหลือ
+      const seenGroup = new Set<string>();
+      const seenSg = new Set<string>();
+      PROCESS_BACKLOG.forEach(p => {
+        const sg = (p as any).subGroup as string | undefined;
+        if (sg && !seenSg.has(sg)) {
+          seenSg.add(sg);
+          if (seenGroup.has(p.group)) {
+            s.add(sg); // subGroup ที่เหลือ — ปิด
+          } else {
+            seenGroup.add(p.group); // subGroup แรกของ group — เปิด
+          }
+        }
+      });
+      return s;
+    }
+  );
   const [defaultTab, setDefaultTab] = useState<'detail' | 'sla' | 'followup' | 'ai' | undefined>(undefined);
 
   // Global Filters
@@ -168,7 +195,7 @@ const [notiOpen, setNotiOpen] = useState(false);
     { prev: b => b.banks_submitted[0]?.submit_date ?? null, curr: b => b.bureau_actual_result_date, sla: 1 },
     { prev: b => b.bureau_actual_result_date, curr: b => b.bank_preapprove_actual_date, sla: 7 },
     { prev: b => b.bank_preapprove_actual_date, curr: b => b.bank_final_actual_date, sla: 7 },
-    { prev: b => b.inspect1_appointment_date, curr: b => b.inspect1_actual_date, sla: 5 },
+    { prev: b => b.inspect1_appt, curr: b => b.inspect1_date, sla: 5 },
     { prev: b => b.bank_final_actual_date, curr: b => b.bank_contract_date, sla: 7 },
     { prev: b => b.bank_contract_date, curr: b => b.transfer_package_sent_date, sla: 7 },
     { prev: b => b.title_clear_date, curr: b => b.transfer_appointment_date, sla: 1 },
@@ -598,27 +625,24 @@ const [notiOpen, setNotiOpen] = useState(false);
                   </button>
                 ))}
               </div>
-              <button
-                onClick={() => setGlobalFilters(prev => ({ ...prev, slaOverdue: !prev.slaOverdue }))}
-                className={`px-3 py-1 rounded-full text-[11px] font-semibold transition self-end ${
-                  globalFilters.slaOverdue
-                    ? 'bg-red-500 text-white shadow-sm'
-                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                }`}
-              >
-                เกิน SLA {(() => { const c = bookings.filter(b => isBookingOverSLA(b)).length; return c > 0 ? `(${c})` : ''; })()}
-              </button>
-              {currentView === 'dashboard-tracking' && (
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] font-semibold text-slate-400 uppercase">แสดงผล</label>
-                  <select value={budDisplayMode} onChange={e => setBudDisplayMode(e.target.value as 'unit' | 'net' | 'contract')}
-                    className="px-2 py-1 bg-white border border-slate-200 rounded text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-300">
-                    <option value="unit">จำนวน (Unit)</option>
-                    <option value="net">ราคาขายสุทธิ (ล้าน฿)</option>
-                    <option value="contract">ราคาหน้าสัญญา (ล้าน฿)</option>
-                  </select>
-                </div>
-              )}
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-semibold text-slate-400 uppercase">SLA</label>
+                <select value={globalFilters.slaOverdue ? 'overdue' : 'all'}
+                  onChange={e => setGlobalFilters(prev => ({ ...prev, slaOverdue: e.target.value === 'overdue' }))}
+                  className="px-2 py-1 bg-white border border-slate-200 rounded text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-300">
+                  <option value="all">ทั้งหมด</option>
+                  <option value="overdue">เลยกำหนด SLA ({bookings.filter(b => isBookingOverSLA(b)).length})</option>
+                </select>
+              </div>
+              <div className={`flex flex-col gap-1 ${currentView !== 'dashboard' && currentView !== 'dashboard-performance' ? 'hidden' : ''}`}>
+                <label className="text-[10px] font-semibold text-slate-400 uppercase">หน่วย</label>
+                <select value={budDisplayMode} onChange={e => setBudDisplayMode(e.target.value as 'unit' | 'net' | 'contract')}
+                  className="px-2 py-1 bg-white border border-slate-200 rounded text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-300">
+                  <option value="unit">จำนวน (Unit)</option>
+                  <option value="net">ราคาขายสุทธิ (ล้าน฿)</option>
+                  <option value="contract">ราคาหน้าสัญญา (ล้าน฿)</option>
+                </select>
+              </div>
               <div className="flex-1" />
               {(globalFilters.bu.length > 0 || globalFilters.opm.length > 0 || globalFilters.project.length > 0 || globalFilters.status.length > 0 || globalFilters.responsible.length > 0 || globalFilters.dateFrom || globalFilters.dateTo || globalFilters.slaOverdue) && (
                 <button
@@ -1009,6 +1033,8 @@ const [notiOpen, setNotiOpen] = useState(false);
                 const OVER_COLORS = ['#eab308','#f59e0b','#f97316','#ea580c','#dc2626','#b91c1c','#991b1b','#7f1d1d'];
                 const getAgingColor = (bucket: string, sla: number) => {
                   const day = bucket === '15+' ? 16 : parseInt(bucket);
+                  // ไม่มี SLA (sla=0) → ดำทุกช่อง
+                  if (sla <= 0) return '#1e293b';
                   if (day <= sla) {
                     // ภายใน SLA → เขียวไล่เฉด
                     const idx = Math.min(Math.floor((day - 1) / Math.max(sla / GREEN_SHADES.length, 1)), GREEN_SHADES.length - 1);
@@ -1016,7 +1042,7 @@ const [notiOpen, setNotiOpen] = useState(false);
                   } else {
                     // เลย SLA → เหลือง→แดง ตามจำนวนวันที่เกิน
                     const overDays = day - sla;
-                    const maxOver = 16 - sla; // จำนวนวันเกินสูงสุดที่เป็นไปได้
+                    const maxOver = 16 - sla;
                     const idx = Math.min(Math.floor((overDays - 1) / Math.max(maxOver / OVER_COLORS.length, 1)), OVER_COLORS.length - 1);
                     return OVER_COLORS[idx];
                   }
@@ -1043,12 +1069,6 @@ const [notiOpen, setNotiOpen] = useState(false);
                         </div>
                         <span className="text-[10px] text-slate-500">เกิน SLA</span>
                       </div>
-                      <span className="mx-2 text-slate-300">|</span>
-                      <span className="text-[10px] text-slate-400 font-medium">หมวด:</span>
-                      <div className="flex items-center gap-1 text-[10px] text-slate-600"><span className="w-3 h-3 rounded-sm bg-indigo-500" /> เอกสาร</div>
-                      <div className="flex items-center gap-1 text-[10px] text-slate-600"><span className="w-3 h-3 rounded-sm bg-amber-500" /> สินเชื่อ</div>
-                      <div className="flex items-center gap-1 text-[10px] text-slate-600"><span className="w-3 h-3 rounded-sm bg-cyan-500" /> ตรวจบ้าน</div>
-                      <div className="flex items-center gap-1 text-[10px] text-slate-600"><span className="w-3 h-3 rounded-sm bg-emerald-500" /> โอน</div>
                     </div>
 
                     {/* ─── Heatmap Table + Booking List ─── */}
@@ -1059,47 +1079,119 @@ const [notiOpen, setNotiOpen] = useState(false);
                       const selProc = heatmapCell ? PROCESS_BACKLOG.find(p => p.key === heatmapCell.processKey) : null;
                       return (
                       <div className="grid grid-cols-10 gap-3">
+                        <div className="flex items-center gap-3 col-span-10 mb-1">
+                          <span className="text-[10px] text-slate-400 font-medium">หมวด:</span>
+                          <div className="flex items-center gap-1 text-[10px] text-slate-600"><span className="w-3 h-3 rounded-sm bg-indigo-500" /> เอกสาร</div>
+                          <div className="flex items-center gap-1 text-[10px] text-slate-600"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#4ade80' }} /> LivNex</div>
+                          <div className="flex items-center gap-1 text-[10px] text-slate-600"><span className="w-3 h-3 rounded-sm bg-amber-500" /> สินเชื่อ</div>
+                          <div className="flex items-center gap-1 text-[10px] text-slate-600"><span className="w-3 h-3 rounded-sm bg-cyan-500" /> ตรวจบ้าน</div>
+                          <div className="flex items-center gap-1 text-[10px] text-slate-600"><span className="w-3 h-3 rounded-sm bg-emerald-500" /> โอน</div>
+                        </div>
                         {/* ซ้าย: Heatmap */}
                         <div className="col-span-7 overflow-x-auto">
-                          <table className="w-full text-[11px]">
+                          <table className="w-full text-[11px]" style={{ tableLayout: 'fixed' }}>
+                            <colgroup>
+                              <col style={{ width: 72 }} />
+                              <col style={{ width: 180 }} />
+                              <col style={{ width: 36 }} />
+                              <col style={{ width: 36 }} />
+                              {agingKeys.map(b => <col key={b} />)}
+                            </colgroup>
                             <thead>
                               <tr className="border-b border-slate-200">
-                                <th className="text-left py-3 px-2 text-slate-500 font-medium whitespace-nowrap" style={{ minWidth: 72 }}>หมวด</th>
-                                <th className="text-left py-3 px-1 text-slate-500 font-medium whitespace-nowrap" style={{ minWidth: 100 }}>กระบวนการ</th>
-                                <th className="text-center py-3 px-1 text-slate-500 font-medium w-10">SLA</th>
-                                <th className="text-center py-3 px-2 text-slate-500 font-medium w-10">ค้าง</th>
-                                {agingKeys.map(b => <th key={b} className="text-center py-3 px-0 text-slate-500 font-medium text-[10px]" style={{ minWidth: 24 }}>{b}</th>)}
+                                <th className="text-left py-1.5 px-2 text-slate-500 font-medium whitespace-nowrap">หมวด</th>
+                                <th className="text-left py-1.5 px-1 text-slate-500 font-medium whitespace-nowrap">กระบวนการ</th>
+                                <th className="text-center py-1.5 px-1 text-slate-500 font-medium">SLA</th>
+                                <th className="text-center py-1.5 px-2 text-slate-500 font-medium">ค้าง</th>
+                                {agingKeys.map(b => <th key={b} className="text-center py-1.5 px-0 text-slate-500 font-medium text-[10px]">{b}</th>)}
                               </tr>
                             </thead>
                             <tbody>
-                              {PROCESS_BACKLOG.map(p => (
-                                <tr key={p.key} className="border-b border-slate-100 hover:bg-slate-50">
-                                  <td className="py-4 px-2">
-                                    <span className="inline-flex items-center gap-1">
-                                      <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: GROUP_COLORS[p.group] }} />
-                                      <span className="text-slate-500">{p.group}</span>
-                                    </span>
-                                  </td>
-                                  <td className="py-4 px-2 font-medium text-slate-800 whitespace-nowrap">{p.label}</td>
-                                  <td className="py-4 px-1 text-center text-[10px] font-bold text-blue-600">{p.sla}d</td>
-                                  <td className="py-4 px-2 text-center font-bold text-slate-900">{p.count}</td>
-                                  {agingKeys.map(b => {
-                                    const v = p.aging[b];
-                                    const isSelected = heatmapCell?.processKey === p.key && heatmapCell?.agingDay === b;
-                                    const cellColor = getAgingColor(b, p.sla);
-                                    return (
-                                      <td key={b}
-                                        className={`text-center font-bold cursor-pointer transition-colors ${isSelected ? 'outline outline-3 outline-yellow-400 -outline-offset-1' : 'border border-white/20'}`}
-                                        style={{ backgroundColor: v > 0 ? (isSelected ? '#1e293b' : cellColor) : '#f1f5f9', color: v > 0 ? (isSelected ? '#fde047' : '#fff') : '#cbd5e1' }}
-                                        onClick={() => v > 0 && setHeatmapCell(
-                                          heatmapCell?.processKey === p.key && heatmapCell?.agingDay === b ? null : { processKey: p.key, agingDay: b }
-                                        )}>
-                                        {v > 0 ? v : '-'}
+                              {(() => {
+                                const rows: React.ReactNode[] = [];
+                                let lastGroup = '';
+                                let lastSubGroup = '';
+                                // กลุ่มที่มี subGroup (สินเชื่อ, ตรวจบ้าน)
+                                const groupsWithSub = new Set(PROCESS_BACKLOG.filter(p => (p as any).subGroup).map(p => p.group));
+
+                                const renderGroupHeader = (key: string, label: string, group: string, total: number) => {
+                                  const grpColor = GROUP_COLORS[group] || '#94a3b8';
+                                  const isCollapsed = collapsedGroups.has(key);
+                                  return (
+                                    <tr key={`grp-${key}`}
+                                      className="border-b cursor-pointer hover:brightness-95 transition-colors"
+                                      style={{ backgroundColor: grpColor + '18', borderColor: grpColor + '40' }}
+                                      onClick={() => setCollapsedGroups(prev => {
+                                        const next = new Set(prev);
+                                        next.has(key) ? next.delete(key) : next.add(key);
+                                        return next;
+                                      })}>
+                                      <td className="py-1 px-2" colSpan={2}>
+                                        <span className="inline-flex items-center gap-1.5">
+                                          <span style={{ color: grpColor }} className="text-[10px]">{isCollapsed ? '▶' : '▼'}</span>
+                                          <span style={{ color: grpColor }} className="font-semibold text-[11px]">{label}</span>
+                                        </span>
                                       </td>
-                                    );
-                                  })}
-                                </tr>
-                              ))}
+                                      <td className="py-1 px-1 text-center text-[10px]" style={{ color: grpColor }}>—</td>
+                                      <td className="py-1 px-2 text-center font-bold text-[11px]" style={{ color: grpColor }}>{total}</td>
+                                      {agingKeys.map(b => <td key={b} style={{ backgroundColor: grpColor + '18' }} />)}
+                                    </tr>
+                                  );
+                                };
+
+                                for (const p of PROCESS_BACKLOG) {
+                                  const sg = (p as any).subGroup as string | undefined;
+
+                                  // Group header สำหรับกลุ่มที่ไม่มี subGroup (เอกสาร, LivNex, โอน)
+                                  if (!sg && p.group !== lastGroup && !groupsWithSub.has(p.group)) {
+                                    lastGroup = p.group;
+                                    const grpTotal = PROCESS_BACKLOG.filter(pp => pp.group === p.group).reduce((s, pp) => s + pp.count, 0);
+                                    rows.push(renderGroupHeader(p.group, p.group, p.group, grpTotal));
+                                  }
+
+                                  // Sub-group header สำหรับกลุ่มที่มี subGroup (สินเชื่อ, ตรวจบ้าน)
+                                  if (sg && sg !== lastSubGroup) {
+                                    lastSubGroup = sg;
+                                    lastGroup = p.group;
+                                    const sgTotal = PROCESS_BACKLOG.filter(pp => (pp as any).subGroup === sg).reduce((s, pp) => s + pp.count, 0);
+                                    rows.push(renderGroupHeader(sg, `${p.group} — ${sg}`, p.group, sgTotal));
+                                  }
+
+                                  // ถ้า collapse อยู่ ไม่แสดงแถว process
+                                  if (sg && collapsedGroups.has(sg)) continue;
+                                  if (!sg && collapsedGroups.has(p.group)) continue;
+
+                                  rows.push(
+                                    <tr key={p.key} className="border-b border-slate-100 hover:bg-slate-50">
+                                      <td className="py-1 px-2">
+                                        <span className="inline-flex items-center gap-1">
+                                          <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: GROUP_COLORS[p.group] }} />
+                                          <span className="text-slate-500"></span>
+                                        </span>
+                                      </td>
+                                      <td className="py-1 px-2 font-medium text-slate-800 whitespace-nowrap">{p.label}</td>
+                                      <td className="py-1 px-1 text-center text-[10px] font-bold text-blue-600 cursor-help" title={p.slaDesc || undefined}>{p.sla > 0 ? `${p.sla}d` : '-'}</td>
+                                      <td className="py-1 px-2 text-center font-bold text-slate-900">{p.count}</td>
+                                      {agingKeys.map(b => {
+                                        const v = p.aging[b];
+                                        const isSelected = heatmapCell?.processKey === p.key && heatmapCell?.agingDay === b;
+                                        const cellColor = getAgingColor(b, p.sla);
+                                        return (
+                                          <td key={b}
+                                            className={`text-center font-bold cursor-pointer transition-colors ${isSelected ? 'outline outline-3 outline-yellow-400 -outline-offset-1' : 'border border-white/20'}`}
+                                            style={{ backgroundColor: v > 0 ? (isSelected ? '#1e293b' : cellColor) : '#f1f5f9', color: v > 0 ? (isSelected ? '#fde047' : '#fff') : '#cbd5e1' }}
+                                            onClick={() => v > 0 && setHeatmapCell(
+                                              heatmapCell?.processKey === p.key && heatmapCell?.agingDay === b ? null : { processKey: p.key, agingDay: b }
+                                            )}>
+                                            {v > 0 ? v : '-'}
+                                          </td>
+                                        );
+                                      })}
+                                    </tr>
+                                  );
+                                }
+                                return rows;
+                              })()}
                             </tbody>
                           </table>
                         </div>
@@ -1109,7 +1201,7 @@ const [notiOpen, setNotiOpen] = useState(false);
                           <div className="flex items-center justify-between mb-2">
                             <h4 className="text-xs font-bold text-slate-700">
                               {heatmapCell && selProc
-                                ? <>{selProc.group} › {selProc.label} › <span style={{ color: AGING_COLORS[heatmapCell.agingDay as keyof typeof AGING_COLORS] }}>{heatmapCell.agingDay} วัน</span></>
+                                ? <>{selProc.group}{(selProc as any).subGroup ? ` (${(selProc as any).subGroup})` : ''} › {selProc.label} › <span style={{ color: AGING_COLORS[heatmapCell.agingDay as keyof typeof AGING_COLORS] }}>{heatmapCell.agingDay} วัน</span></>
                                 : 'คลิกที่ช่องใน Heatmap เพื่อดูรายการ'}
                             </h4>
                             {heatmapCell && <span className="text-[10px] font-bold text-slate-500">{filteredBookings.length} รายการ</span>}
@@ -1239,7 +1331,7 @@ const [notiOpen, setNotiOpen] = useState(false);
                   const dates = b.banks_submitted.map(x => x.submit_date).filter(Boolean) as string[];
                   return dates.length ? dates.sort((a, c) => parseD(a).getTime() - parseD(c).getTime())[0] : null;
                 };
-                const lastInspDate = (b: B) => b.inspect3_actual_date || b.inspect2_actual_date || b.inspect1_actual_date;
+                const lastInspDate = (b: B) => b.inspect3_date || b.inspect2_date || b.inspect1_date;
                 const stepDefs: { name: string; note: string; from: (b: B) => string | null; to: (b: B) => string | null }[] = [
                   // ── Root ──
                   { name: 'สัญญา', note: 'จากจอง', from: b => b.booking_date, to: b => b.contract_date },
@@ -1252,7 +1344,7 @@ const [notiOpen, setNotiOpen] = useState(false);
                   { name: 'อนุมัติเบื้องต้น', note: 'จากผลบูโร', from: b => b.bureau_actual_result_date, to: b => b.bank_preapprove_actual_date },
                   { name: 'อนุมัติจริง', note: 'จาก Pre-approve', from: b => b.bank_preapprove_actual_date, to: b => b.bank_final_actual_date },
                   // ── ตรวจบ้าน ──
-                  { name: 'นัดลูกค้าตรวจ', note: 'จาก QC', from: b => b.unit_ready_inspection_date, to: b => b.inspect1_appointment_date },
+                  { name: 'นัดลูกค้าตรวจ', note: 'จาก QC', from: b => b.unit_ready_inspection_date, to: b => b.inspect1_appt },
                   { name: 'ลูกค้ารับมอบ', note: 'จากตรวจ', from: b => lastInspDate(b), to: b => b.handover_accept_date },
                   // ── โอน ──
                   { name: 'สัญญา Bank', note: 'จากอนุมัติ', from: b => b.bank_final_actual_date, to: b => b.bank_contract_date },
@@ -1585,10 +1677,10 @@ const [notiOpen, setNotiOpen] = useState(false);
                     {
                       label: 'ตรวจบ้าน', color: '#06b6d4', bg: '#ecfeff',
                       steps: [
-                        { label: 'ตรวจครั้งที่ 1', count: notDonePipe.filter(b => b.stage === 'inspection' && !b.inspect1_actual_date).length },
-                        { label: 'ตรวจครั้งที่ 2', count: notDonePipe.filter(b => b.stage === 'inspection' && b.inspect1_actual_date && b.inspect1_result?.includes('ไม่') && !b.inspect2_actual_date).length },
-                        { label: 'ตรวจครั้งที่ 3', count: notDonePipe.filter(b => b.stage === 'inspection' && b.inspect2_actual_date && b.inspect2_result?.includes('ไม่') && !b.inspect3_actual_date).length },
-                        { label: 'ตรวจ 3+', count: notDonePipe.filter(b => b.stage === 'inspection' && b.inspect3_actual_date && b.inspect3_result?.includes('ไม่')).length },
+                        { label: 'ตรวจครั้งที่ 1', count: notDonePipe.filter(b => b.stage === 'inspection' && !b.inspect1_date).length },
+                        { label: 'ตรวจครั้งที่ 2', count: notDonePipe.filter(b => b.stage === 'inspection' && b.inspect1_date && b.inspect1_result?.includes('ไม่') && !b.inspect2_date).length },
+                        { label: 'ตรวจครั้งที่ 3', count: notDonePipe.filter(b => b.stage === 'inspection' && b.inspect2_date && b.inspect2_result?.includes('ไม่') && !b.inspect3_date).length },
+                        { label: 'ตรวจ 3+', count: notDonePipe.filter(b => b.stage === 'inspection' && b.inspect3_date && b.inspect3_result?.includes('ไม่')).length },
                       ],
                     },
                     {

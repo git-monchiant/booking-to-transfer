@@ -31,10 +31,10 @@ export function SLATimeline({ booking }: { booking: Booking }) {
   // Inspection rounds
   const inspRounds = [1, 2, 3].map(r => ({
     round: r,
-    appointment: booking[`inspect${r}_appointment_date` as keyof typeof booking] as string | null,
-    actual: booking[`inspect${r}_actual_date` as keyof typeof booking] as string | null,
+    appointment: booking[`inspect${r}_appt` as keyof typeof booking] as string | null,
+    actual: booking[`inspect${r}_date` as keyof typeof booking] as string | null,
     result: booking[`inspect${r}_result` as keyof typeof booking] as string | null,
-    ready: booking[`inspect${r}_ready_date` as keyof typeof booking] as string | null,
+    ready: booking[`inspect${r}_ready` as keyof typeof booking] as string | null,
   }));
   const visibleRounds = inspRounds.filter((r, i) =>
     r.actual || r.appointment || r.ready || (i > 0 && isFail(inspRounds[i - 1].result))
@@ -44,7 +44,7 @@ export function SLATimeline({ booking }: { booking: Booking }) {
       if (visibleRounds[i].ready) return visibleRounds[i].ready;
       if (visibleRounds[i].actual) return visibleRounds[i].actual;
     }
-    return booking.inspect1_appointment_date;
+    return booking.inspect1_appt;
   })();
 
   const totalDays = daysDiff(booking.booking_date, booking.transfer_actual_date);
@@ -179,11 +179,11 @@ export function SLATimeline({ booking }: { booking: Booking }) {
         {/* ═══ ตรวจบ้าน ═══ */}
         {branchHead('ตรวจบ้าน', 'text-sky-600', 'bg-sky-400', false)}
         {node({ label: 'QC 5.5 ห้องพร้อมตรวจ', date: booking.unit_ready_inspection_date, prev: booking.contract_date || booking.booking_date, owner: booking.inspection_officer }, false, gInspect)}
-        {node({ label: 'นัดลูกค้าตรวจ', date: booking.inspect1_appointment_date, prev: booking.unit_ready_inspection_date, owner: booking.cs_owner, sla: '1d' }, false, gInspect)}
+        {node({ label: 'นัดลูกค้าตรวจ', date: booking.inspect1_appt, prev: booking.unit_ready_inspection_date, owner: booking.cs_owner, sla: '1d' }, false, gInspect)}
 
         {visibleRounds.map((r) => {
           const prevDate = r.round === 1
-            ? booking.inspect1_appointment_date
+            ? booking.inspect1_appt
             : inspRounds[r.round - 2].ready || inspRounds[r.round - 2].actual;
           const failed = isFail(r.result);
 

@@ -147,6 +147,7 @@ export const CUSTOMER_OCCUPATIONS = [
   'ข้าราชการ',
   'ต่างชาติ',
   'เกษียณ/บำนาญ',
+  'สวัสดิการ',
 ] as const;
 
 export type CustomerOccupation = typeof CUSTOMER_OCCUPATIONS[number];
@@ -356,32 +357,139 @@ export const INSPECTION_METHODS = [
 ] as const;
 
 // ─────────────────────────────────────────────
-// Backlog Status
+// PROCESS_MASTER — กระบวนการทั้งหมด (ทุกห้องต้องมี)
 // ─────────────────────────────────────────────
-export const BACKLOG_STATUSES = [
-  '1. รอเอกสาร',
-  '2. Credit Approved',
-  '3. backlog เดิม',
-  '4. Ready to Transfer',
-  '5. Transferred',
-] as const;
+// key:      รหัสกระบวนการ (unique)
+// label:    ชื่อแสดงผล
+// group:    หมวดหมู่
+// subGroup: กลุ่มย่อย (ถ้ามี — occupation/วิธีตรวจ/ประเภทสินเชื่อ)
+export interface ProcessDef {
+  key: string;
+  label: string;
+  group: string;
+  subGroup?: string;
+}
+
+export const PROCESS_MASTER: ProcessDef[] = [
+  // ── Milestone (no SLA — เป็นจุดเริ่มต้นให้ process อื่นนับ SLA) ──
+  { key: 'booking',              label: 'วันจอง',             group: 'Milestone' },
+  { key: 'contract',             label: 'วันทำสัญญา',          group: 'Milestone' },
+  { key: 'downpayment_complete', label: 'ผ่อนดาวน์ครบ',       group: 'Milestone' },
+  // ── เอกสาร ──
+  { key: 'doc_bureau',      label: 'เอกสารตรวจบูโร',     group: 'เอกสาร' },
+  { key: 'doc_bank',        label: 'เตรียมเอกสารธนาคาร', group: 'เอกสาร' },
+  { key: 'doc_jd',          label: 'เตรียมเอกสาร JD',    group: 'เอกสาร' },
+  // ── LivNex ──
+  { key: 'jd_livnex',       label: 'JD-LivNex able',     group: 'LivNex' },
+  // ── สินเชื่อ — ลูกค้าพนักงาน ──
+  { key: 'bureau_emp',      label: 'ผลบูโร',            group: 'สินเชื่อ', subGroup: 'ลูกค้าพนักงาน' },
+  { key: 'preapprove_emp',  label: 'อนุมัติเบื้องต้น',    group: 'สินเชื่อ', subGroup: 'ลูกค้าพนักงาน' },
+  { key: 'final_emp',       label: 'อนุมัติจริง',         group: 'สินเชื่อ', subGroup: 'ลูกค้าพนักงาน' },
+  // ── สินเชื่อ — ลูกค้าเจ้าของกิจการ/อาชีพอิสระ ──
+  { key: 'bureau_biz',      label: 'ผลบูโร',            group: 'สินเชื่อ', subGroup: 'ลูกค้าเจ้าของกิจการ/อาชีพอิสระ' },
+  { key: 'preapprove_biz',  label: 'อนุมัติเบื้องต้น',    group: 'สินเชื่อ', subGroup: 'ลูกค้าเจ้าของกิจการ/อาชีพอิสระ' },
+  { key: 'final_biz',       label: 'อนุมัติจริง',         group: 'สินเชื่อ', subGroup: 'ลูกค้าเจ้าของกิจการ/อาชีพอิสระ' },
+  // ── สินเชื่อ — ลูกค้าข้าราชการ ──
+  { key: 'bureau_gov',      label: 'ผลบูโร',            group: 'สินเชื่อ', subGroup: 'ลูกค้าข้าราชการ' },
+  { key: 'preapprove_gov',  label: 'อนุมัติเบื้องต้น',    group: 'สินเชื่อ', subGroup: 'ลูกค้าข้าราชการ' },
+  { key: 'final_gov',       label: 'อนุมัติจริง',         group: 'สินเชื่อ', subGroup: 'ลูกค้าข้าราชการ' },
+  // ── สินเชื่อ — ลูกค้าต่างชาติ ──
+  { key: 'bureau_foreign',      label: 'ผลบูโร',            group: 'สินเชื่อ', subGroup: 'ลูกค้าต่างชาติ' },
+  { key: 'preapprove_foreign',  label: 'อนุมัติเบื้องต้น',    group: 'สินเชื่อ', subGroup: 'ลูกค้าต่างชาติ' },
+  { key: 'final_foreign',       label: 'อนุมัติจริง',         group: 'สินเชื่อ', subGroup: 'ลูกค้าต่างชาติ' },
+  // ── สินเชื่อ — ลูกค้าเกษียณ/บำนาญ ──
+  { key: 'bureau_retire',      label: 'ผลบูโร',            group: 'สินเชื่อ', subGroup: 'ลูกค้าเกษียณ/บำนาญ' },
+  { key: 'preapprove_retire',  label: 'อนุมัติเบื้องต้น',    group: 'สินเชื่อ', subGroup: 'ลูกค้าเกษียณ/บำนาญ' },
+  { key: 'final_retire',       label: 'อนุมัติจริง',         group: 'สินเชื่อ', subGroup: 'ลูกค้าเกษียณ/บำนาญ' },
+  // ── สินเชื่อ — ลูกค้าสวัสดิการ ──
+  { key: 'bureau_welfare',      label: 'ผลบูโร',            group: 'สินเชื่อ', subGroup: 'ลูกค้าสวัสดิการ' },
+  { key: 'preapprove_welfare',  label: 'อนุมัติเบื้องต้น',    group: 'สินเชื่อ', subGroup: 'ลูกค้าสวัสดิการ' },
+  { key: 'final_welfare',       label: 'อนุมัติจริง',         group: 'สินเชื่อ', subGroup: 'ลูกค้าสวัสดิการ' },
+  // ── ตรวจบ้าน ──
+  { key: 'inspect_appt_cash', label: 'โทรนัดตรวจ (โอนสด)',     group: 'ตรวจบ้าน' },
+  { key: 'inspect_appt_loan', label: 'โทรนัดตรวจ (กู้ธนาคาร)',  group: 'ตรวจบ้าน' },
+  // ── ตรวจบ้าน — ลูกค้าจ้างตรวจ ──
+  { key: 'inspect1_hired',     label: 'ตรวจครั้งที่ 1',   group: 'ตรวจบ้าน', subGroup: 'ลูกค้าจ้างตรวจ' },
+  { key: 'inspect2_hired',     label: 'ตรวจครั้งที่ 2',   group: 'ตรวจบ้าน', subGroup: 'ลูกค้าจ้างตรวจ' },
+  { key: 'inspect3_hired',     label: 'ตรวจครั้งที่ 3',   group: 'ตรวจบ้าน', subGroup: 'ลูกค้าจ้างตรวจ' },
+  { key: 'inspect3plus_hired', label: 'ตรวจมากกว่า 3',   group: 'ตรวจบ้าน', subGroup: 'ลูกค้าจ้างตรวจ' },
+  // ── ตรวจบ้าน — ลูกค้าตรวจเอง ──
+  { key: 'inspect1_self',     label: 'ตรวจครั้งที่ 1',   group: 'ตรวจบ้าน', subGroup: 'ลูกค้าตรวจเอง' },
+  { key: 'inspect2_self',     label: 'ตรวจครั้งที่ 2',   group: 'ตรวจบ้าน', subGroup: 'ลูกค้าตรวจเอง' },
+  { key: 'inspect3_self',     label: 'ตรวจครั้งที่ 3',   group: 'ตรวจบ้าน', subGroup: 'ลูกค้าตรวจเอง' },
+  // ── โอน ──
+  { key: 'contract_bank',   label: 'สัญญา Bank',        group: 'โอน' },
+  { key: 'transfer_pkg',    label: 'ส่งชุดโอน',          group: 'โอน' },
+  { key: 'title_clear',     label: 'ปลอดโฉนด',          group: 'โอน' },
+  { key: 'transfer_appt',   label: 'นัดโอน',             group: 'โอน' },
+  { key: 'transfer_actual', label: 'โอนจริง',            group: 'โอน' },
+];
 
 // ─────────────────────────────────────────────
-// Transfer Status
+// PROCESS_SLA — กำหนด SLA เฉพาะ process ที่ต้อง track
 // ─────────────────────────────────────────────
-export const TRANSFER_STATUSES = [
-  'In process',
-  'Transferred',
-] as const;
+// ไม่ใช่ทุก process ใน PROCESS_MASTER จะมี SLA
+// (เช่น booking, downpayment_complete = milestone ไม่มี SLA)
+// processKey: → PROCESS_MASTER.key
+// slaDays:    จำนวนวัน SLA
+// fromProcess: → PROCESS_MASTER.key (เมื่อ process นี้เสร็จ → เริ่มนับ SLA)
+export interface SlaRule {
+  processKey: string;
+  slaDays: number;
+  fromProcess: string;
+}
 
-// ─────────────────────────────────────────────
-// Management Status (BY)
-// ─────────────────────────────────────────────
-export const MGMT_STATUSES = [
-  'in process',
-  'โอน',
-  'LivNex',
-] as const;
+export const PROCESS_SLA: SlaRule[] = [
+  // ── เอกสาร ──
+  { processKey: 'doc_bureau',      slaDays: 3,  fromProcess: 'booking' },
+  { processKey: 'doc_bank',        slaDays: 3,  fromProcess: 'booking' },
+  { processKey: 'doc_jd',          slaDays: 3,  fromProcess: 'booking' },
+  // ── LivNex ──
+  { processKey: 'jd_livnex',       slaDays: 3,  fromProcess: 'doc_bank' },
+  // ── สินเชื่อ — ลูกค้าพนักงาน ──
+  { processKey: 'bureau_emp',      slaDays: 2,  fromProcess: 'booking' },
+  { processKey: 'preapprove_emp',  slaDays: 3,  fromProcess: 'doc_bank' },
+  { processKey: 'final_emp',       slaDays: 5,  fromProcess: 'doc_bank' },
+  // ── สินเชื่อ — ลูกค้าเจ้าของกิจการ/อาชีพอิสระ ──
+  { processKey: 'bureau_biz',      slaDays: 2,  fromProcess: 'booking' },
+  { processKey: 'preapprove_biz',  slaDays: 7,  fromProcess: 'doc_bank' },
+  { processKey: 'final_biz',       slaDays: 10, fromProcess: 'doc_bank' },
+  // ── สินเชื่อ — ลูกค้าข้าราชการ ──
+  { processKey: 'bureau_gov',      slaDays: 2,  fromProcess: 'booking' },
+  { processKey: 'preapprove_gov',  slaDays: 3,  fromProcess: 'doc_bank' },
+  { processKey: 'final_gov',       slaDays: 15, fromProcess: 'doc_bank' },
+  // ── สินเชื่อ — ลูกค้าต่างชาติ ──
+  { processKey: 'bureau_foreign',      slaDays: 2,  fromProcess: 'booking' },
+  { processKey: 'preapprove_foreign',  slaDays: 10, fromProcess: 'doc_bank' },
+  { processKey: 'final_foreign',       slaDays: 15, fromProcess: 'doc_bank' },
+  // ── สินเชื่อ — ลูกค้าเกษียณ/บำนาญ ──
+  { processKey: 'bureau_retire',      slaDays: 2,  fromProcess: 'booking' },
+  { processKey: 'preapprove_retire',  slaDays: 3,  fromProcess: 'doc_bank' },
+  { processKey: 'final_retire',       slaDays: 5,  fromProcess: 'doc_bank' },
+  // ── สินเชื่อ — ลูกค้าสวัสดิการ ──
+  { processKey: 'bureau_welfare',      slaDays: 2,  fromProcess: 'booking' },
+  { processKey: 'preapprove_welfare',  slaDays: 3,  fromProcess: 'doc_bank' },
+  { processKey: 'final_welfare',       slaDays: 15, fromProcess: 'doc_bank' },
+  // ── ตรวจบ้าน ──
+  { processKey: 'inspect_appt_cash', slaDays: 1,  fromProcess: 'booking' },              // หรือ downpayment_complete
+  { processKey: 'inspect_appt_loan', slaDays: 1,  fromProcess: 'bureau' },               // bureau = ผลบูโร ตาม occupation
+  // ── ตรวจบ้าน — ลูกค้าจ้างตรวจ ──
+  { processKey: 'inspect1_hired',     slaDays: 5,  fromProcess: 'booking' },
+  { processKey: 'inspect2_hired',     slaDays: 10, fromProcess: 'inspect1_hired' },  // นับจากวันตรวจจริง รอบ 1
+  { processKey: 'inspect3_hired',     slaDays: 10, fromProcess: 'inspect2_hired' },  // นับจากวันตรวจจริง รอบ 2
+  { processKey: 'inspect3plus_hired', slaDays: 10, fromProcess: 'inspect3_hired' },  // นับจากวันตรวจจริง รอบ 3
+  // ── ตรวจบ้าน — ลูกค้าตรวจเอง ──
+  { processKey: 'inspect1_self',     slaDays: 7,  fromProcess: 'booking' },
+  { processKey: 'inspect2_self',     slaDays: 5,  fromProcess: 'inspect1_self' },   // นับจากวันตรวจจริง รอบ 1
+  { processKey: 'inspect3_self',     slaDays: 5,  fromProcess: 'inspect2_self' },
+  // ── โอน ──
+  { processKey: 'contract_bank',   slaDays: 5,  fromProcess: 'final_approve' },
+  { processKey: 'transfer_pkg',    slaDays: 5,  fromProcess: 'contract_bank' },
+  { processKey: 'title_clear',     slaDays: 10, fromProcess: 'transfer_pkg' },
+  { processKey: 'transfer_appt',   slaDays: 3,  fromProcess: 'title_clear' },
+  { processKey: 'transfer_actual', slaDays: 3,  fromProcess: 'transfer_appt' },
+];
+
 
 // ─────────────────────────────────────────────
 // Thai Months (เดือนภาษาไทย)
