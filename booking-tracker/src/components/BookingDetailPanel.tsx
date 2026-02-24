@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Booking, STAGE_CONFIG, Stage, formatMoney, getResultFlag, THAI_MONTHS, BANK_COLORS, bankDisplayName, CHAT_ROLE_CONFIG, type ChatRole } from '@/data/bookings';
-import { X, Phone, ChevronDown, ChevronRight, Info, User, CreditCard, ClipboardCheck, ArrowRightLeft, Wifi, BarChart3, MessageSquare, Wallet, Gauge, Gift, AlertTriangle, Clock, ListChecks, Sparkles, Send, AtSign } from 'lucide-react';
+import { X, Phone, ChevronDown, ChevronRight, Info, User, CreditCard, ClipboardCheck, ArrowRightLeft, Wifi, BarChart3, MessageSquare, Wallet, Gauge, Gift, AlertTriangle, Clock, ListChecks, Sparkles, Send, AtSign, Pencil } from 'lucide-react';
 import { SLATimeline } from '@/components/SLATimeline';
 
 // ─── Helpers ───
@@ -72,10 +72,27 @@ function SubHead({ children }: { children: React.ReactNode }) {
 }
 
 // ─── Collapsible Section with colored header ───
-function Section({ title, icon: Icon, defaultOpen = true, count, badge, children }: {
-  title: string; icon?: React.ComponentType<{ className?: string }>; defaultOpen?: boolean; count?: string; badge?: React.ReactNode; children: React.ReactNode;
+function Section({ title, icon: Icon, defaultOpen = true, count, badge, followup, children }: {
+  title: string; icon?: React.ComponentType<{ className?: string }>; defaultOpen?: boolean; count?: string; badge?: React.ReactNode; followup?: boolean; children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const [activeTab, setActiveTab] = useState<'content' | 'followup'>('content');
+  const [followupText, setFollowupText] = useState('');
+  const [notes, setNotes] = useState<{ text: string; date: string; time: string; user: string }[]>([]);
+
+  const addNote = () => {
+    if (followupText.trim()) {
+      const now = new Date();
+      setNotes(prev => [...prev, {
+        text: followupText.trim(),
+        date: now.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+        time: now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
+        user: 'คุณสมชาย',
+      }]);
+      setFollowupText('');
+    }
+  };
+
   return (
     <div className="rounded-lg overflow-hidden bg-white shadow-sm">
       <button
@@ -88,7 +105,69 @@ function Section({ title, icon: Icon, defaultOpen = true, count, badge, children
         {count && <span className="text-[10px] text-slate-300">{count}</span>}
         <ChevronRight className={`w-3.5 h-3.5 text-slate-400 transition-transform ${open ? 'rotate-90' : ''}`} />
       </button>
-      {open && <div>{children}</div>}
+      {open && (
+        <div>
+          {/* Tab bar */}
+          {followup && (
+            <div className="flex border-b border-slate-200 bg-slate-50">
+              <button
+                onClick={() => setActiveTab('content')}
+                className={`px-3 py-1.5 text-[11px] font-semibold transition-colors ${activeTab === 'content' ? 'text-slate-800 border-b-2 border-slate-700 bg-white' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                เนื้อหา
+              </button>
+              <button
+                onClick={() => setActiveTab('followup')}
+                className={`px-3 py-1.5 text-[11px] font-semibold transition-colors flex items-center gap-1.5 ${activeTab === 'followup' ? 'text-amber-700 border-b-2 border-amber-500 bg-white' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                <MessageSquare className="w-3 h-3" />
+                Follow-up
+                {notes.length > 0 && <span className="text-[9px] px-1 py-0.5 rounded-full bg-amber-500 text-white font-bold leading-none">{notes.length}</span>}
+              </button>
+            </div>
+          )}
+
+          {/* Content tab */}
+          {(!followup || activeTab === 'content') && children}
+
+          {/* Follow-up tab */}
+          {followup && activeTab === 'followup' && (
+            <div className="px-3 py-2 space-y-2 bg-amber-50/30">
+              {notes.length > 0 ? (
+                <div className="space-y-1.5">
+                  {notes.map((n, i) => (
+                    <div key={i} className="bg-white rounded px-2.5 py-1.5 border border-slate-100 text-[11px]">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-slate-400 tabular-nums text-[10px]">{n.date} {n.time}</span>
+                        <span className="text-[10px] font-semibold text-slate-500">by {n.user}</span>
+                      </div>
+                      <div className="text-slate-700">{n.text}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center text-[11px] text-slate-400 py-3">ยังไม่มี follow-up</div>
+              )}
+              <div className="flex gap-1.5">
+                <input
+                  type="text"
+                  value={followupText}
+                  onChange={(e) => setFollowupText(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') addNote(); }}
+                  placeholder="พิมพ์ follow-up..."
+                  className="flex-1 text-[11px] px-2 py-1.5 rounded border border-slate-200 bg-white focus:outline-none focus:border-amber-400"
+                />
+                <button
+                  onClick={addNote}
+                  className="px-2.5 py-1.5 rounded bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-semibold transition-colors"
+                >
+                  บันทึก
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -222,6 +301,26 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange, cu
   const [banksOpen, setBanksOpen] = useState(false);
   const [panelTab, setPanelTab] = useState<'detail' | 'sla' | 'followup' | 'ai'>(defaultTab || 'detail');
   const [newNote, setNewNote] = useState('');
+  // ─── Credit card inline edit ───
+  const [editingCreditStep, setEditingCreditStep] = useState<number | null>(null);
+  const [creditOverrides, setCreditOverrides] = useState<Record<number, { target: string; actual: string; result: string }>>({});
+  const [creditHistory, setCreditHistory] = useState<{ stepIdx: number; stepLabel: string; field: string; oldVal: string; newVal: string; date: string; time: string; user: string }[]>([]);
+  const [creditEditForm, setCreditEditForm] = useState({ target: '', actual: '', result: '', _origTarget: '', _origActual: '', _origResult: '' });
+  const handleSaveCreditEdit = (stepIdx: number, stepLabel: string) => {
+    const now = new Date();
+    const d = now.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const t = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+    const newChanges: typeof creditHistory = [];
+    if (creditEditForm.target !== creditEditForm._origTarget)
+      newChanges.push({ stepIdx, stepLabel, field: 'วันกำหนด', oldVal: creditEditForm._origTarget || '—', newVal: creditEditForm.target || '—', date: d, time: t, user: 'คุณสมชาย' });
+    if (creditEditForm.actual !== creditEditForm._origActual)
+      newChanges.push({ stepIdx, stepLabel, field: 'วันจริง', oldVal: creditEditForm._origActual || '—', newVal: creditEditForm.actual || '—', date: d, time: t, user: 'คุณสมชาย' });
+    if (creditEditForm.result !== creditEditForm._origResult)
+      newChanges.push({ stepIdx, stepLabel, field: 'ผล', oldVal: creditEditForm._origResult || 'รอผล', newVal: creditEditForm.result || 'รอผล', date: d, time: t, user: 'คุณสมชาย' });
+    if (newChanges.length > 0) setCreditHistory(prev => [...prev, ...newChanges]);
+    setCreditOverrides(prev => ({ ...prev, [stepIdx]: { target: creditEditForm.target, actual: creditEditForm.actual, result: creditEditForm.result } }));
+    setEditingCreditStep(null);
+  };
   // Section open/close — single mapping for all views
   const sectionOpen = (section: string): boolean => {
     // Stage-filtered list views: open only the matching section
@@ -383,6 +482,7 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange, cu
           <Section
             title="ข้อมูลพื้นฐาน"
             icon={Info}
+            followup
             defaultOpen={sectionOpen('basic')}
             badge={
               <span className="text-xs text-white/70 flex items-center gap-2">
@@ -423,7 +523,7 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange, cu
           </Section>
 
           {/* ═══ 2. ลูกค้า ═══ */}
-          <Section title="ลูกค้า" icon={User} defaultOpen={sectionOpen('customer')} badge={
+          <Section title="ลูกค้า" icon={User} defaultOpen={sectionOpen('customer')} followup badge={
               <span className="text-xs text-white/70 flex items-center gap-2">
                 <span>{b.customer_name}</span>
                 {b.customer_occupation && <><span className="text-white/40">|</span><span>อาชีพ: {b.customer_occupation}</span></>}
@@ -457,6 +557,7 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange, cu
             defaultOpen={sectionOpen('credit')}
             count={`${b.banks_submitted.length} ธนาคาร`}
             badge={b.credit_status ? <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/15 text-white/80 font-medium">{b.credit_status}</span> : undefined}
+            followup
           >
             {/* เอกสาร — step 1: บูโร → step 2: Bank + JD (พร้อมกัน) */}
             <div className="px-3 py-1.5 flex items-center justify-between bg-slate-50/80 border-b border-slate-100">
@@ -507,54 +608,134 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange, cu
                 { label: 'Bank เบื้องต้น', target: b.bank_preapprove_target_date_biz, actual: b.bank_preapprove_actual_date, result: b.bank_preapprove_result, flag: b.bank_preapprove_flag, rate: selectedBs?.interest_rate_3y ?? null },
                 { label: 'Bank อนุมัติจริง', target: b.bank_final_target_date_biz, actual: b.bank_final_actual_date, result: b.bank_final_result, flag: b.bank_final_flag, rate: selectedBs?.interest_rate_3y ?? null },
               ];
-              const lastDone = steps.reduce((acc, s, i) => s.result ? i : acc, -1);
+              const lastDone = steps.reduce((acc, s, i) => {
+                const eff = creditOverrides[i] ? creditOverrides[i].result : (s.result || '');
+                return eff ? i : acc;
+              }, -1);
               return (
+                <>
                 <div className="flex items-stretch px-3 py-3 gap-0">
                   {steps.map((step, i) => {
-                    const hasResult = !!step.result;
-                    const isPass = step.flag === 'pass';
-                    const isFail = step.flag === 'fail';
+                    const ov = creditOverrides[i];
+                    const effTarget = ov ? ov.target : (step.target || '');
+                    const effActual = ov ? ov.actual : (step.actual || '');
+                    const effResult = ov ? ov.result : (step.result || '');
+                    const effFlag = ov ? (ov.result ? getResultFlag(ov.result) : null) : step.flag;
+                    const hasResult = !!effResult;
+                    const isPass = effFlag === 'pass';
+                    const isFail = effFlag === 'fail';
                     const isNext = !hasResult && i === lastDone + 1;
+                    const isEditing = editingCreditStep === i;
                     const accent = isPass ? 'bg-emerald-500' : isFail ? 'bg-red-500' : hasResult ? 'bg-amber-500' : isNext ? 'bg-amber-400' : 'bg-slate-200';
-                    const border = isPass ? 'border-emerald-300' : isFail ? 'border-red-300' : isNext ? 'border-amber-300' : 'border-slate-200';
-                    const badgeCls = isPass ? 'bg-emerald-200 text-emerald-800' : isFail ? 'bg-red-200 text-red-800' : hasResult ? 'bg-amber-200 text-amber-800' : isNext ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-400';
-                    const labelCls = isPass ? 'text-emerald-800' : isFail ? 'text-red-700' : hasResult ? 'text-amber-800' : isNext ? 'text-amber-700' : 'text-slate-500';
+                    const border = isEditing ? 'border-amber-400 ring-1 ring-amber-200' : isPass ? 'border-emerald-300' : isFail ? 'border-red-300' : isNext ? 'border-amber-300' : 'border-slate-200';
+                    const badgeCls = isEditing ? 'bg-amber-200 text-amber-800' : isPass ? 'bg-emerald-200 text-emerald-800' : isFail ? 'bg-red-200 text-red-800' : hasResult ? 'bg-amber-200 text-amber-800' : isNext ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-400';
+                    const labelCls = isEditing ? 'text-amber-700' : isPass ? 'text-emerald-800' : isFail ? 'text-red-700' : hasResult ? 'text-amber-800' : isNext ? 'text-amber-700' : 'text-slate-500';
+                    const hasOverride = !!ov;
                     return (
                       <div key={i} className="flex items-stretch flex-1 min-w-0">
                         {i > 0 && <div className="w-1.5 flex-shrink-0" />}
                         <div className={`flex-1 flex flex-col rounded-lg border overflow-hidden shadow-sm ${border}`}>
-                          <div className={`h-[3px] ${accent}`} />
-                          <div className="bg-white px-2.5 py-2 flex flex-col flex-1">
+                          <div className={`h-[3px] ${isEditing ? 'bg-amber-400' : accent}`} />
+                          <div className={`${isEditing ? 'bg-amber-50/50' : 'bg-white'} px-2.5 py-2 flex flex-col flex-1`}>
                             <div className="flex items-center gap-1.5 mb-2">
                               <span className={`w-[18px] h-[18px] rounded-full text-[8px] font-bold flex items-center justify-center flex-shrink-0 ${badgeCls}`}>
-                                {isPass ? '✓' : isFail ? '✗' : i + 1}
+                                {isEditing ? '✎' : isPass ? '✓' : isFail ? '✗' : i + 1}
                               </span>
-                              <span className={`text-[10px] font-semibold leading-tight whitespace-nowrap ${labelCls}`}>{step.label}</span>
-                            </div>
-                            <div className="space-y-0.5 text-[10px]">
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="text-slate-400 text-[9px]">กำหนด</span>
-                                <span className="text-slate-500 text-[9px] tabular-nums">{step.target || '—'}</span>
-                              </div>
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="text-slate-400 text-[9px]">จริง</span>
-                                <span className={`text-[9px] tabular-nums ${step.actual ? 'text-slate-700 font-medium' : 'text-slate-300'}`}>{step.actual || '—'}</span>
-                              </div>
-                            </div>
-                            <div className="mt-auto pt-1.5 border-t border-slate-100 flex items-end justify-between">
-                              {hasResult ? (
-                                <ResultChip value={step.result} />
+                              <span className={`text-[10px] font-semibold leading-tight whitespace-nowrap flex-1 ${labelCls}`}>{step.label}</span>
+                              {isEditing ? (
+                                <>
+                                  <button onClick={() => handleSaveCreditEdit(i, step.label)} className="text-[9px] font-semibold text-emerald-600 hover:text-emerald-700 px-1">บันทึก</button>
+                                  <button onClick={() => setEditingCreditStep(null)} className="text-[9px] text-slate-400 hover:text-slate-600 px-1">ยกเลิก</button>
+                                </>
                               ) : (
-                                <span className="inline-flex px-1.5 py-0.5 rounded border text-[10px] font-medium bg-slate-50 text-slate-400 border-slate-200">รอผล</span>
+                                <button
+                                  onClick={() => {
+                                    const ct = ov ? ov.target : (step.target || '');
+                                    const ca = ov ? ov.actual : (step.actual || '');
+                                    const cr = ov ? ov.result : (step.result || '');
+                                    setCreditEditForm({ target: ct, actual: ca, result: cr, _origTarget: ct, _origActual: ca, _origResult: cr });
+                                    setEditingCreditStep(i);
+                                  }}
+                                  className="w-5 h-5 flex items-center justify-center rounded hover:bg-slate-100 transition-colors text-slate-400 hover:text-slate-600 flex-shrink-0"
+                                  title={`แก้ไข ${step.label}`}
+                                >
+                                  <Pencil className="w-3 h-3" />
+                                </button>
                               )}
-                              {step.rate != null && <span className="text-[9px] text-blue-600 font-semibold tabular-nums">{step.rate.toFixed(2)}%</span>}
                             </div>
+                            {isEditing ? (
+                              <div className="space-y-1.5 text-[10px]">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-slate-500 text-[9px] w-10 flex-shrink-0">กำหนด</span>
+                                  <input type="text" className="flex-1 border border-slate-300 rounded px-1.5 py-0.5 text-[9px] bg-white focus:border-amber-400 focus:outline-none" value={creditEditForm.target} onChange={e => setCreditEditForm(f => ({ ...f, target: e.target.value }))} placeholder="DD/MM/YYYY" />
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-slate-500 text-[9px] w-10 flex-shrink-0">จริง</span>
+                                  <input type="text" className="flex-1 border border-slate-300 rounded px-1.5 py-0.5 text-[9px] bg-white focus:border-amber-400 focus:outline-none" value={creditEditForm.actual} onChange={e => setCreditEditForm(f => ({ ...f, actual: e.target.value }))} placeholder="DD/MM/YYYY" />
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-slate-500 text-[9px] w-10 flex-shrink-0">ผล</span>
+                                  <select className="flex-1 border border-slate-300 rounded px-1.5 py-0.5 text-[9px] bg-white focus:border-amber-400 focus:outline-none" value={creditEditForm.result} onChange={e => setCreditEditForm(f => ({ ...f, result: e.target.value }))}>
+                                    <option value="">รอผล</option>
+                                    <option value="ผ่าน">ผ่าน</option>
+                                    <option value="ไม่ผ่าน">ไม่ผ่าน</option>
+                                    <option value="ผ่านแบบมีเงื่อนไข">ผ่าน (มีเงื่อนไข)</option>
+                                  </select>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="space-y-0.5 text-[10px]">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="text-slate-400 text-[9px]">กำหนด</span>
+                                    <span className={`text-[9px] tabular-nums ${hasOverride && effTarget !== (step.target || '') ? 'text-amber-600 font-medium' : 'text-slate-500'}`}>{effTarget || '—'}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="text-slate-400 text-[9px]">จริง</span>
+                                    <span className={`text-[9px] tabular-nums ${effActual ? 'text-slate-700 font-medium' : 'text-slate-300'}`}>{effActual || '—'}</span>
+                                  </div>
+                                </div>
+                                <div className="mt-auto pt-1.5 border-t border-slate-100 flex items-end justify-between">
+                                  {hasResult ? (
+                                    <ResultChip value={effResult} />
+                                  ) : (
+                                    <span className="inline-flex px-1.5 py-0.5 rounded border text-[10px] font-medium bg-slate-50 text-slate-400 border-slate-200">รอผล</span>
+                                  )}
+                                  {step.rate != null && <span className="text-[9px] text-blue-600 font-semibold tabular-nums">{step.rate.toFixed(2)}%</span>}
+                                </div>
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>
                     );
                   })}
                 </div>
+                {/* ประวัติแก้ไข */}
+                {creditHistory.length > 0 && (
+                  <div className="px-3 pb-2">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Clock className="w-3 h-3 text-slate-400" />
+                      <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">ประวัติแก้ไข</span>
+                    </div>
+                    <div className="space-y-0.5">
+                      {creditHistory.slice().reverse().map((h, hi) => (
+                        <div key={hi} className="text-[9px] flex items-start gap-1.5 py-0.5 text-slate-500">
+                          <span className="text-slate-400 tabular-nums flex-shrink-0 whitespace-nowrap">{h.date} {h.time}</span>
+                          <span className="text-slate-400 flex-shrink-0">by {h.user}:</span>
+                          <span>
+                            <span className="font-medium text-slate-600">{h.stepLabel}</span>
+                            {' '}{h.field}{' '}
+                            <span className="line-through text-slate-400">{h.oldVal}</span>
+                            {' → '}
+                            <span className="text-slate-700 font-medium">{h.newVal}</span>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                </>
               );
             })()}
 
@@ -614,7 +795,19 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange, cu
                   {banksOpen && (
                     <div className="p-3 space-y-2">
                       {[...b.banks_submitted]
-                        .sort((a, _b) => a.bank === 'JD' ? 1 : _b.bank === 'JD' ? -1 : 0)
+                        .sort((a, _b) => {
+                          // JD always last
+                          if (a.bank === 'JD' && _b.bank !== 'JD') return 1;
+                          if (_b.bank === 'JD' && a.bank !== 'JD') return -1;
+                          // Approved (pass) first, then pending/fail
+                          const aOk = a.result_flag === 'pass' ? 0 : 1;
+                          const bOk = _b.result_flag === 'pass' ? 0 : 1;
+                          if (aOk !== bOk) return aOk - bOk;
+                          // Sort by interest rate ascending (lowest first), null → bottom
+                          const aRate = a.interest_rate_3y ?? Infinity;
+                          const bRate = _b.interest_rate_3y ?? Infinity;
+                          return aRate - bRate;
+                        })
                         .map((bs, i) => {
                           const isJD = bs.bank === 'JD';
                           const steps = isJD ? [
@@ -683,6 +876,7 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange, cu
             icon={ClipboardCheck}
             defaultOpen={sectionOpen('inspection')}
             badge={b.inspection_status ? <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/15 text-white/80 font-medium">{b.inspection_status}</span> : undefined}
+            followup
           >
             {/* SubHead: รอบตรวจ + CS / CON */}
             <div className="px-3 py-1.5 flex items-center justify-between bg-slate-50/80 border-b border-slate-100">
@@ -696,7 +890,7 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange, cu
 
             {/* Inspection rounds */}
             <MiniTable
-              headers={['รอบ', 'กำหนดตรวจ', 'ห้องพร้อม', 'นัดลูกค้าเข้าตรวจ', 'ตรวจจริง', 'ผลการตรวจ']}
+              headers={['รอบ', 'กำหนดตรวจ', 'CS Review', 'นัดลูกค้าเข้าตรวจ', 'ตรวจจริง', 'ผลการตรวจ']}
               colWidths={['10%', '14%', '14%', '14%', '14%', '']}
 
               rows={([
@@ -718,6 +912,7 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange, cu
               <div className="flex items-center gap-3 text-xs flex-wrap">
                 {b.handover_accept_date && <span className="text-emerald-600 font-medium">ลูกค้ารับห้อง: {b.handover_accept_date}</span>}
                 <span className="text-slate-500">วิธีการตรวจ: <Val v={b.inspection_method} /></span>
+                <span className="text-slate-500">QC5: <Val v={b.qc5_date} /></span>
                 <span className="text-slate-500">QC(5.5): <Val v={b.unit_ready_inspection_date} /></span>
               </div>
             </div>
@@ -729,6 +924,7 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange, cu
             icon={ArrowRightLeft}
             defaultOpen={sectionOpen('transfer')}
             badge={b.transfer_status ? <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/15 text-white/80 font-medium">{b.transfer_status}</span> : undefined}
+            followup
           >
             {/* SubHead: ขั้นตอนโอน + ชื่อคน */}
             <div className="px-3 py-1.5 flex items-center justify-between bg-slate-50/80 border-b border-slate-100">
@@ -808,7 +1004,7 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange, cu
           </Section>
 
           {/* ═══ 6. LivNex / Pre-LivNex ═══ */}
-          <Section title="LivNex / Pre-LivNex" icon={Wifi} defaultOpen={sectionOpen('livnex')}>
+          <Section title="LivNex / Pre-LivNex" icon={Wifi} defaultOpen={sectionOpen('livnex')} followup>
             {/* SubHead: ขั้นตอน + ผู้รับผิดชอบ */}
             <div className="px-3 py-1.5 flex items-center justify-between bg-slate-50/80 border-b border-slate-100">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">ขั้นตอน LivNex</span>
@@ -905,7 +1101,7 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange, cu
           </Section>
 
           {/* ═══ 7. Backlog / Segmentation ═══ */}
-          <Section title="Backlog / Segmentation" icon={BarChart3} defaultOpen={sectionOpen('backlog')}>
+          <Section title="Backlog / Segmentation" icon={BarChart3} defaultOpen={sectionOpen('backlog')} followup>
             <div className="grid grid-cols-2 divide-x divide-slate-100">
               <div>
                 <Row label="Backlog Status"><Val v={b.backlog_status} /></Row>
@@ -922,30 +1118,30 @@ export function BookingDetailPanel({ booking, onClose, onTransferMonthChange, cu
 
           {/* ═══ 8. After Transfer — 4 sections ═══ */}
           {b.stage === 'transferred' && (<>
-            <Section title="เงินทอนลูกค้า" icon={Wallet} defaultOpen={sectionOpen('refund')}>
+            <Section title="เงินทอนลูกค้า" icon={Wallet} defaultOpen={sectionOpen('refund')} followup>
               <Row label="สถานะ"><Val v={b.refund_status} /></Row>
               {b.refund_amount !== null && <Row label="จำนวนเงิน"><Val v={`฿${formatMoney(b.refund_amount)}`} /></Row>}
               {b.refund_aging !== null && <Row label="Aging"><Val v={`${b.refund_aging} วัน`} /></Row>}
               <Row label="วันที่คืน"><Val v={b.refund_transfer_date} /></Row>
             </Section>
 
-            <Section title="ของแถมลูกค้า" icon={Gift} defaultOpen={sectionOpen('freebie')}>
+            <Section title="ของแถมลูกค้า" icon={Gift} defaultOpen={sectionOpen('freebie')} followup>
               <Row label="เอกสารส่งมอบ"><Val v={b.handover_document_received_date} /></Row>
             </Section>
 
-            <Section title="การเปลี่ยนชื่อมิเตอร์น้ำ-ไฟ" icon={Gauge} defaultOpen={sectionOpen('meter')}>
+            <Section title="การเปลี่ยนชื่อมิเตอร์น้ำ-ไฟ" icon={Gauge} defaultOpen={sectionOpen('meter')} followup>
               <Row label="มิเตอร์น้ำ"><Val v={b.water_meter_change_date} /></Row>
               <Row label="มิเตอร์ไฟ"><Val v={b.electricity_meter_change_date} /></Row>
             </Section>
 
-            <Section title="งานซ่อมคงค้าง" icon={AlertTriangle} defaultOpen={sectionOpen('pending-work')}>
+            <Section title="งานซ่อมคงค้าง" icon={AlertTriangle} defaultOpen={sectionOpen('pending-work')} followup>
               <Row label="เอกสารส่งมอบ"><Val v={b.handover_document_received_date} /></Row>
             </Section>
           </>)}
 
           {/* ═══ 9. Follow-up / Notes ═══ */}
           {(b.mgmt_remark || b.followup_note || b.sale_followup_task || b.pm_fast_sent_date || b.cs_review_date) && (
-            <Section title="Follow-up / Notes" icon={MessageSquare}>
+            <Section title="Follow-up / Notes" icon={MessageSquare} followup>
               {b.mgmt_remark && <Row label="Mgmt Remark"><Val v={b.mgmt_remark} /></Row>}
               {b.followup_note && <Row label="Follow-up"><Val v={b.followup_note} /></Row>}
               {b.sale_followup_task && <Row label="Sale Task"><Val v={b.sale_followup_task} /></Row>}

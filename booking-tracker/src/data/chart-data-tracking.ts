@@ -89,44 +89,6 @@ export const GROUP_COLORS: Record<string, string> = {
 };
 
 // ─────────────────────────────────────────────
-// เวลาอนุมัติเฉลี่ย ของธนาคาร (Mockup)
-// ─────────────────────────────────────────────
-export const BANK_APPROVAL_STEPS = [
-  { key: 'submit_bureau', label: 'ส่ง → บูโร',      sla: 3 },
-  { key: 'bureau_pre',    label: 'บูโร → เบื้องต้น',  sla: 3 },
-  { key: 'pre_final',     label: 'เบื้องต้น → จริง',  sla: 3 },
-  { key: 'total',         label: 'รวม ส่ง → จริง',    sla: 9 },
-] as const;
-
-export type BankApprovalStep = typeof BANK_APPROVAL_STEPS[number]['key'];
-
-export interface BankApprovalRow {
-  bank: string;
-  color: string;
-  count: number; // จำนวน booking ที่ยื่น
-  avgDays: Record<BankApprovalStep, number | null>; // เฉลี่ยวัน (null = ไม่มีข้อมูล)
-}
-
-export const BANK_APPROVAL_DATA: BankApprovalRow[] = [
-  { bank: 'GHB',    color: '#e11d48', count: 145, avgDays: { submit_bureau: 1, bureau_pre: 2, pre_final: 2, total: 5 } },
-  { bank: 'GSB',    color: '#f472b6', count: 98,  avgDays: { submit_bureau: 2, bureau_pre: 2, pre_final: 3, total: 7 } },
-  { bank: 'SCB',    color: '#7c3aed', count: 72,  avgDays: { submit_bureau: 1, bureau_pre: 1, pre_final: 2, total: 4 } },
-  { bank: 'KBANK',  color: '#16a34a', count: 88,  avgDays: { submit_bureau: 2, bureau_pre: 3, pre_final: 4, total: 9 } },
-  { bank: 'KTB',    color: '#0891b2', count: 65,  avgDays: { submit_bureau: 3, bureau_pre: 2, pre_final: 3, total: 8 } },
-  { bank: 'TTB',    color: '#ea580c', count: 54,  avgDays: { submit_bureau: 1, bureau_pre: 3, pre_final: 2, total: 6 } },
-  { bank: 'BAY',    color: '#eab308', count: 41,  avgDays: { submit_bureau: 2, bureau_pre: 3, pre_final: 5, total: 10 } },
-  { bank: 'LH',     color: '#84cc16', count: 37,  avgDays: { submit_bureau: 1, bureau_pre: 2, pre_final: 3, total: 6 } },
-  { bank: 'BBL',    color: '#2563eb', count: 29,  avgDays: { submit_bureau: 3, bureau_pre: 4, pre_final: 3, total: 10 } },
-  { bank: 'UOB',    color: '#db2777', count: 22,  avgDays: { submit_bureau: 2, bureau_pre: 2, pre_final: 3, total: 7 } },
-  { bank: 'CIMB',   color: '#b91c1c', count: 18,  avgDays: { submit_bureau: 3, bureau_pre: 5, pre_final: 7, total: 15 } },
-  { bank: 'KKP',    color: '#6366f1', count: 15,  avgDays: { submit_bureau: 1, bureau_pre: 2, pre_final: 3, total: 6 } },
-  { bank: 'iBank',  color: '#0d9488', count: 12,  avgDays: { submit_bureau: 2, bureau_pre: 3, pre_final: 2, total: 7 } },
-  { bank: 'TISCO',  color: '#a855f7', count: 9,   avgDays: { submit_bureau: 2, bureau_pre: 3, pre_final: 3, total: 8 } },
-  { bank: 'สหกรณ์', color: '#78716c', count: 6,   avgDays: { submit_bureau: 3, bureau_pre: 6, pre_final: 9, total: 18 } },
-  { bank: 'JD',     color: '#059669', count: 34,  avgDays: { submit_bureau: 1, bureau_pre: null, pre_final: 2, total: 3 } },
-];
-
-// ─────────────────────────────────────────────
 // Mock Booking Items — auto-generate จาก PROCESS_BACKLOG
 // ─────────────────────────────────────────────
 export interface BacklogItem {
@@ -162,3 +124,184 @@ function _genItems(processKey: string, agingDay: string, count: number): Backlog
 export const BACKLOG_ITEMS: BacklogItem[] = PROCESS_BACKLOG.flatMap(p =>
   AGING_BUCKETS.flatMap(b => _genItems(p.key, b, p.aging[b]))
 );
+
+// ─────────────────────────────────────────────
+// SLA Compliance — โอนแล้ว (รายโครงการ)
+// Mock data สำหรับตาราง: โอนแล้ว / ≤30 วัน / >30 วัน / เฉลี่ย E2E / %SLA
+// ─────────────────────────────────────────────
+export interface SlaComplianceRow {
+  pName: string;
+  n: number;        // โอนแล้วทั้งหมด
+  within30: number;  // ≤30 วัน
+  over30: number;    // >30 วัน
+  avgE2E: number;    // เฉลี่ย E2E (วัน)
+  pct: number;       // %SLA (0-100)
+}
+
+export const SLA_COMPLIANCE_DATA: SlaComplianceRow[] = [
+  // BUD C1
+  { pName: 'เสนา เวล่า สิริโสธร',          n: 42, within30: 35, over30: 7,  avgE2E: 24, pct: 83 },
+  { pName: 'เสนา พาร์ค แกรนด์ รามอินทรา',  n: 38, within30: 30, over30: 8,  avgE2E: 26, pct: 79 },
+  { pName: 'เสนา เรสซิเดนซ์ อารีย์',        n: 25, within30: 22, over30: 3,  avgE2E: 21, pct: 88 },
+  // BUD C2
+  { pName: 'เสนา คอนโด วงเวียนใหญ่',       n: 31, within30: 19, over30: 12, avgE2E: 33, pct: 61 },
+  { pName: 'เสนา เพลส ลาดพร้าว',           n: 27, within30: 20, over30: 7,  avgE2E: 28, pct: 74 },
+  // BUD C3
+  { pName: 'เสนา โซลาร์ พหลโยธิน',         n: 35, within30: 28, over30: 7,  avgE2E: 25, pct: 80 },
+  { pName: 'เสนา วิลล่า สุขุมวิท',          n: 19, within30: 16, over30: 3,  avgE2E: 22, pct: 84 },
+  // BUD C4
+  { pName: 'เสนา คอนโด พระราม 9',          n: 22, within30: 14, over30: 8,  avgE2E: 31, pct: 64 },
+  { pName: 'เสนา คอนโด อ่อนนุช',           n: 18, within30: 12, over30: 6,  avgE2E: 32, pct: 67 },
+  // BUD H1
+  { pName: 'เสนา ทาวน์ รังสิต',             n: 45, within30: 38, over30: 7,  avgE2E: 23, pct: 84 },
+  { pName: 'เสนา วีว่า ศรีราชา - อัสสัมชัญ',  n: 33, within30: 25, over30: 8,  avgE2E: 27, pct: 76 },
+  { pName: 'บ้านบูรพา',                     n: 28, within30: 24, over30: 4,  avgE2E: 22, pct: 86 },
+  // BUD H2
+  { pName: 'เสนา อเวนิว บางปะกง - บ้านโพธิ์', n: 36, within30: 22, over30: 14, avgE2E: 35, pct: 58 },
+  { pName: 'เสนา เอโค่ บางนา',              n: 30, within30: 23, over30: 7,  avgE2E: 27, pct: 77 },
+  { pName: 'เสนา ไลฟ์ บางปู',               n: 24, within30: 18, over30: 6,  avgE2E: 29, pct: 75 },
+  { pName: 'เสนา เวล่า สุขุมวิท-บางปู',      n: 20, within30: 11, over30: 9,  avgE2E: 34, pct: 55 },
+];
+
+// ─────────────────────────────────────────────
+// งานค้างรายโครงการ (Backlog per Project)
+// Mock data: งานค้าง / ตาม SLA / เกิน SLA / เฉลี่ย aging / %ตาม SLA
+// ─────────────────────────────────────────────
+export interface BacklogByProjectRow {
+  pName: string;
+  n: number;         // งานค้างทั้งหมด
+  withinSla: number; // ตาม SLA
+  overSla: number;   // เกิน SLA
+  avgAging: number;  // เฉลี่ย aging (วัน)
+  pct: number;       // %ตาม SLA (0-100)
+}
+
+export const BACKLOG_BY_PROJECT_DATA: BacklogByProjectRow[] = [
+  // BUD C1
+  { pName: 'เสนา เวล่า สิริโสธร',          n: 18, withinSla: 12, overSla: 6,  avgAging: 6,  pct: 67 },
+  { pName: 'เสนา พาร์ค แกรนด์ รามอินทรา',  n: 22, withinSla: 14, overSla: 8,  avgAging: 7,  pct: 64 },
+  { pName: 'เสนา เรสซิเดนซ์ อารีย์',        n: 10, withinSla: 8,  overSla: 2,  avgAging: 4,  pct: 80 },
+  // BUD C2
+  { pName: 'เสนา คอนโด วงเวียนใหญ่',       n: 15, withinSla: 7,  overSla: 8,  avgAging: 9,  pct: 47 },
+  { pName: 'เสนา เพลส ลาดพร้าว',           n: 12, withinSla: 8,  overSla: 4,  avgAging: 6,  pct: 67 },
+  // BUD C3
+  { pName: 'เสนา โซลาร์ พหลโยธิน',         n: 16, withinSla: 11, overSla: 5,  avgAging: 5,  pct: 69 },
+  { pName: 'เสนา วิลล่า สุขุมวิท',          n: 8,  withinSla: 6,  overSla: 2,  avgAging: 4,  pct: 75 },
+  // BUD C4
+  { pName: 'เสนา คอนโด พระราม 9',          n: 14, withinSla: 6,  overSla: 8,  avgAging: 10, pct: 43 },
+  { pName: 'เสนา คอนโด อ่อนนุช',           n: 11, withinSla: 5,  overSla: 6,  avgAging: 9,  pct: 45 },
+  // BUD H1
+  { pName: 'เสนา ทาวน์ รังสิต',             n: 24, withinSla: 18, overSla: 6,  avgAging: 5,  pct: 75 },
+  { pName: 'เสนา วีว่า ศรีราชา - อัสสัมชัญ',  n: 19, withinSla: 12, overSla: 7,  avgAging: 7,  pct: 63 },
+  { pName: 'บ้านบูรพา',                     n: 13, withinSla: 10, overSla: 3,  avgAging: 4,  pct: 77 },
+  // BUD H2
+  { pName: 'เสนา อเวนิว บางปะกง - บ้านโพธิ์', n: 20, withinSla: 8,  overSla: 12, avgAging: 11, pct: 40 },
+  { pName: 'เสนา เอโค่ บางนา',              n: 17, withinSla: 11, overSla: 6,  avgAging: 7,  pct: 65 },
+  { pName: 'เสนา ไลฟ์ บางปู',               n: 14, withinSla: 9,  overSla: 5,  avgAging: 6,  pct: 64 },
+  { pName: 'เสนา เวล่า สุขุมวิท-บางปู',      n: 9,  withinSla: 3,  overSla: 6,  avgAging: 12, pct: 33 },
+];
+
+// ─────────────────────────────────────────────
+// Mock Booking Items per Project — สำหรับ panel ขวา
+// ─────────────────────────────────────────────
+export interface ProjectBookingItem {
+  bookingNo: string;
+  customer: string;
+  project: string;
+  unit: string;
+  saleName: string;
+  team: string;
+  days: number;       // E2E หรือ aging days
+  withinSla: boolean;  // ตาม SLA หรือไม่
+  status: 'backlog' | 'transferred';
+}
+
+const MOCK_SALES = ['สกุลกาญจน์ ชินพรหมนิ','นภพร วงศ์สกุล','รัตนา เพชรดี','ธนพล ศรีสุข','อรุณี จิตดี','ชัยวัฒน์ มั่นคง','พิมพ์ใจ สมบูรณ์','เอกชัย ทองดี'];
+const MOCK_TEAMS = ['CS','CO','Construction','Legal','Finance','Sale'];
+
+let _projSeq = 5000;
+function _genProjectItems(pName: string, count: number, avgDays: number, pctOk: number, status: 'backlog' | 'transferred'): ProjectBookingItem[] {
+  const items: ProjectBookingItem[] = [];
+  for (let i = 0; i < count; i++) {
+    _projSeq++;
+    const ok = (i / count) < (pctOk / 100);
+    const days = ok
+      ? Math.max(1, Math.round(avgDays * 0.6 + (_projSeq % 7)))
+      : Math.round(avgDays * 1.3 + (_projSeq % 10));
+    items.push({
+      bookingNo: `BK-${String(_projSeq).padStart(5, '0')}`,
+      customer: `${MOCK_FIRST[_projSeq % MOCK_FIRST.length]} ${MOCK_LAST[_projSeq % MOCK_LAST.length]}`,
+      project: pName,
+      unit: `${(_projSeq % 30) + 1}/${(_projSeq % 80) + 101}`,
+      saleName: MOCK_SALES[_projSeq % MOCK_SALES.length],
+      team: MOCK_TEAMS[_projSeq % MOCK_TEAMS.length],
+      days,
+      withinSla: ok,
+      status,
+    });
+  }
+  return items;
+}
+
+export const PROJECT_BOOKING_ITEMS: ProjectBookingItem[] = [
+  ...SLA_COMPLIANCE_DATA.flatMap(r => _genProjectItems(r.pName, r.n, r.avgE2E, r.pct, 'transferred')),
+  ...BACKLOG_BY_PROJECT_DATA.flatMap(r => _genProjectItems(r.pName, r.n, r.avgAging, r.pct, 'backlog')),
+];
+
+// ─────────────────────────────────────────────
+// สถานะสินเชื่อรายธนาคาร (Bank Credit Status)
+// ─────────────────────────────────────────────
+export interface BankCreditStatus {
+  bank: string;
+  approved: number;           // อนุมัติจริง (final pass)
+  pendingFinal: number;       // รอ Final (pre-approve ผ่าน, ยังไม่มี final)
+  pendingPreapprove: number;  // รอเบื้องต้น (ยื่นแล้ว, ยังไม่มี pre-approve)
+  rejected: number;           // ไม่อนุมัติ (fail ที่ขั้นใดก็ตาม)
+}
+
+export const BANK_CREDIT_STATUS: BankCreditStatus[] = [
+  { bank: 'GHB',   approved: 15, pendingFinal: 4, pendingPreapprove: 3, rejected: 2 },
+  { bank: 'KBANK',  approved: 12, pendingFinal: 5, pendingPreapprove: 2, rejected: 3 },
+  { bank: 'SCB',    approved: 10, pendingFinal: 3, pendingPreapprove: 4, rejected: 1 },
+  { bank: 'KTB',    approved: 8,  pendingFinal: 2, pendingPreapprove: 3, rejected: 2 },
+  { bank: 'BBL',    approved: 7,  pendingFinal: 3, pendingPreapprove: 1, rejected: 1 },
+  { bank: 'BAY',    approved: 6,  pendingFinal: 2, pendingPreapprove: 2, rejected: 2 },
+  { bank: 'TTB',    approved: 5,  pendingFinal: 1, pendingPreapprove: 2, rejected: 1 },
+  { bank: 'GSB',    approved: 4,  pendingFinal: 2, pendingPreapprove: 1, rejected: 1 },
+  { bank: 'LH',     approved: 3,  pendingFinal: 1, pendingPreapprove: 1, rejected: 0 },
+  { bank: 'UOB',    approved: 2,  pendingFinal: 1, pendingPreapprove: 0, rejected: 1 },
+];
+
+// ─────────────────────────────────────────────
+// Workload per Person + SLA
+// ─────────────────────────────────────────────
+export interface PersonWorkload {
+  name: string;
+  team: 'CO' | 'CS' | 'CON' | 'Sale';
+  backlog: number;
+  withinSla: number;
+  overSla: number;
+  avgAging: number;
+  pctSla: number;
+  transferred: number;
+  avgE2E: number;
+}
+export const PERSON_WORKLOAD: PersonWorkload[] = [
+  // ─── CO ───
+  { name: 'วิลาวัณย์ (อุ๊)',    team: 'CO',   backlog: 18, withinSla: 12, overSla: 6,  avgAging: 8,  pctSla: 67, transferred: 5,  avgE2E: 28 },
+  { name: 'สุภาพร (แอน)',       team: 'CO',   backlog: 15, withinSla: 11, overSla: 4,  avgAging: 6,  pctSla: 73, transferred: 7,  avgE2E: 25 },
+  { name: 'ธนพล (เอ็ม)',        team: 'CO',   backlog: 12, withinSla: 10, overSla: 2,  avgAging: 4,  pctSla: 83, transferred: 8,  avgE2E: 22 },
+  { name: 'จิราภรณ์ (จอย)',     team: 'CO',   backlog: 10, withinSla: 7,  overSla: 3,  avgAging: 7,  pctSla: 70, transferred: 4,  avgE2E: 30 },
+  // ─── CS ───
+  { name: 'สุรศักดิ์ (โอ)',      team: 'CS',   backlog: 14, withinSla: 10, overSla: 4,  avgAging: 5,  pctSla: 71, transferred: 6,  avgE2E: 26 },
+  { name: 'กาญจนา (แนน)',       team: 'CS',   backlog: 11, withinSla: 9,  overSla: 2,  avgAging: 3,  pctSla: 82, transferred: 9,  avgE2E: 20 },
+  { name: 'พรทิพย์ (หมิว)',     team: 'CS',   backlog: 13, withinSla: 8,  overSla: 5,  avgAging: 9,  pctSla: 62, transferred: 3,  avgE2E: 32 },
+  // ─── CON ───
+  { name: 'สุรสิทธิ์ (โต้ง)',    team: 'CON',  backlog: 20, withinSla: 14, overSla: 6,  avgAging: 7,  pctSla: 70, transferred: 4,  avgE2E: 29 },
+  { name: 'ประเสริฐ (เจ)',       team: 'CON',  backlog: 16, withinSla: 13, overSla: 3,  avgAging: 4,  pctSla: 81, transferred: 6,  avgE2E: 23 },
+  { name: 'วิชัย (ชัย)',         team: 'CON',  backlog: 8,  withinSla: 6,  overSla: 2,  avgAging: 5,  pctSla: 75, transferred: 5,  avgE2E: 27 },
+  // ─── Sale ───
+  { name: 'สกุลกาญจน์ (กิ๊ฟ)',  team: 'Sale', backlog: 9,  withinSla: 7,  overSla: 2,  avgAging: 4,  pctSla: 78, transferred: 10, avgE2E: 21 },
+  { name: 'นภัสสร (มิ้นท์)',    team: 'Sale', backlog: 7,  withinSla: 6,  overSla: 1,  avgAging: 3,  pctSla: 86, transferred: 8,  avgE2E: 19 },
+  { name: 'ภูริวัจน์ (เบนซ์)',   team: 'Sale', backlog: 11, withinSla: 8,  overSla: 3,  avgAging: 6,  pctSla: 73, transferred: 6,  avgE2E: 26 },
+];

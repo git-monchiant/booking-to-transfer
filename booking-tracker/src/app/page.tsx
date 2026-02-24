@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, Fragment } from 'react';
 import {
   bookings,
   getSummary,
@@ -28,7 +28,7 @@ import {
   MONTHLY_SALES_DATA, MONTHLY_TRANSFER_DATA, MONTHLY_CANCEL_DATA,
   BACKLOG_INITIAL,
 } from '@/data/chart-data';
-import { PROCESS_BACKLOG, GROUP_COLORS, AGING_BUCKETS, AGING_COLORS, BANK_APPROVAL_DATA, BANK_APPROVAL_STEPS } from '@/data/chart-data-tracking';
+import { PROCESS_BACKLOG, GROUP_COLORS, AGING_BUCKETS, AGING_COLORS, SLA_COMPLIANCE_DATA, BACKLOG_BY_PROJECT_DATA, PROJECT_BOOKING_ITEMS, BANK_CREDIT_STATUS, PERSON_WORKLOAD } from '@/data/chart-data-tracking';
 import { BookingListItem } from '@/components/BookingListItem';
 import {
   BarChart,
@@ -42,6 +42,7 @@ import {
   ResponsiveContainer,
   Cell,
   LabelList,
+  Legend,
 } from 'recharts';
 import {
   AlertTriangle,
@@ -53,11 +54,8 @@ import {
   X,
   Phone,
   User,
-  FileText,
   CheckCircle2,
   ArrowUpRight,
-  Wallet,
-  Settings,
   Layers,
   Bell,
 } from 'lucide-react';
@@ -100,6 +98,10 @@ const [notiOpen, setNotiOpen] = useState(false);
     }
   );
   const [defaultTab, setDefaultTab] = useState<'detail' | 'sla' | 'followup' | 'ai' | undefined>(undefined);
+  const [projectSlaView, setProjectSlaView] = useState<'backlog' | 'transferred'>('backlog');
+  const [selectedProject, setSelectedProject] = useState<string | null>(
+    () => [...BACKLOG_BY_PROJECT_DATA].sort((a, b) => b.n - a.n)[0]?.pName ?? null
+  );
 
   // Global Filters
   const [globalFilters, setGlobalFilters] = useState({
@@ -167,6 +169,15 @@ const [notiOpen, setNotiOpen] = useState(false);
         }
       }
     }
+    return map;
+  }, []);
+
+  // ─── Project booking map: ProjectBookingItem index → actual Booking (round-robin) ───
+  const projectBookingRealMap = useMemo(() => {
+    const map = new Map<string, Booking>();
+    PROJECT_BOOKING_ITEMS.forEach((item, i) => {
+      map.set(item.bookingNo, bookings[i % bookings.length]);
+    });
     return map;
   }, []);
 
@@ -1452,392 +1463,9 @@ const [notiOpen, setNotiOpen] = useState(false);
                 );
               })()}
 
-              <div className="grid grid-cols-10 gap-4 items-stretch">
-              <div className="col-span-3 flex">
-              {/* ════════ เวลาอนุมัติเฉลี่ย แต่ละ Step ของธนาคาร + JD (Heatmap style) ════════ */}
-              {(() => {
-                // สี SLA-based เหมือน tracking heatmap
-                const BA_GREEN = ['#064e3b','#065f46','#047857','#059669','#0d9448','#16a34a'];
-                const BA_OVER  = ['#eab308','#f59e0b','#f97316','#ea580c','#dc2626','#b91c1c','#991b1b','#7f1d1d'];
-
-                const getBankColor = (days: number | null, sla: number): string => {
-                  if (days === null) return '#f1f5f9';
-                  if (days <= sla) {
-                    // ภายใน SLA → เขียวทั้งหมด แค่คนละเฉด (1→เฉดแรก, sla→เฉดสุดท้าย)
-                    if (sla <= 1) return BA_GREEN[0];
-                    const idx = Math.round(((days - 1) / (sla - 1)) * (BA_GREEN.length - 1));
-                    return BA_GREEN[Math.min(idx, BA_GREEN.length - 1)];
-                  } else {
-                    // เกิน SLA → เหลืองไปแดงจัดๆ (ยิ่งเกินมาก ยิ่งแดง)
-                    const overDays = days - sla;
-                    const idx = Math.min(overDays - 1, BA_OVER.length - 1);
-                    return BA_OVER[idx];
-                  }
-                };
-
-                return (
-                  <div className="bg-white rounded-xl border border-slate-200 p-4 w-full">
-                    <div className="mb-3">
-                      <h2 className="font-semibold text-slate-900 text-sm">เวลาอนุมัติเฉลี่ย</h2>
-                      <p className="text-[10px] text-slate-400 mt-0.5">เฉลี่ยวัน แยกแต่ละ Step ของธนาคาร — สีตาม SLA ของแต่ละ Step</p>
-                    </div>
-                    {/* Legend */}
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="flex items-center gap-1.5">
-                        <div className="flex items-center h-3 rounded overflow-hidden">
-                          {BA_GREEN.slice(0, 3).map((c, i) => <div key={i} className="h-full w-3" style={{ backgroundColor: c }} />)}
-                        </div>
-                        <span className="text-[10px] text-slate-500">ภายใน SLA</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <div className="flex items-center h-3 rounded overflow-hidden">
-                          {BA_OVER.slice(0, 5).map((c, i) => <div key={i} className="h-full w-3" style={{ backgroundColor: c }} />)}
-                        </div>
-                        <span className="text-[10px] text-slate-500">เกิน SLA</span>
-                      </div>
-                    </div>
-                    <table className="w-full text-[11px]">
-                      <thead>
-                        <tr className="border-b border-slate-200">
-                          <th className="text-left py-2 px-2 text-slate-500 font-medium whitespace-nowrap" style={{ minWidth: 60 }}>ธนาคาร</th>
-                          <th className="text-center py-2 px-1 text-slate-500 font-medium w-8">N</th>
-                          {BANK_APPROVAL_STEPS.map(s => (
-                            <th key={s.key} className="text-center py-2 px-1 text-slate-500 font-medium whitespace-nowrap">
-                              <div>{s.label}</div>
-                              <div className="text-[9px] text-blue-500 font-bold">SLA {s.sla} วัน</div>
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {BANK_APPROVAL_DATA.map(row => (
-                          <tr key={row.bank} className="border-b border-slate-100 hover:bg-slate-50">
-                            <td className="py-3 px-2 font-medium text-slate-800 whitespace-nowrap">
-                              <span className="inline-flex items-center gap-1">
-                                <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: row.color }} />
-                                {row.bank}
-                              </span>
-                            </td>
-                            <td className="py-3 px-1 text-center text-slate-500 tabular-nums">{row.count}</td>
-                            {BANK_APPROVAL_STEPS.map(step => {
-                              const v = row.avgDays[step.key];
-                              const cellColor = getBankColor(v, step.sla);
-                              return (
-                                <td key={step.key}
-                                  className="text-center font-bold tabular-nums border border-white/20"
-                                  style={{ backgroundColor: cellColor, color: v !== null ? '#fff' : '#cbd5e1' }}>
-                                  {v !== null ? v : '—'}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                );
-              })()}
-              </div>
-              <div className="col-span-7 flex">
-              {/* ════════ Stacked Bar — จำนวนยื่นสินเชื่อรายธนาคาร ════════ */}
-              {(() => {
-                const allBanksSb = ['GHB','GSB','SCB','KBANK','KTB','TTB','BAY','LH','BBL','UOB','CIMB','KKP','iBank','TISCO','สหกรณ์'];
-                const sbColors: Record<string, string> = {
-                  'GHB': '#e11d48', 'GSB': '#f472b6', 'SCB': '#7c3aed', 'KBANK': '#16a34a',
-                  'KTB': '#0891b2', 'TTB': '#ea580c', 'BAY': '#eab308', 'LH': '#84cc16',
-                  'BBL': '#2563eb', 'UOB': '#db2777', 'CIMB': '#b91c1c', 'KKP': '#6366f1',
-                  'iBank': '#0d9488', 'TISCO': '#a855f7', 'สหกรณ์': '#78716c', 'JD': '#059669',
-                };
-
-                // Count per bank per status
-                const bankData: Record<string, { approved: number; rejected: number; pending: number }> = {};
-                allBanksSb.forEach(bk => { bankData[bk] = { approved: 0, rejected: 0, pending: 0 }; });
-
-                globalFilteredBookings.forEach(b => {
-                  b.banks_submitted.forEach(bs => {
-                    if (bs.bank === 'CASH' || bs.bank === 'JD') return;
-                    if (!bankData[bs.bank]) return;
-                    if (bs.result_flag === 'pass') {
-                      bankData[bs.bank].approved++;
-                    } else if (bs.result_flag === 'fail') {
-                      bankData[bs.bank].rejected++;
-                    } else {
-                      bankData[bs.bank].pending++;
-                    }
-                  });
-                });
-
-                const chartData = allBanksSb
-                  .map(bk => {
-                    const t = bankData[bk].approved + bankData[bk].rejected + bankData[bk].pending;
-                    return {
-                      bank: bk,
-                      อนุมัติ: bankData[bk].approved,
-                      ไม่อนุมัติ: bankData[bk].rejected,
-                      งานค้าง: bankData[bk].pending,
-                      total: t,
-                      approveRate: t > 0 ? Math.round((bankData[bk].approved / t) * 100) : 0,
-                      rejectRate: t > 0 ? Math.round((bankData[bk].rejected / t) * 100) : 0,
-                    };
-                  })
-                  .sort((a, b) => b.total - a.total);
-
-                return (
-                  <div className="bg-white rounded-xl border border-slate-200 p-4 w-full flex flex-col">
-                    <div className="flex items-center justify-between mb-2">
-                      <div>
-                        <h2 className="font-semibold text-slate-900 text-sm">จำนวนยื่นสินเชื่อ — รายธนาคาร</h2>
-                        <p className="text-[10px] text-slate-400 mt-0.5">แท่งซ้าย = ส่ง, แท่งขวา = อนุมัติ+ไม่อนุมัติ</p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-1 text-[10px] text-slate-600">
-                          <span className="w-3 h-3 rounded-sm bg-slate-400" /> ส่ง
-                        </div>
-                        <div className="flex items-center gap-1 text-[10px] text-slate-600">
-                          <span className="w-3 h-3 rounded-sm bg-emerald-500" /> อนุมัติ
-                        </div>
-                        <div className="flex items-center gap-1 text-[10px] text-slate-600">
-                          <span className="w-3 h-3 rounded-sm bg-red-500" /> ไม่อนุมัติ
-                        </div>
-                        <div className="flex items-center gap-1 text-[10px] text-slate-600">
-                          <span className="w-2.5 h-0.5 rounded bg-amber-500" /> รออนุมัติ
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex-1 min-h-0">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <ComposedChart data={chartData} margin={{ left: 0, right: 10, top: 25, bottom: 5 }} barGap={2} barCategoryGap="20%">
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="bank" tick={{ fontSize: 9, fontWeight: 600 }} interval={0} />
-                        <YAxis tick={{ fontSize: 11 }} />
-                        <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} formatter={(value, name) => [`${value} ใบ`, name]} />
-                        <Bar dataKey="ไม่อนุมัติ" stackId="result" fill="#ef4444">
-                          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                          <LabelList content={(props: any) => {
-                            const { x, y, width, height, index } = props;
-                            const d = chartData[index];
-                            if (!d || d['ไม่อนุมัติ'] === 0) return null;
-                            return <text x={x + width / 2} y={y - 4} textAnchor="middle" style={{ fontSize: 8, fontWeight: 700, fill: '#dc2626' }}>{d['ไม่อนุมัติ']} ({d.rejectRate}%)</text>;
-                          }} />
-                        </Bar>
-                        <Bar dataKey="อนุมัติ" stackId="result" fill="#22c55e">
-                          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                          <LabelList content={(props: any) => {
-                            const { x, y, width, height, index } = props;
-                            const d = chartData[index];
-                            if (!d || d['อนุมัติ'] === 0) return null;
-                            return <text x={x + width / 2} y={y + height / 2} textAnchor="middle" dominantBaseline="central" style={{ fontSize: 8, fontWeight: 700, fill: '#065f46' }}>{d['อนุมัติ']} ({d.approveRate}%)</text>;
-                          }} />
-                        </Bar>
-                        <Bar dataKey="total" name="ส่ง" fill="#94a3b8">
-                          <LabelList dataKey="total" position="top" style={{ fontSize: 9, fontWeight: 700, fill: '#334155' }} formatter={((v: any) => Number(v) > 0 ? `${v}` : '') as any} />
-                        </Bar>
-                        <Line type="monotone" dataKey="งานค้าง" name="รออนุมัติ" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3, fill: '#f59e0b' }}>
-                          <LabelList dataKey="งานค้าง" position="top" style={{ fontSize: 8, fontWeight: 700, fill: '#d97706' }} formatter={((v: any) => Number(v) > 0 ? `${v}` : '') as any} />
-                        </Line>
-                      </ComposedChart>
-                    </ResponsiveContainer>
-                    </div>
-                  </div>
-                );
-              })()}
-              </div>
-              </div>
 
 
-              {/* Stage Pipeline - 4 Process Columns */}
-              <div className="bg-white rounded-xl border border-slate-200 p-5">
-                <h2 className="font-semibold text-slate-900 mb-4">Pipeline</h2>
-                {(() => {
-                  const notDonePipe = globalFilteredBookings.filter(b => b.stage !== 'transferred' && b.stage !== 'cancelled');
-                  const pipeGroups = [
-                    {
-                      label: 'เอกสาร', color: '#6366f1', bg: '#eef2ff',
-                      steps: [
-                        { label: 'จอง', count: notDonePipe.filter(b => !b.contract_date).length },
-                        { label: 'เอกสารตรวจบูโร', count: notDonePipe.filter(b => b.contract_date && !b.doc_bureau_date).length },
-                        { label: 'เอกสาร Bank', count: notDonePipe.filter(b => b.contract_date && !b.doc_complete_bank_jd_date).length },
-                        { label: 'เอกสาร JD', count: notDonePipe.filter(b => b.contract_date && !b.doc_complete_jd_date).length },
-                      ],
-                    },
-                    {
-                      label: 'สินเชื่อ', color: '#f59e0b', bg: '#fffbeb',
-                      steps: [
-                        { label: 'ส่งเอกสารธนาคาร', count: notDonePipe.filter(b => (b.doc_bureau_date || b.doc_complete_bank_jd_date) && b.banks_submitted.length === 0).length },
-                        { label: 'ผลบูโร', count: notDonePipe.filter(b => b.banks_submitted.length > 0 && !b.bureau_actual_result_date).length },
-                        { label: 'อนุมัติเบื้องต้น', count: notDonePipe.filter(b => b.bureau_actual_result_date && !b.bank_preapprove_actual_date).length },
-                        { label: 'อนุมัติจริง', count: notDonePipe.filter(b => b.bank_preapprove_actual_date && !b.bank_final_actual_date).length },
-                      ],
-                    },
-                    {
-                      label: 'ตรวจบ้าน', color: '#06b6d4', bg: '#ecfeff',
-                      steps: [
-                        { label: 'ตรวจครั้งที่ 1', count: notDonePipe.filter(b => b.stage === 'inspection' && !b.inspect1_date).length },
-                        { label: 'ตรวจครั้งที่ 2', count: notDonePipe.filter(b => b.stage === 'inspection' && b.inspect1_date && b.inspect1_result?.includes('ไม่') && !b.inspect2_date).length },
-                        { label: 'ตรวจครั้งที่ 3', count: notDonePipe.filter(b => b.stage === 'inspection' && b.inspect2_date && b.inspect2_result?.includes('ไม่') && !b.inspect3_date).length },
-                        { label: 'ตรวจ 3+', count: notDonePipe.filter(b => b.stage === 'inspection' && b.inspect3_date && b.inspect3_result?.includes('ไม่')).length },
-                      ],
-                    },
-                    {
-                      label: 'โอน', color: '#10b981', bg: '#ecfdf5',
-                      steps: [
-                        { label: 'สัญญา Bank', count: notDonePipe.filter(b => b.bank_final_actual_date && !b.bank_contract_date).length },
-                        { label: 'ส่งชุดโอน', count: notDonePipe.filter(b => b.bank_contract_date && !b.transfer_package_sent_date).length },
-                        { label: 'ปลอดโฉนด', count: notDonePipe.filter(b => b.transfer_package_sent_date && !b.title_clear_date).length },
-                        { label: 'นัดโอน', count: notDonePipe.filter(b => b.title_clear_date && !b.transfer_appointment_date).length },
-                        { label: 'โอนจริง', count: notDonePipe.filter(b => b.transfer_appointment_date && !b.transfer_actual_date).length },
-                      ],
-                    },
-                  ];
 
-                  const cancelledCount = globalFilteredBookings.filter(b => b.stage === 'cancelled').length;
-                  const transferredCount = globalFilteredBookings.filter(b => b.stage === 'transferred').length;
-
-                  const globalMax = Math.max(...pipeGroups.flatMap(g => g.steps.map(s => s.count)), 1);
-
-                  return (
-                    <>
-                    <div className="grid grid-cols-4 gap-3 items-start">
-                      {pipeGroups.map((group, gi) => {
-                        const total = group.steps.reduce((s, st) => s + st.count, 0);
-                        return (
-                          <div key={group.label} className="flex items-start gap-1">
-                            <div className="flex-1 rounded-lg border p-3" style={{ backgroundColor: group.bg, borderColor: group.color + '40' }}>
-                              <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center gap-1.5">
-                                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: group.color }} />
-                                  <span className="text-xs font-semibold" style={{ color: group.color }}>{group.label}</span>
-                                </div>
-                                <span className="text-[10px] font-bold" style={{ color: group.color }}>{total}</span>
-                              </div>
-                              <div className="space-y-1.5">
-                                {group.steps.map(step => (
-                                  <div key={step.label}>
-                                    <div className="flex items-center justify-between mb-0.5">
-                                      <span className="text-[10px] text-slate-600">{step.label}</span>
-                                      <span className="text-[10px] font-bold" style={{ color: group.color }}>{step.count}</span>
-                                    </div>
-                                    <div className="h-1.5 bg-white/60 rounded-full">
-                                      <div className="h-full rounded-full" style={{ width: `${(step.count / globalMax) * 100}%`, backgroundColor: group.color }} />
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                            {gi < pipeGroups.length - 1 && <ChevronRight className="w-4 h-4 text-slate-300 mt-8 shrink-0" />}
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div className="flex gap-3 mt-3">
-                      <div className="flex-1 rounded-lg border border-red-200 bg-red-50 p-3 flex items-center justify-between">
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-2 h-2 rounded-full bg-red-500" />
-                          <span className="text-xs font-semibold text-red-600">Cancelled</span>
-                        </div>
-                        <span className="text-sm font-bold text-red-600">{cancelledCount}</span>
-                      </div>
-                      <div className="flex-1 rounded-lg border border-emerald-200 bg-emerald-50 p-3 flex items-center justify-between">
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                          <span className="text-xs font-semibold text-emerald-600">Transferred</span>
-                        </div>
-                        <span className="text-sm font-bold text-emerald-600">{transferredCount}</span>
-                      </div>
-                    </div>
-                    </>
-                  );
-                })()}
-              </div>
-
-              {/* Backlog Aging Chart */}
-              <div className="bg-white rounded-xl border border-slate-200 p-5">
-                <div className="mb-4">
-                  <h2 className="font-semibold text-slate-900">Backlog Aging</h2>
-                  <p className="text-xs text-slate-500">จำนวน Booking ตาม Aging (นับจากวันจอง)</p>
-                </div>
-                <ResponsiveContainer width="100%" height={320}>
-                  <BarChart
-                    data={(() => {
-                      const activeBookings = globalFilteredBookings.filter(b =>
-                        b.stage !== 'transferred' && b.stage !== 'cancelled'
-                      );
-                      const ranges = [
-                        { range: '0-15', min: 0, max: 15, color: '#10b981' },
-                        { range: '16-30', min: 16, max: 30, color: '#3b82f6' },
-                        { range: '31-45', min: 31, max: 45, color: '#f59e0b' },
-                        { range: '46-60', min: 46, max: 60, color: '#f97316' },
-                        { range: '61-90', min: 61, max: 90, color: '#ef4444' },
-                        { range: '90+', min: 91, max: 9999, color: '#dc2626' },
-                      ];
-                      return ranges.map(r => {
-                        const matchingBookings = activeBookings.filter(b => b.aging_days >= r.min && b.aging_days <= r.max);
-                        const value = matchingBookings.reduce((sum, b) => sum + (b.net_contract_value || 0), 0);
-                        // Format value in millions (M) for compact display
-                        const valueInM = value / 1000000;
-                        const valueLabel = valueInM >= 1 ? `${valueInM.toFixed(1)}M` : formatMoney(value);
-                        return {
-                          range: r.range,
-                          count: matchingBookings.length,
-                          value,
-                          color: r.color,
-                          countLabel: matchingBookings.length,
-                          valueLabel: valueLabel,
-                        };
-                      });
-                    })()}
-                    margin={{ top: 40, right: 20, left: 0, bottom: 5 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="range" tick={{ fontSize: 11 }} stroke="#94a3b8" />
-                    <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" />
-                    <Tooltip
-                      content={({ active, payload }) => {
-                        if (active && payload && payload.length) {
-                          return (
-                            <div className="bg-white p-2 border border-slate-200 rounded shadow-lg text-xs">
-                              <p className="font-semibold text-slate-900">{payload[0].payload.range} วัน</p>
-                              <p style={{ color: payload[0].payload.color }}>{payload[0].value} รายการ</p>
-                              <p className="text-slate-600">มูลค่า: {formatMoney(payload[0].payload.value)}</p>
-                            </div>
-                          );
-                        }
-                        return null;
-                      }}
-                    />
-                    <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                      <LabelList
-                        dataKey="countLabel"
-                        position="top"
-                        fontSize={10}
-                        fill="#334155"
-                        offset={18}
-                        formatter={(v) => typeof v === 'number' ? `${v} หลัง` : ''}
-                      />
-                      <LabelList
-                        dataKey="valueLabel"
-                        position="top"
-                        fontSize={9}
-                        fill="#64748b"
-                        offset={5}
-                      />
-                      {(() => {
-                        const ranges = [
-                          { color: '#10b981' },
-                          { color: '#3b82f6' },
-                          { color: '#f59e0b' },
-                          { color: '#f97316' },
-                          { color: '#ef4444' },
-                          { color: '#dc2626' },
-                        ];
-                        return ranges.map((r, index) => (
-                          <Cell key={`cell-${index}`} fill={r.color} />
-                        ));
-                      })()}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
 
               {/* Blocked Items */}
               <div className="bg-white rounded-xl border border-red-200 p-5">
@@ -1880,162 +1508,382 @@ const [notiOpen, setNotiOpen] = useState(false);
                 )}
               </div>
 
-              {/* Aging Overview */}
+              {/* ════════ SLA Compliance — รายโครงการ (dropdown สลับ งานค้าง/โอนแล้ว) ════════ */}
               <div className="bg-white rounded-xl border border-slate-200 p-5">
-                <h2 className="font-semibold text-slate-900 mb-4">Aging Overview - Active Bookings</h2>
-                <div className="grid grid-cols-4 gap-4">
-                  {[
-                    { label: '0-15 วัน', min: 0, max: 15, color: 'emerald' },
-                    { label: '16-30 วัน', min: 16, max: 30, color: 'blue' },
-                    { label: '31-45 วัน', min: 31, max: 45, color: 'amber' },
-                    { label: '45+ วัน', min: 46, max: 9999, color: 'red' },
-                  ].map(range => {
-                    const activeOnly = globalFilteredBookings.filter(b =>
-                      b.stage !== 'transferred' && b.stage !== 'cancelled'
-                    );
-                    const count = activeOnly.filter(b =>
-                      b.aging_days >= range.min && b.aging_days <= range.max
-                    ).length;
-                    const percentage = activeOnly.length > 0
-                      ? ((count / activeOnly.length) * 100).toFixed(0)
-                      : '0';
-
-                    return (
-                      <div key={range.label} className={`p-4 rounded-lg bg-${range.color}-50 border border-${range.color}-200`}>
-                        <div className={`text-2xl font-bold text-${range.color}-600`}>{count}</div>
-                        <div className="text-sm text-slate-700 mt-1">{range.label}</div>
-                        <div className="text-xs text-slate-500 mt-1">{percentage}%</div>
-                      </div>
-                    );
-                  })}
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <h2 className="font-semibold text-slate-900">
+                      {projectSlaView === 'backlog' ? 'สถานะงานค้าง — รายโครงการ' : 'SLA Compliance — โอนแล้ว (รายโครงการ)'}
+                    </h2>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      {projectSlaView === 'backlog'
+                        ? 'ภาพรวมงานค้างแต่ละโครงการ ทำได้ตาม SLA หรือไม่'
+                        : 'ภาพรวมแต่ละโครงการ ทำได้ตาม SLA หรือไม่ — เฉพาะ Booking ที่โอนแล้ว'}
+                    </p>
+                  </div>
+                  <select
+                    value={projectSlaView}
+                    onChange={e => { setProjectSlaView(e.target.value as 'backlog' | 'transferred'); setSelectedProject(null); }}
+                    className="text-[11px] border border-slate-300 rounded-lg px-3 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  >
+                    <option value="backlog">งานค้าง</option>
+                    <option value="transferred">งานที่จบแล้ว</option>
+                  </select>
                 </div>
-              </div>
 
-              {/* Team Workload Tracking */}
-              <div className="bg-white rounded-xl border border-slate-200 p-5">
-                <h2 className="font-semibold text-slate-900 mb-4">งานค้างแต่ละทีม</h2>
-                <div className="space-y-3">
-                  {filteredSummary.byTeam.map(item => {
-                    const teamBlockedCount = blockedBookings.filter(b => b.current_owner_team === item.team).length;
-                    return (
-                      <div key={item.team} className="flex items-center gap-4 p-3 bg-slate-50 rounded-lg">
-                        <div
-                          className="w-4 h-4 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: TEAM_CONFIG[item.team]?.color ?? '#64748b' }}
-                        />
-                        <span className="text-sm font-medium text-slate-700 w-24">{TEAM_CONFIG[item.team]?.label ?? item.team}</span>
-                        <div className="flex-1">
-                          <div className="h-3 bg-slate-200 rounded-full overflow-hidden">
-                            <div
-                              className="h-full rounded-full"
-                              style={{
-                                width: `${Math.min((item.count / Math.max(filteredSummary.activeBookings, 1)) * 100, 100)}%`,
-                                backgroundColor: TEAM_CONFIG[item.team]?.color ?? '#64748b'
-                              }}
-                            />
+                {(() => {
+                  const panelItems = selectedProject
+                    ? PROJECT_BOOKING_ITEMS.filter(b => b.project === selectedProject && b.status === projectSlaView)
+                    : [];
+                  return (
+                  <div className="grid grid-cols-10 gap-3">
+                    {/* ซ้าย: ตาราง */}
+                    <div className="col-span-7 overflow-x-auto">
+                {projectSlaView === 'transferred' ? (
+                  <table className="w-full text-[11px]">
+                    <thead>
+                      <tr className="border-b border-slate-200">
+                        <th className="text-left py-2 px-2 text-slate-500 font-medium" style={{ width: 200 }}>โครงการ</th>
+                        <th className="text-center py-2 px-2 text-slate-500 font-medium" style={{ width: 50 }}>โอนแล้ว</th>
+                        <th className="text-center py-2 px-2 text-slate-500 font-medium whitespace-nowrap" style={{ width: 55 }}>≤30d</th>
+                        <th className="text-center py-2 px-2 text-slate-500 font-medium whitespace-nowrap" style={{ width: 55 }}>&gt;30d</th>
+                        <th className="text-center py-2 px-2 text-slate-500 font-medium" style={{ width: 60 }}>เฉลี่ย</th>
+                        <th className="text-center py-2 px-2 text-slate-500 font-medium" style={{ width: 50 }}>%SLA</th>
+                        <th className="py-2 px-2 text-slate-500 font-medium text-[9px]" style={{ minWidth: 100 }}>
+                          <div className="flex justify-between"><span className="text-emerald-500">≤30d</span><span className="text-red-400">&gt;30d</span></div>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...SLA_COMPLIANCE_DATA].sort((a, b) => b.n - a.n).map(row => {
+                        const barW30 = row.n > 0 ? (row.within30 / row.n) * 100 : 0;
+                        const isSelected = selectedProject === row.pName;
+                        return (
+                          <tr key={row.pName}
+                            className={`border-b border-slate-100 cursor-pointer transition-colors ${isSelected ? 'bg-blue-50 border-blue-200' : 'hover:bg-slate-50'}`}
+                            onClick={() => setSelectedProject(isSelected ? null : row.pName)}>
+                            <td className="py-1 px-2 font-medium text-slate-800 truncate" title={row.pName}>{row.pName}</td>
+                            <td className="py-1 px-2 text-center font-bold text-slate-700 tabular-nums">{row.n}</td>
+                            <td className="py-1 px-2 text-center font-bold text-emerald-600 tabular-nums">{row.within30}</td>
+                            <td className="py-1 px-2 text-center font-bold text-red-500 tabular-nums">{row.over30}</td>
+                            <td className="py-1 px-2 text-center tabular-nums">
+                              <span className={`font-bold ${row.avgE2E <= 30 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                {row.avgE2E}d
+                              </span>
+                            </td>
+                            <td className="py-1 px-2 text-center">
+                              <span className={`inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                row.pct >= 80 ? 'bg-emerald-100 text-emerald-700' :
+                                row.pct >= 60 ? 'bg-yellow-100 text-yellow-700' :
+                                'bg-red-100 text-red-700'
+                              }`}>
+                                {row.pct}%
+                              </span>
+                            </td>
+                            <td className="p-0 relative">
+                              <div className="absolute inset-y-[2px] inset-x-0 flex overflow-hidden">
+                                <div className="h-full flex items-center justify-center" style={{ width: `${barW30}%`, backgroundColor: '#059669' }}>
+                                  {row.within30 > 0 && barW30 > 25 && <span className="text-[8px] font-bold text-white">{row.within30}</span>}
+                                </div>
+                                {row.over30 > 0 && (
+                                  <div className="h-full flex items-center justify-center" style={{ width: `${100 - barW30}%`, backgroundColor: '#dc2626' }}>
+                                    {(100 - barW30) > 25 && <span className="text-[8px] font-bold text-white">{row.over30}</span>}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                ) : (
+                  <table className="w-full text-[11px]">
+                    <thead>
+                      <tr className="border-b border-slate-200">
+                        <th className="text-left py-2 px-2 text-slate-500 font-medium" style={{ width: 200 }}>โครงการ</th>
+                        <th className="text-center py-2 px-2 text-slate-500 font-medium" style={{ width: 50 }}>ค้าง</th>
+                        <th className="text-center py-2 px-2 text-slate-500 font-medium whitespace-nowrap" style={{ width: 55 }}>ตาม</th>
+                        <th className="text-center py-2 px-2 text-slate-500 font-medium whitespace-nowrap" style={{ width: 55 }}>เกิน</th>
+                        <th className="text-center py-2 px-2 text-slate-500 font-medium" style={{ width: 60 }}>เฉลี่ย</th>
+                        <th className="text-center py-2 px-2 text-slate-500 font-medium" style={{ width: 50 }}>%SLA</th>
+                        <th className="py-2 px-2 text-slate-500 font-medium text-[9px]" style={{ minWidth: 100 }}>
+                          <div className="flex justify-between"><span className="text-emerald-500">ตาม</span><span className="text-red-400">เกิน</span></div>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...BACKLOG_BY_PROJECT_DATA].sort((a, b) => b.n - a.n).map(row => {
+                        const barOk = row.n > 0 ? (row.withinSla / row.n) * 100 : 0;
+                        const isSelected = selectedProject === row.pName;
+                        return (
+                          <tr key={row.pName}
+                            className={`border-b border-slate-100 cursor-pointer transition-colors ${isSelected ? 'bg-blue-50 border-blue-200' : 'hover:bg-slate-50'}`}
+                            onClick={() => setSelectedProject(isSelected ? null : row.pName)}>
+                            <td className="py-1 px-2 font-medium text-slate-800 truncate" title={row.pName}>{row.pName}</td>
+                            <td className="py-1 px-2 text-center font-bold text-slate-700 tabular-nums">{row.n}</td>
+                            <td className="py-1 px-2 text-center font-bold text-emerald-600 tabular-nums">{row.withinSla}</td>
+                            <td className="py-1 px-2 text-center font-bold text-red-500 tabular-nums">{row.overSla}</td>
+                            <td className="py-1 px-2 text-center tabular-nums">
+                              <span className={`font-bold ${row.avgAging <= 5 ? 'text-emerald-600' : row.avgAging <= 8 ? 'text-amber-600' : 'text-red-500'}`}>
+                                {row.avgAging}d
+                              </span>
+                            </td>
+                            <td className="py-1 px-2 text-center">
+                              <span className={`inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                row.pct >= 70 ? 'bg-emerald-100 text-emerald-700' :
+                                row.pct >= 50 ? 'bg-yellow-100 text-yellow-700' :
+                                'bg-red-100 text-red-700'
+                              }`}>
+                                {row.pct}%
+                              </span>
+                            </td>
+                            <td className="p-0 relative">
+                              <div className="absolute inset-y-[2px] inset-x-0 flex overflow-hidden">
+                                <div className="h-full flex items-center justify-center" style={{ width: `${barOk}%`, backgroundColor: '#059669' }}>
+                                  {row.withinSla > 0 && barOk > 25 && <span className="text-[8px] font-bold text-white">{row.withinSla}</span>}
+                                </div>
+                                {row.overSla > 0 && (
+                                  <div className="h-full flex items-center justify-center" style={{ width: `${100 - barOk}%`, backgroundColor: '#dc2626' }}>
+                                    {(100 - barOk) > 25 && <span className="text-[8px] font-bold text-white">{row.overSla}</span>}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+                    </div>
+
+                    {/* ขวา: Booking List Panel */}
+                    <div className="col-span-3 border-l border-slate-200 pl-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-xs font-bold text-slate-700">
+                          {selectedProject
+                            ? <>{selectedProject}</>
+                            : 'คลิกแถวโครงการเพื่อดูรายการ'}
+                        </h4>
+                        {selectedProject && <span className="text-[10px] font-bold text-slate-500">{panelItems.length} รายการ</span>}
+                      </div>
+                      {selectedProject && (
+                        <button onClick={() => setSelectedProject(null)} className="text-[10px] text-blue-600 hover:underline mb-2">ยกเลิก filter</button>
+                      )}
+                      <div className="overflow-y-auto space-y-1" style={{ maxHeight: 520 }}>
+                        {!selectedProject ? (
+                          <div className="text-center text-slate-400 text-xs py-12">
+                            <svg className="w-8 h-8 mx-auto mb-2 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" /></svg>
+                            คลิกแถวโครงการ<br/>เพื่อแสดงรายการใบจอง
                           </div>
-                        </div>
-                        <div className="text-right min-w-[120px]">
-                          <span className="text-lg font-bold text-slate-900">{item.count}</span>
-                          <span className="text-sm text-slate-500 ml-2">รายการ</span>
-                          {teamBlockedCount > 0 && (
-                            <span className="text-xs text-red-600 ml-2">({teamBlockedCount} ติดปัญหา)</span>
-                          )}
-                        </div>
+                        ) : panelItems.length === 0 ? (
+                          <div className="text-center text-slate-400 text-xs py-8">ไม่มีรายการ</div>
+                        ) : panelItems.map((bk, i) => (
+                          <div key={`${bk.bookingNo}-${i}`}
+                            className="flex items-start gap-2 p-2 rounded bg-white border border-slate-100 hover:border-blue-400 hover:bg-blue-50 cursor-pointer text-[11px] transition"
+                            onClick={() => { const real = projectBookingRealMap.get(bk.bookingNo); if (real) { setDefaultTab(undefined); setSelectedBooking(real); } }}>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-bold text-blue-700">{bk.bookingNo}</div>
+                              <div className="text-slate-700 truncate">{bk.customer}</div>
+                              <div className="text-slate-400 truncate">{bk.project} • Unit {bk.unit}</div>
+                              <div className="text-slate-500 truncate">{bk.saleName} <span className="text-slate-400">({bk.team})</span></div>
+                            </div>
+                            <div className="text-right shrink-0 space-y-0.5">
+                              <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold text-white ${bk.withinSla ? 'bg-emerald-500' : 'bg-red-400'}`}>
+                                {bk.days} วัน
+                              </span>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    );
-                  })}
-                </div>
+                    </div>
+                  </div>
+                  );
+                })()}
               </div>
 
-              {/* After Transfer Tasks */}
-              <div className="grid grid-cols-3 gap-4">
-                {/* เงินทอน */}
-                <div className="bg-white rounded-xl border border-slate-200 p-5">
-                  <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                    <Wallet className="w-5 h-5 text-amber-500" />
-                    เงินทอน
-                  </h3>
-                  <div className="space-y-2">
-                    {['ค้างจ่าย', 'รอดำเนินการ'].map(status => {
-                      const count = globalFilteredBookings.filter(b =>
-                        b.stage === 'transferred' &&
-                        b.refund_status === status
-                      ).length;
+              {/* ════════ Workload รายบุคคล ════════ */}
+              <div className="bg-white rounded-xl border border-slate-200 p-5">
+                <h3 className="text-base font-bold text-slate-700 mb-4">Workload รายบุคคล</h3>
+                <table className="w-full text-[11px]">
+                  <thead>
+                    <tr className="border-b border-slate-200">
+                      <th className="text-left py-2 px-2 text-slate-500 font-medium" style={{ width: 180 }}>ชื่อ</th>
+                      <th className="text-center py-2 px-2 text-slate-500 font-medium" style={{ width: 50 }}>งานค้าง</th>
+                      <th className="text-center py-2 px-2 text-slate-500 font-medium" style={{ width: 55 }}>ตาม</th>
+                      <th className="text-center py-2 px-2 text-slate-500 font-medium" style={{ width: 55 }}>เกิน</th>
+                      <th className="text-center py-2 px-2 text-slate-500 font-medium" style={{ width: 60 }}>เฉลี่ย</th>
+                      <th className="text-center py-2 px-2 text-slate-500 font-medium" style={{ width: 50 }}>%SLA</th>
+                      <th className="text-center py-2 px-2 text-slate-500 font-medium" style={{ width: 50 }}>โอนแล้ว</th>
+                      <th className="text-center py-2 px-2 text-slate-500 font-medium" style={{ width: 60 }}>E2E</th>
+                      <th className="py-2 px-2 text-slate-500 font-medium text-[9px]" style={{ minWidth: 100 }}>
+                        <div className="flex justify-between"><span className="text-emerald-500">ตาม</span><span className="text-red-400">เกิน</span></div>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(['CO', 'CS', 'CON', 'Sale'] as const).map(team => {
+                      const members = PERSON_WORKLOAD.filter(p => p.team === team);
+                      if (members.length === 0) return null;
+                      const teamColor = team === 'CO' ? '#8b5cf6' : team === 'CS' ? '#10b981' : team === 'CON' ? '#f59e0b' : '#3b82f6';
+                      const teamLabel = team === 'CON' ? 'ก่อสร้าง' : team === 'Sale' ? 'ฝ่ายขาย' : team;
+                      const sumBacklog = members.reduce((s, p) => s + p.backlog, 0);
+                      const sumWithin = members.reduce((s, p) => s + p.withinSla, 0);
+                      const sumOver = members.reduce((s, p) => s + p.overSla, 0);
+                      const sumTransferred = members.reduce((s, p) => s + p.transferred, 0);
                       return (
-                        <div key={status} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                          <span className="text-sm text-slate-700">{status}</span>
-                          <span className="text-lg font-bold text-amber-600">{count}</span>
-                        </div>
+                        <Fragment key={team}>
+                          {/* Team header */}
+                          <tr style={{ backgroundColor: `${teamColor}10` }}>
+                            <td className="py-1.5 px-2 font-bold text-[11px]" style={{ color: teamColor }} colSpan={2}>
+                              <span className="inline-flex items-center gap-1.5">
+                                <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: teamColor }} />
+                                {teamLabel}
+                                <span className="text-[10px] font-normal text-slate-400">({members.length} คน)</span>
+                              </span>
+                            </td>
+                            <td className="py-1.5 px-2 text-center font-bold text-emerald-600 tabular-nums text-[10px]">{sumWithin}</td>
+                            <td className="py-1.5 px-2 text-center font-bold text-red-500 tabular-nums text-[10px]">{sumOver}</td>
+                            <td className="py-1.5 px-2" colSpan={2} />
+                            <td className="py-1.5 px-2 text-center font-bold tabular-nums text-[10px]" style={{ color: teamColor }}>{sumTransferred}</td>
+                            <td className="py-1.5 px-2" colSpan={2} />
+                          </tr>
+                          {/* Person rows */}
+                          {members.map(p => {
+                            const barOk = p.backlog > 0 ? (p.withinSla / p.backlog) * 100 : 0;
+                            return (
+                              <tr key={p.name} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                                <td className="py-1 px-2 font-medium text-slate-800 truncate" title={p.name}>
+                                  <span className="inline-flex items-center gap-1.5">
+                                    <span className="inline-flex px-1.5 py-0.5 rounded text-[8px] font-bold text-white" style={{ backgroundColor: teamColor }}>{team}</span>
+                                    {p.name}
+                                  </span>
+                                </td>
+                                <td className="py-1 px-2 text-center font-bold text-slate-700 tabular-nums">{p.backlog}</td>
+                                <td className="py-1 px-2 text-center font-bold text-emerald-600 tabular-nums">{p.withinSla}</td>
+                                <td className="py-1 px-2 text-center font-bold text-red-500 tabular-nums">{p.overSla}</td>
+                                <td className="py-1 px-2 text-center tabular-nums">
+                                  <span className={`font-bold ${p.avgAging <= 5 ? 'text-emerald-600' : p.avgAging <= 8 ? 'text-amber-600' : 'text-red-500'}`}>
+                                    {p.avgAging}d
+                                  </span>
+                                </td>
+                                <td className="py-1 px-2 text-center">
+                                  <span className={`inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                    p.pctSla >= 80 ? 'bg-emerald-100 text-emerald-700' :
+                                    p.pctSla >= 60 ? 'bg-yellow-100 text-yellow-700' :
+                                    'bg-red-100 text-red-700'
+                                  }`}>
+                                    {p.pctSla}%
+                                  </span>
+                                </td>
+                                <td className="py-1 px-2 text-center font-bold text-slate-600 tabular-nums">{p.transferred}</td>
+                                <td className="py-1 px-2 text-center tabular-nums">
+                                  <span className={`font-bold ${p.avgE2E <= 25 ? 'text-emerald-600' : p.avgE2E <= 30 ? 'text-amber-600' : 'text-red-500'}`}>
+                                    {p.avgE2E}d
+                                  </span>
+                                </td>
+                                <td className="p-0 relative">
+                                  <div className="absolute inset-y-[2px] inset-x-0 flex overflow-hidden">
+                                    <div className="h-full flex items-center justify-center" style={{ width: `${barOk}%`, backgroundColor: '#059669' }}>
+                                      {p.withinSla > 0 && barOk > 25 && <span className="text-[8px] font-bold text-white">{p.withinSla}</span>}
+                                    </div>
+                                    {p.overSla > 0 && (
+                                      <div className="h-full flex items-center justify-center" style={{ width: `${100 - barOk}%`, backgroundColor: '#dc2626' }}>
+                                        {(100 - barOk) > 25 && <span className="text-[8px] font-bold text-white">{p.overSla}</span>}
+                                      </div>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </Fragment>
                       );
                     })}
-                    <div className="flex items-center justify-between p-3 bg-amber-50 rounded-lg border border-amber-200">
-                      <span className="text-sm font-medium text-amber-700">รวมค้าง</span>
-                      <span className="text-lg font-bold text-amber-600">
-                        {globalFilteredBookings.filter(b =>
-                          b.stage === 'transferred' &&
-                          b.refund_status &&
-                          b.refund_status !== 'ไม่มี' &&
-                          b.refund_status !== 'จ่ายแล้ว'
-                        ).length}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* มิเตอร์ */}
-                <div className="bg-white rounded-xl border border-slate-200 p-5">
-                  <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                    <Settings className="w-5 h-5 text-blue-500" />
-                    มิเตอร์น้ำ-ไฟ
-                  </h3>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                      <span className="text-sm text-slate-700">รอเปลี่ยนมิเตอร์น้ำ</span>
-                      <span className="text-lg font-bold text-blue-600">
-                        {globalFilteredBookings.filter(b => b.stage === 'transferred' && !b.water_meter_change_date).length}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                      <span className="text-sm text-slate-700">รอเปลี่ยนมิเตอร์ไฟ</span>
-                      <span className="text-lg font-bold text-blue-600">
-                        {globalFilteredBookings.filter(b => b.stage === 'transferred' && !b.electricity_meter_change_date).length}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200">
-                      <span className="text-sm font-medium text-blue-700">รวมค้าง</span>
-                      <span className="text-lg font-bold text-blue-600">
-                        {globalFilteredBookings.filter(b =>
-                          b.stage === 'transferred' &&
-                          (!b.water_meter_change_date || !b.electricity_meter_change_date)
-                        ).length}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* ของแถม */}
-                <div className="bg-white rounded-xl border border-slate-200 p-5">
-                  <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                    <FileText className="w-5 h-5 text-emerald-500" />
-                    ของแถม / เอกสาร
-                  </h3>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                      <span className="text-sm text-slate-700">รอส่งมอบเอกสาร</span>
-                      <span className="text-lg font-bold text-emerald-600">
-                        {globalFilteredBookings.filter(b => b.stage === 'transferred' && !b.handover_document_received_date).length}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-emerald-50 rounded-lg border border-emerald-200">
-                      <span className="text-sm font-medium text-emerald-700">รวมค้าง</span>
-                      <span className="text-lg font-bold text-emerald-600">
-                        {globalFilteredBookings.filter(b => b.stage === 'transferred' && !b.handover_document_received_date).length}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+                  </tbody>
+                </table>
               </div>
+
+              {/* ════════ สถานะสินเชื่อรายธนาคาร ════════ */}
+              {(() => {
+                const totalSubmitted = BANK_CREDIT_STATUS.reduce((s, r) => s + r.approved + r.pendingFinal + r.pendingPreapprove + r.rejected, 0);
+                const totalApproved = BANK_CREDIT_STATUS.reduce((s, r) => s + r.approved, 0);
+                const totalPending = BANK_CREDIT_STATUS.reduce((s, r) => s + r.pendingFinal + r.pendingPreapprove, 0);
+                const totalRejected = BANK_CREDIT_STATUS.reduce((s, r) => s + r.rejected, 0);
+                const pctApproved = totalSubmitted > 0 ? Math.round((totalApproved / totalSubmitted) * 100) : 0;
+                const pctPending = totalSubmitted > 0 ? Math.round((totalPending / totalSubmitted) * 100) : 0;
+                const pctRejected = totalSubmitted > 0 ? Math.round((totalRejected / totalSubmitted) * 100) : 0;
+
+                const chartData = BANK_CREDIT_STATUS.map(r => ({
+                  ...r,
+                  total: r.approved + r.pendingFinal + r.pendingPreapprove + r.rejected,
+                }));
+
+                return (
+                  <div className="bg-white rounded-xl border border-slate-200 p-5">
+                    <h3 className="text-base font-bold text-slate-700 mb-4">สถานะสินเชื่อรายธนาคาร</h3>
+
+                    {/* KPI Cards */}
+                    <div className="grid grid-cols-4 gap-4 mb-5">
+                      <div className="border-l-4 border-slate-400 bg-slate-50 rounded-r-lg px-4 py-3">
+                        <div className="text-xs text-slate-500">ยื่นทั้งหมด</div>
+                        <div className="text-2xl font-bold text-slate-700">{totalSubmitted}</div>
+                        <div className="text-xs text-slate-400">รายการ</div>
+                      </div>
+                      <div className="border-l-4 bg-emerald-50 rounded-r-lg px-4 py-3" style={{ borderColor: '#059669' }}>
+                        <div className="text-xs text-slate-500">อนุมัติ</div>
+                        <div className="text-2xl font-bold" style={{ color: '#059669' }}>{totalApproved}</div>
+                        <div className="text-xs text-slate-400">{pctApproved}%</div>
+                      </div>
+                      <div className="border-l-4 bg-amber-50 rounded-r-lg px-4 py-3" style={{ borderColor: '#d97706' }}>
+                        <div className="text-xs text-slate-500">รออนุมัติ</div>
+                        <div className="text-2xl font-bold" style={{ color: '#d97706' }}>{totalPending}</div>
+                        <div className="text-xs text-slate-400">{pctPending}%</div>
+                      </div>
+                      <div className="border-l-4 bg-red-50 rounded-r-lg px-4 py-3" style={{ borderColor: '#dc2626' }}>
+                        <div className="text-xs text-slate-500">ไม่อนุมัติ</div>
+                        <div className="text-2xl font-bold" style={{ color: '#dc2626' }}>{totalRejected}</div>
+                        <div className="text-xs text-slate-400">{pctRejected}%</div>
+                      </div>
+                    </div>
+
+                    {/* Stacked Bar Chart */}
+                    <ResponsiveContainer width="100%" height={320}>
+                      <BarChart data={chartData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="bank" tick={{ fontSize: 12 }} />
+                        <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                        <Tooltip
+                          formatter={(value: number, name: string) => [value, name]}
+                          contentStyle={{ fontSize: 12 }}
+                        />
+                        <Legend
+                          verticalAlign="top"
+                          align="right"
+                          iconType="square"
+                          iconSize={10}
+                          wrapperStyle={{ fontSize: 11, paddingBottom: 8 }}
+                        />
+                        <Bar dataKey="approved" name="อนุมัติจริง" stackId="a" fill="#059669">
+                          <LabelList dataKey="approved" position="center" style={{ fill: '#fff', fontSize: 10, fontWeight: 700 }} formatter={(v: number) => v > 0 ? v : ''} />
+                        </Bar>
+                        <Bar dataKey="pendingFinal" name="รอ Final" stackId="a" fill="#0284c7">
+                          <LabelList dataKey="pendingFinal" position="center" style={{ fill: '#fff', fontSize: 10, fontWeight: 700 }} formatter={(v: number) => v > 0 ? v : ''} />
+                        </Bar>
+                        <Bar dataKey="pendingPreapprove" name="รอเบื้องต้น" stackId="a" fill="#d97706">
+                          <LabelList dataKey="pendingPreapprove" position="center" style={{ fill: '#fff', fontSize: 10, fontWeight: 700 }} formatter={(v: number) => v > 0 ? v : ''} />
+                        </Bar>
+                        <Bar dataKey="rejected" name="ไม่อนุมัติ" stackId="a" fill="#dc2626" radius={[3, 3, 0, 0]}>
+                          <LabelList dataKey="rejected" position="center" style={{ fill: '#fff', fontSize: 10, fontWeight: 700 }} formatter={(v: number) => v > 0 ? v : ''} />
+                          <LabelList dataKey="total" position="top" style={{ fill: '#475569', fontSize: 10, fontWeight: 700 }} />
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                );
+              })()}
+
             </div>
           )}
 
