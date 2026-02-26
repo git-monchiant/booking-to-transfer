@@ -9,35 +9,36 @@
 - **ทุกครั้งที่แก้โค้ดเสร็จ ให้ restart dev server เสมอ** — `lsof -ti:3000 | xargs kill -9 && npx next dev -p 3000`
 
 ## Current Status
-- **Last updated:** 2026-02-20 (session 4)
-- **สถานะ:** SLA sync เสร็จ, Inspection SLA finalized (Condo)
+- **Last updated:** 2026-02-24 (session 6)
+- **สถานะ:** Tracking Dashboard — heatmap restructure + sections cleanup เสร็จ
 
-### เสร็จแล้ว (session นี้)
-- **Heatmap เพิ่ม โทรนัดลูกค้าเข้าตรวจ** — `inspect_appt_hired` + `inspect_appt_self` แทรกใน subGroup ทั้ง 2 (จ้างตรวจ/ตรวจเอง)
-- **Sync SLA ทั้งหมด** ระหว่าง `chart-data-tracking.ts` (PROCESS_BACKLOG) กับ `masters.ts` (PROCESS_SLA)
-  - เอกสาร: sla 0→3 ทุก process
-  - สินเชื่อ bureau: sla→2, slaDesc='นับจากวันจอง'
-  - สินเชื่อ preapprove/final: sync ตาม occupation
-  - ตรวจบ้าน: inspect2/3/3+ updated
-- **Inspection SLA finalized (Condo):**
-  | Round | จ้างตรวจ (INS) | ตรวจเอง | fromProcess |
-  |---|---|---|---|
-  | 1 | 5 | 7 | booking |
-  | 2 | 10 | 5 | วันตรวจจริง รอบ 1 |
-  | 3 | 10 | 5 | วันตรวจจริง รอบ 2 |
-  | 3+ | 10 | 5 | วันตรวจจริง รอบ 3 |
+### เสร็จแล้ว (session นี้ — session 6)
+- **เพิ่ม doc_meter** (เอกสารมิเตอร์น้ำ-ไฟ) ใน PROCESS_BACKLOG กลุ่มเอกสาร, SLA 1 วัน
+- **Dropdown สลับ heatmap mode** — "ยังไม่ได้ดำเนินการ" (PROCESS_BACKLOG) / "กำลังดำเนินการ" (PROCESS_INPROGRESS)
+  - state: `heatmapMode` ('pending' | 'inprogress'), ใช้ `activeData` ใน rendering
+- **แยกตรวจบ้าน → CS Inspect + CON Inspect** ตาม PROCESS_MASTER:
+  - **CS Inspect** (#0891b2 cyan): CS Review, โทรนัดตรวจ โอนสด, โทรนัดตรวจ กู้ธนาคาร — ไม่มี subGroup
+  - **CON Inspect** (#7c3aed purple): CON Review (ไม่มี subGroup) + ตรวจ 1-3+ (subGroup จ้างตรวจ/ตรวจเอง)
+  - QC5/QC5.5 เก็บใน PROCESS_MASTER แต่ไม่ Track ใน heatmap
+  - ลำดับ: CS Inspect อยู่ก่อน CON Inspect
+- **Unified rendering logic** — รองรับ mixed groups (group ที่มีทั้ง process ไม่มี subGroup + process มี subGroup)
+- **ลบ section Workload — งานค้างรายคน** ออกจาก tracking dashboard
+- **ลบ section Workload รายบุคคล** (PERSON_WORKLOAD table) ออกจาก tracking dashboard
+
+### เสร็จแล้ว (session 5)
+- ลบ sections: ธนาคาร charts ×2, Aging graphs ×2, Team Workload, Pipeline, After Transfer cards
+- SLA Compliance per project + Backlog per project + Panel list + Dropdown สลับ
+- Mock data: SLA_COMPLIANCE_DATA, BACKLOG_BY_PROJECT_DATA, PROJECT_BOOKING_ITEMS
 
 ### เสร็จแล้ว (session ก่อน)
-- Master Data Restructure — PROCESS_MASTER (44) + PROCESS_SLA (36) ใน masters.ts
-- Inspection fields redesign — 16 fields (3 รอบ) → 21 fields (4 รอบ)
-- อัพเดท bookings.ts interface + mock data + references ทุกไฟล์
+- SLA sync ทั้งหมด, Inspection SLA finalized (Condo)
+- Master Data Restructure, Inspection fields redesign
 - Tracking Dashboard heatmap — group/subGroup collapsible + UI polish
 
 ### งานค้าง
 - **แนวราบ SLA** — ตรวจเอง:10, จ้างตรวจ:15 (ต้องเพิ่ม projectType field ใน SlaRule)
 - **SLA config table UI** — ยังไม่สร้าง
 - **Heatmap ยังใช้ PROCESS_BACKLOG เดิม** — รอ migrate ไปใช้ PROCESS_MASTER + PROCESS_SLA
-- **KPI Cards ปรับให้สอดคล้องกับ Charts** — มี plan อยู่ (ticklish-waddling-hamster.md)
 
 ### Master Data Design (implemented)
 
@@ -152,15 +153,19 @@
 ---
 
 ## Tracking Dashboard (Heatmap)
-- **File:** `chart-data-tracking.ts` — PROCESS_BACKLOG data + GROUP_COLORS + AGING_BUCKETS
+- **File:** `chart-data-tracking.ts` — PROCESS_BACKLOG + PROCESS_INPROGRESS + GROUP_COLORS + AGING_BUCKETS
 - **Render:** `page.tsx` — heatmap table with collapsible groups/sub-groups
+- **Dropdown:** `heatmapMode` สลับ PROCESS_BACKLOG ↔ PROCESS_INPROGRESS, ใช้ `activeData`
 - **Table:** `table-layout: fixed` + `<colgroup>` (หมวด 72px, กระบวนการ 180px, SLA/ค้าง 36px, aging = auto)
 - **collapsedGroups state:** Set<string> — ใช้ทั้ง group name + subGroup name เป็น key
 - **Default collapse:** ทุกกลุ่มเปิดอันแรก ปิดที่เหลือ (logic: seenGroup + seenSg)
 - **Default heatmapCell:** cell ซ้ายบน (process แรก, aging bucket แรกที่ > 0)
-- **renderGroupHeader():** shared fn สำหรับทั้ง group header (เอกสาร/LivNex/โอน) และ sub-group header (สินเชื่อ/ตรวจบ้าน)
+- **renderGroupHeader():** shared fn สำหรับทั้ง group header และ sub-group header
+- **Unified rendering:** รองรับ mixed groups (group ที่มีทั้ง process ไม่มี subGroup + process มี subGroup)
 - **Sub-header สี:** ใช้ GROUP_COLORS[p.group] dynamically + opacity hex suffix
 - **Process จอง ถูกเอาออก** จาก PROCESS_BACKLOG แล้ว
+- **Groups (ลำดับ):** เอกสาร → LivNex → สินเชื่อ → CS Inspect → CON Inspect → โอน
+- **GROUP_COLORS:** เอกสาร #6366f1, LivNex #f97316, สินเชื่อ #f59e0b, CS Inspect #0891b2, CON Inspect #7c3aed, โอน #10b981
 
 ---
 

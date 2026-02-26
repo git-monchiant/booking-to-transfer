@@ -28,7 +28,7 @@ import {
   MONTHLY_SALES_DATA, MONTHLY_TRANSFER_DATA, MONTHLY_CANCEL_DATA,
   BACKLOG_INITIAL,
 } from '@/data/chart-data';
-import { PROCESS_BACKLOG, GROUP_COLORS, AGING_BUCKETS, AGING_COLORS, SLA_COMPLIANCE_DATA, BACKLOG_BY_PROJECT_DATA, PROJECT_BOOKING_ITEMS, BANK_CREDIT_STATUS, PERSON_WORKLOAD } from '@/data/chart-data-tracking';
+import { PROCESS_BACKLOG, PROCESS_INPROGRESS, GROUP_COLORS, AGING_BUCKETS, AGING_COLORS, SLA_COMPLIANCE_DATA, BACKLOG_BY_PROJECT_DATA, PROJECT_BOOKING_ITEMS, BANK_CREDIT_STATUS, PERSON_WORKLOAD, PERSON_BOOKING_ITEMS, PERSON_MONTHLY_SLA } from '@/data/chart-data-tracking';
 import { BookingListItem } from '@/components/BookingListItem';
 import {
   BarChart,
@@ -68,6 +68,7 @@ export default function Home() {
   const [stageFilter, setStageFilter] = useState<Stage | 'all'>('all');
 const [notiOpen, setNotiOpen] = useState(false);
   const [budDisplayMode, setBudDisplayMode] = useState<'unit' | 'net' | 'contract'>('unit');
+  const [heatmapMode, setHeatmapMode] = useState<'pending' | 'inprogress'>('pending');
   const [selectedProcess, setSelectedProcess] = useState<string>(PROCESS_BACKLOG[0].key);
   const [heatmapCell, setHeatmapCell] = useState<{ processKey: string; agingDay: string } | null>(
     () => {
@@ -102,6 +103,8 @@ const [notiOpen, setNotiOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<string | null>(
     () => [...BACKLOG_BY_PROJECT_DATA].sort((a, b) => b.n - a.n)[0]?.pName ?? null
   );
+  const [selectedPerson, setSelectedPerson] = useState<string | null>(null);
+  const [perfTeamFilter, setPerfTeamFilter] = useState<'all' | 'CO' | 'CS' | 'CON' | 'Sale'>('all');
 
   // Global Filters
   const [globalFilters, setGlobalFilters] = useState({
@@ -176,6 +179,15 @@ const [notiOpen, setNotiOpen] = useState(false);
   const projectBookingRealMap = useMemo(() => {
     const map = new Map<string, Booking>();
     PROJECT_BOOKING_ITEMS.forEach((item, i) => {
+      map.set(item.bookingNo, bookings[i % bookings.length]);
+    });
+    return map;
+  }, []);
+
+  // ─── Person booking map: PersonBookingItem index → actual Booking (round-robin) ───
+  const personBookingRealMap = useMemo(() => {
+    const map = new Map<string, Booking>();
+    PERSON_BOOKING_ITEMS.forEach((item, i) => {
       map.set(item.bookingNo, bookings[i % bookings.length]);
     });
     return map;
@@ -1037,6 +1049,7 @@ const [notiOpen, setNotiOpen] = useState(false);
 
               {/* ════════ งานค้างในแต่ละ Process ════════ */}
               {(() => {
+                const activeData = heatmapMode === 'pending' ? PROCESS_BACKLOG : PROCESS_INPROGRESS;
                 const agingKeys = [...AGING_BUCKETS];
 
                 // สีตาม SLA: ภายใน SLA = เขียว, เลย SLA = เหลือง→ส้ม→แดง
@@ -1061,10 +1074,25 @@ const [notiOpen, setNotiOpen] = useState(false);
 
                 return (
                   <div className="bg-white rounded-xl border border-slate-200 p-5">
-                    {/* Header */}
-                    <div className="mb-3">
-                      <h2 className="font-semibold text-slate-900">งานค้างในแต่ละ Process</h2>
-                      <p className="text-[11px] text-slate-400 mt-0.5">จำนวน Booking ที่ค้างอยู่ในแต่ละขั้นตอน แยกตาม Aging</p>
+                    {/* Header + Dropdown */}
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h2 className="font-semibold text-slate-900">
+                          {heatmapMode === 'pending' ? 'งานค้างในกระบวนการ 30 วันแยกตาม process' : 'งานค้างที่กำลังดำเนินการ'}
+                        </h2>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          {heatmapMode === 'pending'
+                            ? 'จำนวน Booking ที่ยังไม่ได้เริ่มดำเนินการ แยกตาม Aging'
+                            : 'จำนวน Booking ที่เริ่มดำเนินการแล้ว แต่ยังไม่เสร็จ แยกตาม Aging'}
+                        </p>
+                      </div>
+                      <select
+                        className="text-xs border border-slate-300 rounded-lg px-3 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                        value={heatmapMode}
+                        onChange={e => { setHeatmapMode(e.target.value as 'pending' | 'inprogress'); setHeatmapCell(null); }}>
+                        <option value="pending">ยังไม่ได้ดำเนินการ</option>
+                        <option value="inprogress">กำลังดำเนินการ</option>
+                      </select>
                     </div>
                     {/* Legend */}
                     <div className="flex items-center gap-3 mb-3">
@@ -1087,7 +1115,7 @@ const [notiOpen, setNotiOpen] = useState(false);
                       const filteredBookings = heatmapCell
                         ? (backlogBookingMap[`${heatmapCell.processKey}|${heatmapCell.agingDay}`] || [])
                         : [];
-                      const selProc = heatmapCell ? PROCESS_BACKLOG.find(p => p.key === heatmapCell.processKey) : null;
+                      const selProc = heatmapCell ? activeData.find(p => p.key === heatmapCell.processKey) : null;
                       return (
                       <div className="grid grid-cols-10 gap-3">
                         <div className="flex items-center gap-3 col-span-10 mb-1">
@@ -1095,7 +1123,8 @@ const [notiOpen, setNotiOpen] = useState(false);
                           <div className="flex items-center gap-1 text-[10px] text-slate-600"><span className="w-3 h-3 rounded-sm bg-indigo-500" /> เอกสาร</div>
                           <div className="flex items-center gap-1 text-[10px] text-slate-600"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#4ade80' }} /> LivNex</div>
                           <div className="flex items-center gap-1 text-[10px] text-slate-600"><span className="w-3 h-3 rounded-sm bg-amber-500" /> สินเชื่อ</div>
-                          <div className="flex items-center gap-1 text-[10px] text-slate-600"><span className="w-3 h-3 rounded-sm bg-cyan-500" /> ตรวจบ้าน</div>
+                          <div className="flex items-center gap-1 text-[10px] text-slate-600"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#0891b2' }} /> CS Inspect</div>
+                          <div className="flex items-center gap-1 text-[10px] text-slate-600"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#7c3aed' }} /> Con Review</div>
                           <div className="flex items-center gap-1 text-[10px] text-slate-600"><span className="w-3 h-3 rounded-sm bg-emerald-500" /> โอน</div>
                         </div>
                         {/* ซ้าย: Heatmap */}
@@ -1123,7 +1152,7 @@ const [notiOpen, setNotiOpen] = useState(false);
                                 let lastGroup = '';
                                 let lastSubGroup = '';
                                 // กลุ่มที่มี subGroup (สินเชื่อ, ตรวจบ้าน)
-                                const groupsWithSub = new Set(PROCESS_BACKLOG.filter(p => (p as any).subGroup).map(p => p.group));
+                                const groupsWithSub = new Set(activeData.filter(p => (p as any).subGroup).map(p => p.group));
 
                                 const renderGroupHeader = (key: string, label: string, group: string, total: number) => {
                                   const grpColor = GROUP_COLORS[group] || '#94a3b8';
@@ -1150,27 +1179,27 @@ const [notiOpen, setNotiOpen] = useState(false);
                                   );
                                 };
 
-                                for (const p of PROCESS_BACKLOG) {
+                                for (const p of activeData) {
                                   const sg = (p as any).subGroup as string | undefined;
 
-                                  // Group header สำหรับกลุ่มที่ไม่มี subGroup (เอกสาร, LivNex, โอน)
-                                  if (!sg && p.group !== lastGroup && !groupsWithSub.has(p.group)) {
+                                  // Main group header — แสดงครั้งแรกที่เจอ group ใหม่
+                                  if (p.group !== lastGroup) {
                                     lastGroup = p.group;
-                                    const grpTotal = PROCESS_BACKLOG.filter(pp => pp.group === p.group).reduce((s, pp) => s + pp.count, 0);
+                                    lastSubGroup = '';
+                                    const grpTotal = activeData.filter(pp => pp.group === p.group).reduce((s, pp) => s + pp.count, 0);
                                     rows.push(renderGroupHeader(p.group, p.group, p.group, grpTotal));
                                   }
 
-                                  // Sub-group header สำหรับกลุ่มที่มี subGroup (สินเชื่อ, ตรวจบ้าน)
+                                  // Sub-group header — แสดงเมื่อเจอ subGroup ใหม่
                                   if (sg && sg !== lastSubGroup) {
                                     lastSubGroup = sg;
-                                    lastGroup = p.group;
-                                    const sgTotal = PROCESS_BACKLOG.filter(pp => (pp as any).subGroup === sg).reduce((s, pp) => s + pp.count, 0);
-                                    rows.push(renderGroupHeader(sg, `${p.group} — ${sg}`, p.group, sgTotal));
+                                    const sgTotal = activeData.filter(pp => (pp as any).subGroup === sg).reduce((s, pp) => s + pp.count, 0);
+                                    rows.push(renderGroupHeader(sg, sg, p.group, sgTotal));
                                   }
 
                                   // ถ้า collapse อยู่ ไม่แสดงแถว process
+                                  if (collapsedGroups.has(p.group)) continue;
                                   if (sg && collapsedGroups.has(sg)) continue;
-                                  if (!sg && collapsedGroups.has(p.group)) continue;
 
                                   rows.push(
                                     <tr key={p.key} className="border-b border-slate-100 hover:bg-slate-50">
@@ -1256,257 +1285,8 @@ const [notiOpen, setNotiOpen] = useState(false);
                 );
               })()}
 
-              {/* ════════ Workload List — Progress Bar รายคน ════════ */}
-              {(() => {
-                const notDone2 = globalFilteredBookings.filter(b => b.stage !== 'transferred' && b.stage !== 'cancelled');
-
-                // นับงานค้างต่อคน แยกตามหมวดหมู่ process
-                const countPeople = (bks: typeof notDone2, getter: (b: typeof notDone2[0]) => string | null) => {
-                  const map: Record<string, number> = {};
-                  bks.forEach(b => {
-                    const owner = getter(b);
-                    if (owner) map[owner] = (map[owner] || 0) + 1;
-                  });
-                  return Object.entries(map).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
-                };
-
-                const docBookings = notDone2.filter(b => b.stage === 'booking' || b.stage === 'contract' || (!b.doc_bureau_date && b.stage === 'credit') || (!b.doc_complete_bank_jd_date && b.stage === 'credit'));
-                const creditBookings = notDone2.filter(b => b.stage === 'credit');
-                const inspBookings = notDone2.filter(b => b.stage === 'inspection');
-                const transferBookings = notDone2.filter(b => b.stage === 'ready');
-
-                const catGroups = [
-                  { cat: 'เอกสาร', color: '#6366f1', people: countPeople(docBookings, b => b.credit_owner || b.sale_name) },
-                  { cat: 'สินเชื่อ', color: '#f59e0b', people: countPeople(creditBookings, b => b.credit_owner) },
-                  { cat: 'ตรวจบ้าน', color: '#06b6d4', people: countPeople(inspBookings, b => b.cs_owner) },
-                  { cat: 'โอน', color: '#10b981', people: countPeople(transferBookings, b => b.credit_owner || b.sale_name) },
-                ];
-                const maxAll = Math.max(...catGroups.flatMap(g => g.people.map(p => p.count)), 1);
-
-                return (
-                  <div className="bg-white rounded-xl border border-slate-200 p-5">
-                    <div className="mb-3">
-                      <h2 className="font-semibold text-slate-900">Workload — งานค้างรายคน</h2>
-                      <p className="text-[11px] text-slate-400 mt-0.5">จำนวน Booking ค้างในแต่ละหมวด แยกตามผู้รับผิดชอบ</p>
-                    </div>
-                    <div className="space-y-4">
-                      {catGroups.map(g => (
-                        <div key={g.cat}>
-                          <div className="flex items-center gap-1.5 mb-1.5">
-                            <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: g.color }} />
-                            <span className="text-[11px] font-bold text-slate-700">{g.cat}</span>
-                            <span className="text-[10px] text-slate-400 ml-1">{g.people.reduce((s, p) => s + p.count, 0)} รายการ</span>
-                          </div>
-                          <div className="space-y-1">
-                            {g.people.map(p => (
-                              <div key={p.name} className="flex items-center gap-2">
-                                <span className="text-[10px] text-slate-600 w-[160px] shrink-0 truncate">{p.name}</span>
-                                <div className="flex-1 h-4 bg-slate-100 overflow-hidden">
-                                  <div className="h-full transition-all" style={{ width: `${(p.count / maxAll) * 100}%`, backgroundColor: g.color, opacity: 0.75 }} />
-                                </div>
-                                <span className="text-[10px] font-bold text-slate-700 w-6 text-right tabular-nums">{p.count}</span>
-                              </div>
-                            ))}
-                            {g.people.length === 0 && (
-                              <div className="text-[10px] text-slate-300 pl-4">— ไม่มีงานค้าง</div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* ════════ เวลาเฉลี่ย ตามอาชีพลูกค้า (จาก Booking Data) ════════ */}
-              {(() => {
-                const parseD = (d: string) => { const [dd,mm,yy] = d.split('/'); return new Date(+yy, +mm-1, +dd); };
-                const daysDiff = (a: string | null, b: string | null) => {
-                  if (!a || !b) return null;
-                  return Math.round((parseD(b).getTime() - parseD(a).getTime()) / 86400000);
-                };
-
-                // Group bookings by occupation — ใช้ค่าจาก CUSTOMER_OCCUPATIONS master โดยตรง
-                const occGroup = (occ: string | null) => occ || 'อื่นๆ';
-
-                const occupations = ['พนักงาน', 'เจ้าของกิจการ/อาชีพอิสระ', 'ข้าราชการ', 'ต่างชาติ', 'เกษียณ/บำนาญ', 'สวัสดิการ'];
-                const occColors: Record<string, string> = { 'พนักงาน': '#3b82f6', 'เจ้าของกิจการ/อาชีพอิสระ': '#f59e0b', 'ข้าราชการ': '#8b5cf6', 'ต่างชาติ': '#06b6d4', 'เกษียณ/บำนาญ': '#10b981', 'สวัสดิการ': '#ec4899' };
-
-                type B = typeof globalFilteredBookings[0];
-                const firstSubmitDate = (b: B) => {
-                  const dates = b.banks_submitted.map(x => x.submit_date).filter(Boolean) as string[];
-                  return dates.length ? dates.sort((a, c) => parseD(a).getTime() - parseD(c).getTime())[0] : null;
-                };
-                const lastInspDate = (b: B) => b.inspect3_date || b.inspect2_date || b.inspect1_date;
-                const stepDefs: { name: string; note: string; from: (b: B) => string | null; to: (b: B) => string | null }[] = [
-                  // ── Root ──
-                  { name: 'สัญญา', note: 'จากจอง', from: b => b.booking_date, to: b => b.contract_date },
-                  { name: 'เช็คบูโร', note: 'จากสัญญา', from: b => b.contract_date || b.booking_date, to: b => b.doc_bureau_date },
-                  { name: 'เอกสารครบ Bank', note: 'จากจอง', from: b => b.booking_date, to: b => b.doc_complete_bank_jd_date },
-                  { name: 'เอกสารครบ JD', note: 'จากจอง', from: b => b.booking_date, to: b => b.doc_complete_jd_date },
-                  // ── สินเชื่อ ──
-                  { name: 'ส่งเอกสาร', note: 'จากเอกสารครบ', from: b => b.doc_complete_bank_jd_date || b.doc_bureau_date, to: b => firstSubmitDate(b) },
-                  { name: 'บูโร', note: 'จากส่งเอกสาร', from: b => firstSubmitDate(b) || b.doc_bureau_date, to: b => b.bureau_actual_result_date },
-                  { name: 'อนุมัติเบื้องต้น', note: 'จากผลบูโร', from: b => b.bureau_actual_result_date, to: b => b.bank_preapprove_actual_date },
-                  { name: 'อนุมัติจริง', note: 'จาก Pre-approve', from: b => b.bank_preapprove_actual_date, to: b => b.bank_final_actual_date },
-                  // ── ตรวจบ้าน ──
-                  { name: 'นัดลูกค้าตรวจ', note: 'จาก QC', from: b => b.unit_ready_inspection_date, to: b => b.inspect1_appt },
-                  { name: 'ลูกค้ารับมอบ', note: 'จากตรวจ', from: b => lastInspDate(b), to: b => b.handover_accept_date },
-                  // ── โอน ──
-                  { name: 'สัญญา Bank', note: 'จากอนุมัติ', from: b => b.bank_final_actual_date, to: b => b.bank_contract_date },
-                  { name: 'ส่งชุดโอน', note: 'จากสัญญา Bank', from: b => b.bank_contract_date, to: b => b.transfer_package_sent_date },
-                  { name: 'ปลอดโฉนด', note: 'จากส่งชุดโอน', from: b => b.transfer_package_sent_date, to: b => b.title_clear_date },
-                  { name: 'นัดโอน', note: 'จากปลอดโฉนด', from: b => b.title_clear_date, to: b => b.transfer_appointment_date },
-                  { name: 'โอนจริง', note: 'จากนัดโอน', from: b => b.transfer_appointment_date, to: b => b.transfer_actual_date },
-                ];
-
-                const slaData = stepDefs.map(step => {
-                  const row: Record<string, unknown> = { step: step.name, note: step.note };
-                  occupations.forEach(occ => {
-                    const matched = globalFilteredBookings
-                      .filter(b => occGroup(b.customer_occupation) === occ)
-                      .map(b => daysDiff(step.from(b), step.to(b)))
-                      .filter((d): d is number => d !== null && d >= 0);
-                    row[occ] = matched.length > 0 ? Math.round(matched.reduce((s, d) => s + d, 0) / matched.length) : undefined;
-                  });
-                  // ค่าเฉลี่ยรวมทุกอาชีพ
-                  const allMatched = globalFilteredBookings
-                    .map(b => daysDiff(step.from(b), step.to(b)))
-                    .filter((d): d is number => d !== null && d >= 0);
-                  row['เฉลี่ยรวม'] = allMatched.length > 0 ? Math.round(allMatched.reduce((s, d) => s + d, 0) / allMatched.length) : undefined;
-                  return row;
-                });
-
-                return (
-                  <div className="bg-white rounded-xl border border-slate-200 p-5">
-                    <div className="flex items-center justify-between mb-2">
-                      <div>
-                        <h2 className="font-semibold text-slate-900">เวลาเฉลี่ย — ตามอาชีพลูกค้า</h2>
-                        <p className="text-[11px] text-slate-400 mt-0.5">คำนวณจากข้อมูล Booking จริง</p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        {occupations.map(occ => (
-                          <div key={occ} className="flex items-center gap-1.5 text-xs text-slate-600">
-                            <div className="w-4 h-0.5 rounded" style={{ backgroundColor: occColors[occ] }} />
-                            {occ}
-                          </div>
-                        ))}
-                        <div className="flex items-center gap-1.5 text-xs text-slate-600">
-                          <div className="w-4 h-0 border-t-2 border-dashed border-slate-400 rounded" />
-                          เฉลี่ยรวม
-                        </div>
-                      </div>
-                    </div>
-                    <ResponsiveContainer width="100%" height={360}>
-                      <ComposedChart data={slaData} margin={{ left: 0, right: 10, top: 35, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="step" tick={{ fontSize: 9 }} interval={0} angle={-30} textAnchor="end" height={70} />
-                        <YAxis unit=" วัน" tick={{ fontSize: 11 }} domain={[0, 'auto']} />
-                        <Tooltip
-                          contentStyle={{ fontSize: 13, borderRadius: 8 }}
-                          formatter={(value, name) => [`${value} วัน`, name]}
-                          labelFormatter={(label, payload) => {
-                            const item = payload?.[0]?.payload as Record<string, unknown> | undefined;
-                            return item ? `${label} (${item.note})` : String(label);
-                          }}
-                        />
-                        {occupations.map((occ, idx) => {
-                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                          const renderLabel = (props: any) => {
-                            const { x, y, value, index: stepIdx } = props;
-                            if (x == null || y == null || value == null || stepIdx == null) return null;
-                            const stepRow = slaData[stepIdx];
-                            const vals = occupations.map((o, i) => ({ idx: i, val: stepRow[o] as number | undefined }));
-                            const close = vals.filter(v => v.val !== undefined && Math.abs(v.val - value) <= 1);
-                            let dy: number;
-                            if (close.length <= 1) {
-                              dy = -14;
-                            } else {
-                              const rank = close.findIndex(v => v.idx === idx);
-                              dy = -14 - (close.length - 1 - rank) * 15;
-                            }
-                            const txt = `${value}`;
-                            const tw = txt.length * 7 + 10;
-                            return (
-                              <text key={`${occ}-${stepIdx}`} x={x} y={y + dy} textAnchor="middle" fontSize={10} fontWeight={700} fill={occColors[occ]}>{txt}</text>
-                            );
-                          };
-                          return (
-                            <Line
-                              key={occ}
-                              type="monotone"
-                              dataKey={occ}
-                              stroke={occColors[occ]}
-                              strokeWidth={2.5}
-                              dot={{ r: 5, fill: occColors[occ], stroke: '#fff', strokeWidth: 2 }}
-                              activeDot={{ r: 7 }}
-                              connectNulls={false}
-                            >
-                              <LabelList dataKey={occ} content={renderLabel} />
-                            </Line>
-                          );
-                        })}
-                        <Line
-                          type="monotone"
-                          dataKey="เฉลี่ยรวม"
-                          stroke="#94a3b8"
-                          strokeWidth={2}
-                          strokeDasharray="6 4"
-                          dot={{ r: 3, fill: '#94a3b8', stroke: '#fff', strokeWidth: 1 }}
-                          connectNulls={false}
-                        >
-                          <LabelList dataKey="เฉลี่ยรวม" position="bottom" offset={10} style={{ fontSize: 10, fontWeight: 600, fill: '#64748b' }} />
-                        </Line>
-                      </ComposedChart>
-                    </ResponsiveContainer>
-                  </div>
-                );
-              })()}
 
 
-
-
-
-              {/* Blocked Items */}
-              <div className="bg-white rounded-xl border border-red-200 p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="font-semibold text-slate-900 flex items-center gap-2">
-                    <AlertTriangle className="w-5 h-5 text-red-500" />
-                    รายการติดปัญหา ({blockedBookings.length})
-                  </h2>
-                  <button
-                    onClick={() => setCurrentView('blocked')}
-                    className="text-sm text-red-600 hover:text-red-700 font-medium"
-                  >
-                    ดูทั้งหมด →
-                  </button>
-                </div>
-                {blockedBookings.length > 0 ? (
-                  <div className="grid grid-cols-4 gap-3 max-h-64 overflow-auto">
-                    {blockedBookings.slice(0, 8).map(booking => (
-                      <div
-                        key={booking.id}
-                        onClick={() => { setDefaultTab(undefined); setSelectedBooking(booking); }}
-                        className="p-3 bg-red-50 border border-red-200 rounded-lg cursor-pointer hover:bg-red-100 transition"
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-semibold text-slate-900">{booking.id}</span>
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-red-200 text-red-800">
-                            {booking.aging_days} วัน
-                          </span>
-                        </div>
-                        <div className="text-sm text-slate-700 mb-1 truncate">{booking.customer_name}</div>
-                        <div className="text-sm text-red-700 font-medium truncate">{booking.current_blocker}</div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-slate-500">
-                    <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-emerald-500" />
-                    <div>ไม่มีรายการติดปัญหา</div>
-                  </div>
-                )}
-              </div>
 
               {/* ════════ SLA Compliance — รายโครงการ (dropdown สลับ งานค้าง/โอนแล้ว) ════════ */}
               <div className="bg-white rounded-xl border border-slate-200 p-5">
@@ -1679,15 +1459,17 @@ const [notiOpen, setNotiOpen] = useState(false);
                           </div>
                         ) : panelItems.length === 0 ? (
                           <div className="text-center text-slate-400 text-xs py-8">ไม่มีรายการ</div>
-                        ) : panelItems.map((bk, i) => (
+                        ) : panelItems.map((bk, i) => {
+                          const real = projectBookingRealMap.get(bk.bookingNo);
+                          return (
                           <div key={`${bk.bookingNo}-${i}`}
                             className="flex items-start gap-2 p-2 rounded bg-white border border-slate-100 hover:border-blue-400 hover:bg-blue-50 cursor-pointer text-[11px] transition"
-                            onClick={() => { const real = projectBookingRealMap.get(bk.bookingNo); if (real) { setDefaultTab(undefined); setSelectedBooking(real); } }}>
+                            onClick={() => { if (real) { setDefaultTab(undefined); setSelectedBooking(real); } }}>
                             <div className="flex-1 min-w-0">
-                              <div className="font-bold text-blue-700">{bk.bookingNo}</div>
-                              <div className="text-slate-700 truncate">{bk.customer}</div>
-                              <div className="text-slate-400 truncate">{bk.project} • Unit {bk.unit}</div>
-                              <div className="text-slate-500 truncate">{bk.saleName} <span className="text-slate-400">({bk.team})</span></div>
+                              <div className="font-bold text-blue-700">{real?.id ?? bk.bookingNo}</div>
+                              <div className="text-slate-700 truncate">{real?.customer_name ?? bk.customer}</div>
+                              <div className="text-slate-400 truncate">{real?.project_name ?? bk.project} • Unit {real?.unit_number ?? bk.unit}</div>
+                              <div className="text-slate-500 truncate">{real?.sale_name ?? bk.saleName}</div>
                             </div>
                             <div className="text-right shrink-0 space-y-0.5">
                               <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold text-white ${bk.withinSla ? 'bg-emerald-500' : 'bg-red-400'}`}>
@@ -1695,7 +1477,8 @@ const [notiOpen, setNotiOpen] = useState(false);
                               </span>
                             </div>
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
@@ -1705,7 +1488,16 @@ const [notiOpen, setNotiOpen] = useState(false);
 
               {/* ════════ Workload รายบุคคล ════════ */}
               <div className="bg-white rounded-xl border border-slate-200 p-5">
-                <h3 className="text-base font-bold text-slate-700 mb-4">Workload รายบุคคล</h3>
+                <h2 className="font-semibold text-slate-900">Workload รายบุคคล</h2>
+                <p className="text-[10px] text-slate-400 mt-0.5 mb-4">ภาพรวมงานค้างและ SLA แยกตามผู้รับผิดชอบ — คลิกแถวเพื่อดูใบจอง</p>
+                {(() => {
+                  const personPanelItems = selectedPerson
+                    ? PERSON_BOOKING_ITEMS.filter(b => b.personName === selectedPerson)
+                    : [];
+                  return (
+                  <div className="grid grid-cols-10 gap-3">
+                    {/* ซ้าย: ตาราง */}
+                    <div className="col-span-7 overflow-x-auto">
                 <table className="w-full text-[11px]">
                   <thead>
                     <tr className="border-b border-slate-200">
@@ -1728,13 +1520,11 @@ const [notiOpen, setNotiOpen] = useState(false);
                       if (members.length === 0) return null;
                       const teamColor = team === 'CO' ? '#8b5cf6' : team === 'CS' ? '#10b981' : team === 'CON' ? '#f59e0b' : '#3b82f6';
                       const teamLabel = team === 'CON' ? 'ก่อสร้าง' : team === 'Sale' ? 'ฝ่ายขาย' : team;
-                      const sumBacklog = members.reduce((s, p) => s + p.backlog, 0);
                       const sumWithin = members.reduce((s, p) => s + p.withinSla, 0);
                       const sumOver = members.reduce((s, p) => s + p.overSla, 0);
                       const sumTransferred = members.reduce((s, p) => s + p.transferred, 0);
                       return (
                         <Fragment key={team}>
-                          {/* Team header */}
                           <tr style={{ backgroundColor: `${teamColor}10` }}>
                             <td className="py-1.5 px-2 font-bold text-[11px]" style={{ color: teamColor }} colSpan={2}>
                               <span className="inline-flex items-center gap-1.5">
@@ -1749,11 +1539,13 @@ const [notiOpen, setNotiOpen] = useState(false);
                             <td className="py-1.5 px-2 text-center font-bold tabular-nums text-[10px]" style={{ color: teamColor }}>{sumTransferred}</td>
                             <td className="py-1.5 px-2" colSpan={2} />
                           </tr>
-                          {/* Person rows */}
                           {members.map(p => {
                             const barOk = p.backlog > 0 ? (p.withinSla / p.backlog) * 100 : 0;
+                            const isPersonSelected = selectedPerson === p.name;
                             return (
-                              <tr key={p.name} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                              <tr key={p.name}
+                                className={`border-b border-slate-100 cursor-pointer transition-colors ${isPersonSelected ? 'bg-blue-50 border-blue-200' : 'hover:bg-slate-50'}`}
+                                onClick={() => setSelectedPerson(isPersonSelected ? null : p.name)}>
                                 <td className="py-1 px-2 font-medium text-slate-800 truncate" title={p.name}>
                                   <span className="inline-flex items-center gap-1.5">
                                     <span className="inline-flex px-1.5 py-0.5 rounded text-[8px] font-bold text-white" style={{ backgroundColor: teamColor }}>{team}</span>
@@ -1803,7 +1595,146 @@ const [notiOpen, setNotiOpen] = useState(false);
                     })}
                   </tbody>
                 </table>
+                    </div>
+
+                    {/* ขวา: Booking List Panel */}
+                    <div className="col-span-3 border-l border-slate-200 pl-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-xs font-bold text-slate-700">
+                          {selectedPerson
+                            ? <>{selectedPerson}</>
+                            : 'คลิกแถวเพื่อดูรายการ'}
+                        </h4>
+                        {selectedPerson && <span className="text-[10px] font-bold text-slate-500">{personPanelItems.length} รายการ</span>}
+                      </div>
+                      {selectedPerson && (
+                        <button onClick={() => setSelectedPerson(null)} className="text-[10px] text-blue-600 hover:underline mb-2">ยกเลิก filter</button>
+                      )}
+                      <div className="overflow-y-auto space-y-1" style={{ maxHeight: 520 }}>
+                        {!selectedPerson ? (
+                          <div className="text-center text-slate-400 text-xs py-12">
+                            <svg className="w-8 h-8 mx-auto mb-2 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" /></svg>
+                            คลิกแถวบุคคล<br/>เพื่อแสดงรายการใบจอง
+                          </div>
+                        ) : personPanelItems.length === 0 ? (
+                          <div className="text-center text-slate-400 text-xs py-8">ไม่มีรายการ</div>
+                        ) : personPanelItems.map((bk, i) => {
+                          const real = personBookingRealMap.get(bk.bookingNo);
+                          return (
+                          <div key={`${bk.bookingNo}-${i}`}
+                            className="flex items-start gap-2 p-2 rounded bg-white border border-slate-100 hover:border-blue-400 hover:bg-blue-50 cursor-pointer text-[11px] transition"
+                            onClick={() => { if (real) { setDefaultTab(undefined); setSelectedBooking(real); } }}>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-bold text-blue-700">{real?.id ?? bk.bookingNo}</div>
+                              <div className="text-slate-700 truncate">{real?.customer_name ?? bk.customer}</div>
+                              <div className="text-slate-400 truncate">{real?.project_name ?? bk.project} • Unit {real?.unit_number ?? bk.unit}</div>
+                            </div>
+                            <div className="text-right shrink-0 space-y-0.5">
+                              <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold text-white ${bk.withinSla ? 'bg-emerald-500' : 'bg-red-400'}`}>
+                                {bk.days} วัน
+                              </span>
+                            </div>
+                          </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                  );
+                })()}
               </div>
+
+              {/* ════════ Performance พนักงาน — %SLA รายเดือน ════════ */}
+              {(() => {
+                const teamColors: Record<string, string> = { CO: '#8b5cf6', CS: '#10b981', CON: '#f59e0b', Sale: '#3b82f6' };
+                // 13 สีแตกต่างชัดเจน — แต่ละคนคนละสี
+                const DISTINCT_COLORS = [
+                  '#e6194b', '#3cb44b', '#4363d8', '#f58231', '#911eb4',
+                  '#42d4f4', '#f032e6', '#bfef45', '#fabed4', '#469990',
+                  '#dcbeff', '#9A6324', '#800000',
+                ];
+                const personColors: Record<string, string> = {};
+                PERSON_WORKLOAD.forEach((p, i) => { personColors[p.name] = DISTINCT_COLORS[i % DISTINCT_COLORS.length]; });
+
+                const filteredPersons = perfTeamFilter === 'all'
+                  ? PERSON_WORKLOAD
+                  : PERSON_WORKLOAD.filter(p => p.team === perfTeamFilter);
+
+                return (
+                  <div className="bg-white rounded-xl border border-slate-200 p-5">
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h2 className="font-semibold text-slate-900">Performance พนักงาน — %SLA รายเดือน</h2>
+                        <p className="text-[11px] text-slate-400 mt-0.5">แต่ละเส้นคือพนักงาน 1 คน</p>
+                      </div>
+                      <select
+                        value={perfTeamFilter}
+                        onChange={e => setPerfTeamFilter(e.target.value as typeof perfTeamFilter)}
+                        className="text-[11px] border border-slate-300 rounded-lg px-3 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                      >
+                        <option value="all">ทุกทีม</option>
+                        <option value="CO">CO</option>
+                        <option value="CS">CS</option>
+                        <option value="CON">ก่อสร้าง (CON)</option>
+                        <option value="Sale">ฝ่ายขาย</option>
+                      </select>
+                    </div>
+                    {/* Legend แยกทีม */}
+                    <div className="flex flex-wrap gap-x-5 gap-y-1 mb-3">
+                      {(['CO', 'CS', 'CON', 'Sale'] as const)
+                        .filter(team => perfTeamFilter === 'all' || team === perfTeamFilter)
+                        .map(team => {
+                        const members = PERSON_WORKLOAD.filter(p => p.team === team);
+                        return (
+                          <div key={team} className="flex items-center gap-2">
+                            <span className="inline-flex px-1.5 py-0.5 rounded text-[8px] font-bold text-white" style={{ backgroundColor: teamColors[team] }}>{team}</span>
+                            {members.map(p => (
+                              <div key={p.name} className="flex items-center gap-1 text-[10px] text-slate-600">
+                                <div className="w-4 h-1 rounded-full" style={{ backgroundColor: personColors[p.name] }} />
+                                {p.name.replace(/\s*\(.*\)/, '')}
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <ResponsiveContainer width="100%" height={360}>
+                      <ComposedChart data={PERSON_MONTHLY_SLA} margin={{ left: 0, right: 10, top: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                        <YAxis unit="%" tick={{ fontSize: 11 }} domain={[20, 100]} />
+                        <Tooltip
+                          contentStyle={{ fontSize: 11, borderRadius: 8, maxHeight: 300, overflowY: 'auto' }}
+                          formatter={(value: number, name: string) => [`${value}%`, name]}
+                        />
+                        {filteredPersons.map(p => (
+                          <Line
+                            key={p.name}
+                            type="monotone"
+                            dataKey={p.name}
+                            stroke={personColors[p.name]}
+                            strokeWidth={2}
+                            dot={{ r: 3, fill: personColors[p.name], stroke: '#fff', strokeWidth: 1 }}
+                            activeDot={{ r: 5 }}
+                            label={{ fontSize: 9, fill: personColors[p.name], position: 'top', formatter: (v: number) => `${v}%` }}
+                          />
+                        ))}
+                        {/* เส้น SLA target 80% */}
+                        <Line
+                          type="monotone"
+                          dataKey={() => 80}
+                          stroke="#dc2626"
+                          strokeWidth={1}
+                          strokeDasharray="6 4"
+                          dot={false}
+                          activeDot={false}
+                          name="เป้า 80%"
+                        />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+                );
+              })()}
 
               {/* ════════ สถานะสินเชื่อรายธนาคาร ════════ */}
               {(() => {
@@ -1883,6 +1814,47 @@ const [notiOpen, setNotiOpen] = useState(false);
                   </div>
                 );
               })()}
+
+              {/* ════════ รายการติดปัญหา ════════ */}
+              <div className="bg-white rounded-xl border border-red-200 p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="font-semibold text-slate-900 flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-red-500" />
+                    รายการติดปัญหา ({blockedBookings.length})
+                  </h2>
+                  <button
+                    onClick={() => setCurrentView('blocked')}
+                    className="text-sm text-red-600 hover:text-red-700 font-medium"
+                  >
+                    ดูทั้งหมด →
+                  </button>
+                </div>
+                {blockedBookings.length > 0 ? (
+                  <div className="grid grid-cols-4 gap-3 max-h-64 overflow-auto">
+                    {blockedBookings.slice(0, 8).map(booking => (
+                      <div
+                        key={booking.id}
+                        onClick={() => { setDefaultTab(undefined); setSelectedBooking(booking); }}
+                        className="p-3 bg-red-50 border border-red-200 rounded-lg cursor-pointer hover:bg-red-100 transition"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-semibold text-slate-900">{booking.id}</span>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-red-200 text-red-800">
+                            {booking.aging_days} วัน
+                          </span>
+                        </div>
+                        <div className="text-sm text-slate-700 mb-1 truncate">{booking.customer_name}</div>
+                        <div className="text-sm text-red-700 font-medium truncate">{booking.current_blocker}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-slate-500">
+                    <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-emerald-500" />
+                    <div>ไม่มีรายการติดปัญหา</div>
+                  </div>
+                )}
+              </div>
 
             </div>
           )}
