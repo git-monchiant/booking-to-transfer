@@ -105,6 +105,7 @@ const [notiOpen, setNotiOpen] = useState(false);
   );
   const [selectedPerson, setSelectedPerson] = useState<string | null>(null);
   const [perfTeamFilter, setPerfTeamFilter] = useState<'all' | 'CO' | 'CS' | 'CON' | 'Sale'>('all');
+  const [workloadTeamFilter, setWorkloadTeamFilter] = useState<'all' | 'CO' | 'CS' | 'CON' | 'Sale'>('all');
 
   // Global Filters
   const [globalFilters, setGlobalFilters] = useState({
@@ -1488,8 +1489,26 @@ const [notiOpen, setNotiOpen] = useState(false);
 
               {/* ════════ Workload รายบุคคล ════════ */}
               <div className="bg-white rounded-xl border border-slate-200 p-5">
-                <h2 className="font-semibold text-slate-900">Workload รายบุคคล</h2>
-                <p className="text-[10px] text-slate-400 mt-0.5 mb-4">ภาพรวมงานค้างและ SLA แยกตามผู้รับผิดชอบ — คลิกแถวเพื่อดูใบจอง</p>
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h2 className="font-semibold text-slate-900">Workload รายบุคคล</h2>
+                    <p className="text-[10px] text-slate-400 mt-0.5">ภาพรวมงานค้างและ SLA แยกตามผู้รับผิดชอบ — คลิกแถวเพื่อดูใบจอง</p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {(['all', 'CO', 'CS', 'CON', 'Sale'] as const).map(t => {
+                      const label = t === 'all' ? 'ทั้งหมด' : t === 'CON' ? 'ก่อสร้าง' : t === 'Sale' ? 'ฝ่ายขาย' : t;
+                      const color = t === 'CO' ? '#8b5cf6' : t === 'CS' ? '#10b981' : t === 'CON' ? '#f59e0b' : t === 'Sale' ? '#3b82f6' : undefined;
+                      const active = workloadTeamFilter === t;
+                      return (
+                        <button key={t} onClick={() => setWorkloadTeamFilter(t)}
+                          className={`text-[11px] px-2.5 py-1 rounded-lg font-medium transition-colors ${active ? 'text-white' : 'text-slate-500 bg-slate-100 hover:bg-slate-200'}`}
+                          style={active ? { backgroundColor: color ?? '#64748b' } : {}}>
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
                 {(() => {
                   const personPanelItems = selectedPerson
                     ? PERSON_BOOKING_ITEMS.filter(b => b.personName === selectedPerson)
@@ -1515,7 +1534,7 @@ const [notiOpen, setNotiOpen] = useState(false);
                     </tr>
                   </thead>
                   <tbody>
-                    {(['CO', 'CS', 'CON', 'Sale'] as const).map(team => {
+                    {(['CO', 'CS', 'CON', 'Sale'] as const).filter(team => workloadTeamFilter === 'all' || workloadTeamFilter === team).map(team => {
                       const members = PERSON_WORKLOAD.filter(p => p.team === team);
                       if (members.length === 0) return null;
                       const teamColor = team === 'CO' ? '#8b5cf6' : team === 'CS' ? '#10b981' : team === 'CON' ? '#f59e0b' : '#3b82f6';
