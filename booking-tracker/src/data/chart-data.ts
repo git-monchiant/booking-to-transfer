@@ -8,7 +8,7 @@
 // ─────────────────────────────────────────────
 // Backlog คำนวณจากสูตร: Backlog(n) = Backlog(n-1) + Book(n) - โอนจริง(n)
 // ไม่ hardcode — คำนวณใน TransferCharts.tsx
-export const BACKLOG_INITIAL = 2800; // ยอดค้างสะสมจากปีก่อน (unit)
+export const BACKLOG_INITIAL = 2800; // ยอดค้างสะสมจากปีก่อน (unit) — สะสมมาจากปีก่อนๆ
 
 // MTOP Presale ≈ 13,909 MB ÷ 4.0 = 3,477 unit/ปี
 // MTOP LivNex ≈ 2,851 MB — ข้อมูลจำลอง max ~20 unit/เดือน
@@ -31,22 +31,25 @@ export const MONTHLY_SALES_DATA = [
 // ภาพรวมยอดโอนรายเดือน (Monthly Transfer Overview)
 // ─────────────────────────────────────────────
 export const AVG_UNIT_VALUE = 4.0; // ราคาขายสุทธิเฉลี่ยต่อ unit (ล้านบาท) — บ้าน 2-6 ล้าน
+export const AVG_BASE_VALUE = 3.5; // ราคาเบสเฉลี่ยต่อ unit (ล้านบาท)
 export const AVG_CONTRACT_VALUE = 4.5; // ราคาหน้าสัญญาเฉลี่ยต่อ unit (ล้านบาท)
 
 // MTOP Transfer ≈ 9,305 MB ÷ 4.0 = 2,326 unit/ปี
+// Backlog movement ตามยอดจอง: จองสูง→backlog↑, จองต่ำ+โอนเยอะ→backlog↓
+// 2800→2830→2879→2960(peak)→2824→2813→2864→2784→2720
 export const MONTHLY_TRANSFER_DATA = [
-  { month: 'ม.ค.',  MTOP: 155, แผนโอน: 80,  Upside: 0,  โอนจากBacklog: 53, โอนจากขายในเดือน: 27, LivNex: 8,  PreLivNex: 3 },
-  { month: 'ก.พ.',  MTOP: 177, แผนโอน: 97,  Upside: 0,  โอนจากBacklog: 71, โอนจากขายในเดือน: 27, LivNex: 12, PreLivNex: 5 },
-  { month: 'มี.ค.', MTOP: 222, แผนโอน: 133, Upside: 35, โอนจากBacklog: 89, โอนจากขายในเดือน: 44, LivNex: 18, PreLivNex: 8 },
-  { month: 'เม.ย.', MTOP: 155, แผนโอน: 66,  Upside: 0,  โอนจากBacklog: 44, โอนจากขายในเดือน: 22, LivNex: 5,  PreLivNex: 3 },
-  { month: 'พ.ค.',  MTOP: 177, แผนโอน: 80,  Upside: 0,  โอนจากBacklog: 53, โอนจากขายในเดือน: 27, LivNex: 10, PreLivNex: 5 },
-  { month: 'มิ.ย.', MTOP: 222, แผนโอน: 106, Upside: 27, โอนจากBacklog: 75, โอนจากขายในเดือน: 40, LivNex: 16, PreLivNex: 10 },
-  { month: 'ก.ค.',  MTOP: 199, แผนโอน: 97,  Upside: 0,  โอนจากBacklog: 66, โอนจากขายในเดือน: 31, LivNex: 13, PreLivNex: 7 },
-  { month: 'ส.ค.',  MTOP: 199, แผนโอน: 89,  Upside: 0,  โอนจากBacklog: 58, โอนจากขายในเดือน: 31, LivNex: 9,  PreLivNex: 5 },
-  { month: 'ก.ย.',  MTOP: 222, แผนโอน: 111, Upside: 44, โอนจากBacklog: 0,  โอนจากขายในเดือน: 0,  LivNex: 0,  PreLivNex: 0 },
-  { month: 'ต.ค.',  MTOP: 222, แผนโอน: 106, Upside: 0,  โอนจากBacklog: 0,  โอนจากขายในเดือน: 0,  LivNex: 0,  PreLivNex: 0 },
-  { month: 'พ.ย.',  MTOP: 222, แผนโอน: 115, Upside: 31, โอนจากBacklog: 0,  โอนจากขายในเดือน: 0,  LivNex: 0,  PreLivNex: 0 },
-  { month: 'ธ.ค.',  MTOP: 154, แผนโอน: 80,  Upside: 22, โอนจากBacklog: 0,  โอนจากขายในเดือน: 0,  LivNex: 0,  PreLivNex: 0 },
+  { month: 'ม.ค.',  MTOP: 155, แผนโอน: 150, Upside: 10,  โอนจากBacklog: 126, โอนจากขายในเดือน: 54,  LivNex: 8,  PreLivNex: 3 },
+  { month: 'ก.พ.',  MTOP: 177, แผนโอน: 200, Upside: 15,  โอนจากBacklog: 168, โอนจากขายในเดือน: 72,  LivNex: 12, PreLivNex: 5 },
+  { month: 'มี.ค.', MTOP: 222, แผนโอน: 250, Upside: 30,  โอนจากBacklog: 210, โอนจากขายในเดือน: 90,  LivNex: 18, PreLivNex: 8 },
+  { month: 'เม.ย.', MTOP: 155, แผนโอน: 220, Upside: 25,  โอนจากBacklog: 196, โอนจากขายในเดือน: 84,  LivNex: 5,  PreLivNex: 3 },
+  { month: 'พ.ค.',  MTOP: 177, แผนโอน: 210, Upside: 20,  โอนจากBacklog: 182, โอนจากขายในเดือน: 78,  LivNex: 10, PreLivNex: 5 },
+  { month: 'มิ.ย.', MTOP: 222, แผนโอน: 240, Upside: 25,  โอนจากBacklog: 203, โอนจากขายในเดือน: 87,  LivNex: 16, PreLivNex: 10 },
+  { month: 'ก.ค.',  MTOP: 199, แผนโอน: 260, Upside: 20,  โอนจากBacklog: 217, โอนจากขายในเดือน: 93,  LivNex: 13, PreLivNex: 7 },
+  { month: 'ส.ค.',  MTOP: 199, แผนโอน: 280, Upside: 30,  โอนจากBacklog: 238, โอนจากขายในเดือน: 102, LivNex: 9,  PreLivNex: 5 },
+  { month: 'ก.ย.',  MTOP: 222, แผนโอน: 260, Upside: 50,  โอนจากBacklog: 0,   โอนจากขายในเดือน: 0,   LivNex: 0,  PreLivNex: 0 },
+  { month: 'ต.ค.',  MTOP: 222, แผนโอน: 250, Upside: 0,   โอนจากBacklog: 0,   โอนจากขายในเดือน: 0,   LivNex: 0,  PreLivNex: 0 },
+  { month: 'พ.ย.',  MTOP: 222, แผนโอน: 260, Upside: 40,  โอนจากBacklog: 0,   โอนจากขายในเดือน: 0,   LivNex: 0,  PreLivNex: 0 },
+  { month: 'ธ.ค.',  MTOP: 154, แผนโอน: 185, Upside: 25,  โอนจากBacklog: 0,   โอนจากขายในเดือน: 0,   LivNex: 0,  PreLivNex: 0 },
 ];
 
 // ─────────────────────────────────────────────
@@ -54,19 +57,143 @@ export const MONTHLY_TRANSFER_DATA = [
 // ─────────────────────────────────────────────
 export const AVG_CANCEL_VALUE = 4.8; // ราคาเฉลี่ยต่อ unit ยกเลิก (ล้านบาท)
 export const MONTHLY_CANCEL_DATA = [
-  { month: 'ม.ค.',  ยกเลิก: 5,  Booking: 32, ซื้อLivNex: 1, ซื้อPreLivNex: 0 },
-  { month: 'ก.พ.',  ยกเลิก: 8,  Booking: 44, ซื้อLivNex: 2, ซื้อPreLivNex: 1 },
-  { month: 'มี.ค.', ยกเลิก: 11, Booking: 55, ซื้อLivNex: 3, ซื้อPreLivNex: 1 },
-  { month: 'เม.ย.', ยกเลิก: 3,  Booking: 28, ซื้อLivNex: 1, ซื้อPreLivNex: 0 },
-  { month: 'พ.ค.',  ยกเลิก: 7,  Booking: 42, ซื้อLivNex: 2, ซื้อPreLivNex: 1 },
-  { month: 'มิ.ย.', ยกเลิก: 12, Booking: 58, ซื้อLivNex: 3, ซื้อPreLivNex: 2 },
-  { month: 'ก.ค.',  ยกเลิก: 6,  Booking: 38, ซื้อLivNex: 1, ซื้อPreLivNex: 1 },
-  { month: 'ส.ค.',  ยกเลิก: 9,  Booking: 48, ซื้อLivNex: 2, ซื้อPreLivNex: 1 },
-  { month: 'ก.ย.',  ยกเลิก: 0,  Booking: 50, ซื้อLivNex: 0, ซื้อPreLivNex: 0 },
-  { month: 'ต.ค.',  ยกเลิก: 0,  Booking: 46, ซื้อLivNex: 0, ซื้อPreLivNex: 0 },
-  { month: 'พ.ย.',  ยกเลิก: 0,  Booking: 52, ซื้อLivNex: 0, ซื้อPreLivNex: 0 },
-  { month: 'ธ.ค.',  ยกเลิก: 0,  Booking: 30, ซื้อLivNex: 0, ซื้อPreLivNex: 0 },
+  { month: 'ม.ค.',  ยกเลิกใบจอง: 90,  ยกเลิกหลังสัญญา: 60,  ซื้อLivNex: 8,  ซื้อPreLivNex: 10 },
+  { month: 'ก.พ.',  ยกเลิกใบจอง: 118, ยกเลิกหลังสัญญา: 80,  ซื้อLivNex: 12, ซื้อPreLivNex: 16 },
+  { month: 'มี.ค.', ยกเลิกใบจอง: 150, ยกเลิกหลังสัญญา: 100, ซื้อLivNex: 18, ซื้อPreLivNex: 26 },
+  { month: 'เม.ย.', ยกเลิกใบจอง: 132, ยกเลิกหลังสัญญา: 88,  ซื้อLivNex: 10, ซื้อPreLivNex: 15 },
+  { month: 'พ.ค.',  ยกเลิกใบจอง: 126, ยกเลิกหลังสัญญา: 84,  ซื้อLivNex: 14, ซื้อPreLivNex: 20 },
+  { month: 'มิ.ย.', ยกเลิกใบจอง: 144, ยกเลิกหลังสัญญา: 96,  ซื้อLivNex: 16, ซื้อPreLivNex: 28 },
+  { month: 'ก.ค.',  ยกเลิกใบจอง: 159, ยกเลิกหลังสัญญา: 106, ซื้อLivNex: 13, ซื้อPreLivNex: 22 },
+  { month: 'ส.ค.',  ยกเลิกใบจอง: 171, ยกเลิกหลังสัญญา: 114, ซื้อLivNex: 15, ซื้อPreLivNex: 25 },
+  { month: 'ก.ย.',  ยกเลิกใบจอง: 0,   ยกเลิกหลังสัญญา: 0,   ซื้อLivNex: 0,  ซื้อPreLivNex: 0 },
+  { month: 'ต.ค.',  ยกเลิกใบจอง: 0,   ยกเลิกหลังสัญญา: 0,   ซื้อLivNex: 0,  ซื้อPreLivNex: 0 },
+  { month: 'พ.ย.',  ยกเลิกใบจอง: 0,   ยกเลิกหลังสัญญา: 0,   ซื้อLivNex: 0,  ซื้อPreLivNex: 0 },
+  { month: 'ธ.ค.',  ยกเลิกใบจอง: 0,   ยกเลิกหลังสัญญา: 0,   ซื้อLivNex: 0,  ซื้อPreLivNex: 0 },
 ];
+
+// ─────────────────────────────────────────────
+// เหตุผลยกเลิก แยก 3 กลุ่ม (Cancel Reason Drill-Down)
+// ─────────────────────────────────────────────
+export interface CancelReason { reason: string; count: number }
+export interface CancelReasonGroup {
+  group: 'Normal Sale' | 'LivNex' | 'Pre-LivNex';
+  color: string;
+  reasons: CancelReason[];
+}
+
+const NS_REASONS: CancelReason[] = [
+  { reason: 'กู้ไม่ผ่าน - ปัญหาแหล่งที่มารายได้', count: 0 },
+  { reason: 'กู้ไม่ผ่าน - ปัญหาประวัติบูโร', count: 0 },
+  { reason: 'กู้ไม่ผ่าน - ปัญหา DSR', count: 0 },
+  { reason: 'ติดปัญหา LTV - ไม่มีเงินจ่ายส่วนต่าง', count: 0 },
+  { reason: 'ได้เงินกู้น้อยกว่าที่ต้องจ่าย', count: 0 },
+  { reason: 'กังวล - รายได้/งานไม่มั่นคง', count: 0 },
+  { reason: 'กังวล - ภาระเพิ่มหนี้ที่เพิ่ม', count: 0 },
+  { reason: 'กังวล - ไม่มั่นใจว่าจะอยู่ที่นี่ต่อถึงไปไหม', count: 0 },
+  { reason: 'กังวล - ปัญหาภายในครอบครัว', count: 0 },
+  { reason: 'ยุบห้อง', count: 0 },
+  { reason: 'ย้ายแปลง/ย้ายโครงการ', count: 0 },
+  { reason: 'ค้างส่งเอกสาร (เกิน3รอบ)', count: 0 },
+  { reason: 'เหตุผลด้านการลงทุน', count: 0 },
+  { reason: 'ปัญหาโครงการ - Location สู้คู่แข่งไม่ได้', count: 0 },
+  { reason: 'ปัญหาโครงการ - คุณภาพโครงการ สู้คู่แข่งไม่ได้', count: 0 },
+  { reason: 'ปัญหาโครงการ - ราคา/promotion สู้คู่แข่งไม่ได้', count: 0 },
+  { reason: 'ปัญหาโครงการ - Design สู้คู่แข่งไม่ได้', count: 0 },
+  { reason: 'ปัญหาโครงการ - สภาพแวดล้อม', count: 0 },
+  { reason: 'ปัญหาการบริการ - ขาย - ล่าช้า/ไม่ติดตามเคส', count: 0 },
+  { reason: 'ปัญหาการบริการ - ขาย - บอกข้อมูลไม่ตรง/ไม่ครบ', count: 0 },
+  { reason: 'ปัญหาการบริการ - ขาย - ไม่สุภาพ/ไม่มี service mind', count: 0 },
+  { reason: 'ปัญหาการบริการ - สินเชื่อ - ล่าช้า/ไม่ติดตามเคส', count: 0 },
+  { reason: 'ปัญหาการบริการ - สินเชื่อ - บอกข้อมูลไม่ตรง/ไม่ครบ', count: 0 },
+  { reason: 'ปัญหาการบริการ - สินเชื่อ - ไม่สุภาพ/ไม่มี service mind', count: 0 },
+  { reason: 'ปัญหาการบริการ - ตรวจห้อง - ล่าช้า/แก้ไขไม่ครบ', count: 0 },
+  { reason: 'ปัญหาการบริการ - ตรวจห้อง - คุณภาพงานไม่ได้ตามที่คาดหวัง', count: 0 },
+  { reason: 'ปัญหาการบริการ - ตรวจห้อง - ไม่สุภาพ/ไม่มี service mind', count: 0 },
+  { reason: 'ติดต่อไม่ได้ - ไม่ให้ความร่วมมือ', count: 0 },
+  { reason: 'บันทึกรายการผิด', count: 0 },
+  { reason: 'ย้ายไปทำสัญญา LivNex', count: 0 },
+  { reason: 'Agent ยกเลิก-ยุบห้อง', count: 0 },
+  { reason: 'Agent ยกเลิกผิดสัญญา', count: 0 },
+];
+
+const LN_REASONS: CancelReason[] = [
+  { reason: 'JD ไม่อนุมัติ - ปัญหาแหล่งที่มารายได้', count: 0 },
+  { reason: 'JD ไม่อนุมัติ - ปัญหาประวัติบูโร', count: 0 },
+  { reason: 'JD ไม่อนุมัติ - ปัญหา DSR', count: 0 },
+  { reason: 'JD ไม่อนุมัติ - ติดปัญหา LTV ไม่มีเงินจ่ายส่วนต่าง', count: 0 },
+  { reason: 'JD ไม่อนุมัติ - มีบัญชีสินเชื่อบ้านแล้ว 2 บัญชีขึ้นไป', count: 0 },
+  { reason: 'กังวล - ไม่สามารถทำค่าเช่าตามค่าเฉลี่ยของ JD ได้', count: 0 },
+  { reason: 'กังวล - อะไรไม่ได้จริง แม้ค่าเช่าตามที่ JD แนะนำ', count: 0 },
+  { reason: 'กังวล - รายได้/งานไม่มั่นคง', count: 0 },
+  { reason: 'กังวล - ภาระเพิ่มหนี้ที่เพิ่ม/จ่ายไม่ไหว', count: 0 },
+  { reason: 'กังวล - ปัญหาภายในครอบครัว/ผู้ร่วม', count: 0 },
+  { reason: 'กังวล - คิดว่าตัวเองยังไม่พร้อม/รอพร้อมจะซื้อเอง', count: 0 },
+  { reason: 'กังวล - ย้ายที่ทำงานไปจังหวัดอื่น/ต่างจังหวัด', count: 0 },
+  { reason: 'ย้ายแปลง/ย้ายโครงการ/ยุบห้อง', count: 0 },
+  { reason: 'เป้าหมายส่วนตัว - ต้องการสิทธิเป็นเจ้าของพื้นที่', count: 0 },
+  { reason: 'เป้าหมายส่วนตัว - ไม่มีเงินแรกเข้า', count: 0 },
+  { reason: 'เป้าหมายส่วนตัว - ต้องการซื้อเพื่อปล่อยเช่า', count: 0 },
+  { reason: 'ติดต่อไม่ได้ - ไม่ให้ความร่วมมือ', count: 0 },
+  { reason: 'ปัญหาโครงการ - Location สู้คู่แข่งไม่ได้', count: 0 },
+  { reason: 'ปัญหาโครงการ - คุณภาพโครงการ สู้คู่แข่งไม่ได้', count: 0 },
+  { reason: 'ปัญหาโครงการ - ราคา/promotion สู้คู่แข่งไม่ได้', count: 0 },
+  { reason: 'ปัญหาโครงการ - Design สู้คู่แข่งไม่ได้', count: 0 },
+  { reason: 'ข้อกำหนด LivNex - จับข้อเท้าโยกย้าย/กลัวโดนหลอก', count: 0 },
+  { reason: 'ข้อกำหนด LivNex - ห้ามแต่งห้องต่อเติมเพิ่มเติม', count: 0 },
+  { reason: 'ข้อกำหนด LivNex - การเปิดบ้านสินค้า Smartify', count: 0 },
+  { reason: 'ข้อกำหนด LivNex - การตรวจห้องบ่อยเกินไป', count: 0 },
+  { reason: 'ข้อกำหนด LivNex - ห้ามเช่าช่วง', count: 0 },
+  { reason: 'ข้อกำหนด LivNex - ดอกเบี้ย/ค่าบริการ JD สูงเกินไป', count: 0 },
+  { reason: 'ข้อกำหนด LivNex - ค่าช่วงต่อเดือนสูงเกินไป', count: 0 },
+  { reason: 'ปัญหาการบริการ - ขาย - ล่าช้า/ไม่ติดตามเคส', count: 0 },
+  { reason: 'ปัญหาการบริการ - ขาย - บอกข้อมูลไม่ตรง/ไม่ครบ', count: 0 },
+  { reason: 'ปัญหาการบริการ - ขาย - ไม่สุภาพ/ไม่มี service mind', count: 0 },
+  { reason: 'ผลธนาคารอนุมัติ', count: 0 },
+];
+
+const PL_REASONS: CancelReason[] = [
+  { reason: 'ข้อกำหนด RentNex - ค่าเช่าแพงเกินไป', count: 0 },
+  { reason: 'ข้อกำหนด RentNex - ห้องไม่มีความสะดวกเพียงพอ', count: 0 },
+  { reason: 'ข้อกำหนด RentNex - ห้องเล็กเกินไป', count: 0 },
+  { reason: 'ข้อกำหนด RentNex - มีบ้านอยู่แล้ว ต้องการซื้อเท่านั้น', count: 0 },
+  { reason: 'อยากได้เงินส่วนต่าง', count: 0 },
+  { reason: 'ได้ค่า Pre-LivNex คืน', count: 0 },
+  { reason: 'กังวล - ปัญหาภายในครอบครัว/ผู้ร่วม', count: 0 },
+  { reason: 'กังวล - ย้ายที่ทำงานไปจังหวัดอื่น/ต่างจังหวัด', count: 0 },
+  { reason: 'ติดต่อไม่ได้ - ไม่ให้ความร่วมมือ', count: 0 },
+  { reason: 'โครงการไม่มี Pre-LivNex', count: 0 },
+  { reason: 'ติดเรื่อง Location ห้อง', count: 0 },
+];
+
+// helper: กระจาย count ลง reasons แบบ deterministic (ใช้ seed)
+function spreadCount(reasons: CancelReason[], total: number, seed: number): CancelReason[] {
+  if (total <= 0) return reasons.map(r => ({ ...r, count: 0 }));
+  const out = reasons.map(r => ({ ...r, count: 0 }));
+  let s = seed;
+  for (let i = 0; i < total; i++) {
+    s = (s * 1103515245 + 12345) & 0x7fffffff;
+    out[s % out.length].count++;
+  }
+  return out;
+}
+
+// fixed mock: กระจายยกเลิกแต่ละเดือนลง 3 กลุ่ม — ใช้ตัวเลขจาก MONTHLY_CANCEL_DATA ตรงๆ
+function buildCancelReasons(ns: number, ln: number, pl: number, monthIdx: number): CancelReasonGroup[] {
+  if (ns + ln + pl <= 0) return [];
+  return [
+    { group: 'Normal Sale', color: '#dc2626', reasons: spreadCount(NS_REASONS, ns, monthIdx * 100 + 1) },
+    { group: 'LivNex', color: '#f97316', reasons: spreadCount(LN_REASONS, ln, monthIdx * 100 + 2) },
+    { group: 'Pre-LivNex', color: '#3b82f6', reasons: spreadCount(PL_REASONS, pl, monthIdx * 100 + 3) },
+  ];
+}
+
+// สร้าง deterministic mock data — NS=ยกเลิกรวม, LN=ซื้อLivNex, PL=ซื้อPreLivNex (ตรงกับแท่งกราฟ)
+export const CANCEL_REASON_DATA: Record<string, CancelReasonGroup[]> = Object.fromEntries(
+  MONTHLY_CANCEL_DATA.map((d, i) => [
+    d.month,
+    buildCancelReasons(d.ยกเลิกใบจอง + d.ยกเลิกหลังสัญญา, d.ซื้อLivNex, d.ซื้อPreLivNex, i),
+  ])
+);
 
 // ─────────────────────────────────────────────
 // ยอดจอง แยก BUD (Monthly Booking per BUD)

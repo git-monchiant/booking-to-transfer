@@ -61,13 +61,13 @@ import {
 } from 'lucide-react';
 
 export default function Home() {
-  const [currentView, setCurrentView] = useState<View>('dashboard-tracking');
+  const [currentView, setCurrentView] = useState<View>('dashboard');
   const [selectedTeam, setSelectedTeam] = useState<Team>('Sale');
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
   const [stageFilter, setStageFilter] = useState<Stage | 'all'>('all');
 const [notiOpen, setNotiOpen] = useState(false);
-  const [budDisplayMode, setBudDisplayMode] = useState<'unit' | 'net' | 'contract'>('unit');
+  const [budDisplayMode, setBudDisplayMode] = useState<'unit' | 'net' | 'base' | 'contract'>('unit');
   const [heatmapMode, setHeatmapMode] = useState<'pending' | 'inprogress'>('pending');
   const [selectedProcess, setSelectedProcess] = useState<string>(PROCESS_BACKLOG[0].key);
   const [heatmapCell, setHeatmapCell] = useState<{ processKey: string; agingDay: string } | null>(
@@ -106,7 +106,6 @@ const [notiOpen, setNotiOpen] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState<string | null>(null);
   const [perfTeamFilter, setPerfTeamFilter] = useState<'all' | 'CO' | 'CS' | 'CON' | 'Sale'>('all');
   const [workloadTeamFilter, setWorkloadTeamFilter] = useState<'all' | 'CO' | 'CS' | 'CON' | 'Sale'>('all');
-
   // Global Filters
   const [globalFilters, setGlobalFilters] = useState({
     bu: [] as string[],
@@ -570,7 +569,7 @@ const [notiOpen, setNotiOpen] = useState(false);
                   className="w-56"
                 />
               </div>
-              <div className="flex flex-col gap-1">
+              <div className={`flex flex-col gap-1 ${currentView !== 'dashboard' && currentView !== 'dashboard-tracking' ? 'hidden' : ''}`}>
                 <label className="text-[10px] font-semibold text-slate-400 uppercase">สถานะงาน</label>
                 <MultiSelect
                   values={globalFilters.status}
@@ -600,7 +599,7 @@ const [notiOpen, setNotiOpen] = useState(false);
                   )}
                 />
               </div>
-              <div className="flex flex-col gap-1">
+              <div className={`flex flex-col gap-1 ${currentView !== 'dashboard' && currentView !== 'dashboard-tracking' ? 'hidden' : ''}`}>
                 <label className="text-[10px] font-semibold text-slate-400 uppercase">ผู้รับผิดชอบ</label>
                 <MultiSelect
                   values={globalFilters.responsible}
@@ -649,7 +648,7 @@ const [notiOpen, setNotiOpen] = useState(false);
                   </button>
                 ))}
               </div>
-              <div className="flex flex-col gap-1">
+              <div className={`flex flex-col gap-1 ${currentView !== 'dashboard' && currentView !== 'dashboard-tracking' ? 'hidden' : ''}`}>
                 <label className="text-[10px] font-semibold text-slate-400 uppercase">SLA</label>
                 <select value={globalFilters.slaOverdue ? 'overdue' : 'all'}
                   onChange={e => setGlobalFilters(prev => ({ ...prev, slaOverdue: e.target.value === 'overdue' }))}
@@ -660,10 +659,11 @@ const [notiOpen, setNotiOpen] = useState(false);
               </div>
               <div className={`flex flex-col gap-1 ${currentView !== 'dashboard' && currentView !== 'dashboard-performance' ? 'hidden' : ''}`}>
                 <label className="text-[10px] font-semibold text-slate-400 uppercase">หน่วย</label>
-                <select value={budDisplayMode} onChange={e => setBudDisplayMode(e.target.value as 'unit' | 'net' | 'contract')}
+                <select value={budDisplayMode} onChange={e => setBudDisplayMode(e.target.value as 'unit' | 'net' | 'base' | 'contract')}
                   className="px-2 py-1 bg-white border border-slate-200 rounded text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-300">
-                  <option value="unit">จำนวน (Unit)</option>
-                  <option value="net">ราคาขายสุทธิ (ล้าน฿)</option>
+                  <option value="unit">จำนวน Unit</option>
+                  <option value="base">Base Price (ล้าน฿)</option>
+                  <option value="net">Selling Price (ล้าน฿)</option>
                   <option value="contract">ราคาหน้าสัญญา (ล้าน฿)</option>
                 </select>
               </div>
@@ -708,7 +708,7 @@ const [notiOpen, setNotiOpen] = useState(false);
                 const kPreLivNexCancel = MONTHLY_SALES_DATA.reduce((s, d) => s + d.PreLivNexจากยกเลิก, 0);
                 const kTargetPreLivNex = MONTHLY_SALES_DATA.reduce((s, d) => s + d.เป้าPreLivNex, 0);
 
-                const kCancel = MONTHLY_CANCEL_DATA.reduce((s, d) => s + d.ยกเลิก, 0);
+                const kCancel = MONTHLY_CANCEL_DATA.reduce((s, d) => s + d.ยกเลิกใบจอง + d.ยกเลิกหลังสัญญา, 0);
                 const kCancelToLN = MONTHLY_CANCEL_DATA.reduce((s, d) => s + d.ซื้อLivNex, 0);
                 const kCancelToPLN = MONTHLY_CANCEL_DATA.reduce((s, d) => s + d.ซื้อPreLivNex, 0);
                 const kNetCancel = kCancel - kCancelToLN - kCancelToPLN;
@@ -2237,6 +2237,7 @@ const [notiOpen, setNotiOpen] = useState(false);
       {selectedBooking && (
         <BookingDetailPanel key={`${selectedBooking.id}-${defaultTab || 'detail'}`} booking={selectedBooking} onClose={() => { setSelectedBooking(null); setDefaultTab(undefined); }} currentView={currentView} stageFilter={stageFilter} defaultTab={defaultTab} />
       )}
+
     </div>
   );
 }
