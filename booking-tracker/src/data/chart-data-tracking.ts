@@ -143,7 +143,7 @@ export const PROCESS_INPROGRESS = [
 export const GROUP_COLORS: Record<string, string> = {
   'เอกสาร':  '#6366f1',
   'LivNex':  '#4ade80',
-  'สินเชื่อ': '#f59e0b',
+  'สินเชื่อ': '#92400e',
   'CS Inspect':  '#0891b2',
   'Con Review': '#7c3aed',
   'โอน':     '#10b981',
@@ -185,6 +185,115 @@ function _genItems(processKey: string, agingDay: string, count: number): Backlog
 export const BACKLOG_ITEMS: BacklogItem[] = PROCESS_BACKLOG.flatMap(p =>
   AGING_BUCKETS.flatMap(b => _genItems(p.key, b, p.aging[b]))
 );
+
+// ─────────────────────────────────────────────
+// Aging Distribution Bar — ≤30 (เขียว), 31-60 (เหลือง→แดง), >60 (แดงจัด)
+// SLA = 30 วัน, แสดง SLA+1 ถึง SLA+30, สุดท้าย >60
+// ─────────────────────────────────────────────
+// buckets: '≤30', 31, 32, 33, ... 60, '>60'  (32 buckets)
+export type AgingDistBucket = '≤30' | number | '>60';
+export const AGING_DIST_BUCKETS: AgingDistBucket[] = [
+  '≤30',
+  ...Array.from({ length: 30 }, (_, i) => i + 31), // 31-60
+  '>60',
+];
+
+export const AGING_DISTRIBUTION_BACKLOG: Record<string, number> = {
+  '≤30': 380,
+  31: 18, 32: 16, 33: 14, 34: 12, 35: 11, 36: 10, 37: 9, 38: 8, 39: 7, 40: 6,
+  41: 5, 42: 5, 43: 4, 44: 4, 45: 3, 46: 3, 47: 2, 48: 2, 49: 2, 50: 1,
+  51: 1, 52: 1, 53: 1, 54: 1, 55: 0, 56: 1, 57: 0, 58: 0, 59: 0, 60: 0,
+  '>60': 3,
+};
+
+export const AGING_DISTRIBUTION_TRANSFERRED: Record<string, number> = {
+  '≤30': 420,
+  31: 18, 32: 15, 33: 12, 34: 10, 35: 8, 36: 7, 37: 6, 38: 5, 39: 4, 40: 4,
+  41: 3, 42: 3, 43: 2, 44: 2, 45: 2, 46: 1, 47: 1, 48: 1, 49: 1, 50: 1,
+  51: 1, 52: 0, 53: 1, 54: 0, 55: 0, 56: 0, 57: 0, 58: 0, 59: 0, 60: 0,
+  '>60': 2,
+};
+
+// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// Team Master — ทีมรับผิดชอบ + สี
+// ─────────────────────────────────────────────
+export interface TeamDef {
+  key: string;
+  label: string;
+  color: string;
+}
+
+export const TEAM_MASTER: TeamDef[] = [
+  { key: 'Sales', label: 'Sales',     color: '#6366f1' },
+  { key: 'JD',    label: 'Jaidee',    color: '#4ade80' },
+  { key: 'CO',    label: 'CO',        color: '#92400e' },
+  { key: 'CON',   label: 'CON',       color: '#7c3aed' },
+  { key: 'CS',    label: 'CS',        color: '#0891b2' },
+  { key: 'TR',    label: 'Transfer',  color: '#10b981' },
+];
+
+// ─────────────────────────────────────────────
+// Process SLA Stats — เฉพาะงานที่โอนแล้ว
+// ใช้ process ตรงกับ PROCESS_BACKLOG ทุกตัว
+// team = key จาก TEAM_MASTER
+// ─────────────────────────────────────────────
+export interface ProcessSlaStat {
+  key: string;
+  label: string;
+  group: string;
+  subGroup?: string;
+  team: string;        // key จาก TEAM_MASTER
+  sla: number;
+  withinSla: number;   // ทัน SLA
+  overTo30: number;    // เกิน SLA แต่ ≤30 วัน
+  over30: number;      // >30 วัน
+}
+
+export const PROCESS_SLA_STATS: ProcessSlaStat[] = [
+  // ── เอกสาร (Sale) ──
+  { key: 'doc_bureau',  label: 'เอกสารตรวจบูโร',       group: 'เอกสาร',  team: 'Sales', sla: 3,  withinSla: 108, overTo30: 9,  over30: 3 },
+  { key: 'doc_bank',    label: 'เตรียมเอกสารธนาคาร',   group: 'เอกสาร',  team: 'Sales', sla: 3,  withinSla: 102, overTo30: 12, over30: 6 },
+  { key: 'doc_jd',      label: 'เตรียมเอกสาร JD',      group: 'เอกสาร',  team: 'Sales', sla: 3,  withinSla: 72,  overTo30: 8,  over30: 5 },
+  { key: 'doc_meter',   label: 'เอกสารมิเตอร์น้ำ-ไฟ',   group: 'เอกสาร',  team: 'Sales', sla: 1,  withinSla: 48,  overTo30: 8,  over30: 4 },
+  // ── LivNex (Sale) ──
+  { key: 'jd_livnex',   label: 'JD - LivNex Able',     group: 'LivNex',  team: 'JD', sla: 3,  withinSla: 60,  overTo30: 7,  over30: 3 },
+  // ── สินเชื่อ (CO) ──
+  { key: 'bureau_emp',      label: 'ผลบูโร',           group: 'สินเชื่อ', subGroup: 'พนักงาน',       team: 'CO', sla: 2,  withinSla: 81,  overTo30: 6,  over30: 3 },
+  { key: 'preapprove_emp',  label: 'อนุมัติเบื้องต้น',   group: 'สินเชื่อ', subGroup: 'พนักงาน',       team: 'CO', sla: 3,  withinSla: 72,  overTo30: 8,  over30: 5 },
+  { key: 'final_emp',       label: 'อนุมัติจริง',        group: 'สินเชื่อ', subGroup: 'พนักงาน',       team: 'CO', sla: 5,  withinSla: 64,  overTo30: 10, over30: 6 },
+  { key: 'bureau_biz',      label: 'ผลบูโร',           group: 'สินเชื่อ', subGroup: 'เจ้าของกิจการ',  team: 'CO', sla: 2,  withinSla: 34,  overTo30: 4,  over30: 2 },
+  { key: 'preapprove_biz',  label: 'อนุมัติเบื้องต้น',   group: 'สินเชื่อ', subGroup: 'เจ้าของกิจการ',  team: 'CO', sla: 7,  withinSla: 30,  overTo30: 5,  over30: 3 },
+  { key: 'final_biz',       label: 'อนุมัติจริง',        group: 'สินเชื่อ', subGroup: 'เจ้าของกิจการ',  team: 'CO', sla: 10, withinSla: 26,  overTo30: 5,  over30: 4 },
+  { key: 'bureau_gov',      label: 'ผลบูโร',           group: 'สินเชื่อ', subGroup: 'ข้าราชการ',      team: 'CO', sla: 2,  withinSla: 22,  overTo30: 2,  over30: 1 },
+  { key: 'preapprove_gov',  label: 'อนุมัติเบื้องต้น',   group: 'สินเชื่อ', subGroup: 'ข้าราชการ',      team: 'CO', sla: 3,  withinSla: 18,  overTo30: 3,  over30: 1 },
+  { key: 'final_gov',       label: 'อนุมัติจริง',        group: 'สินเชื่อ', subGroup: 'ข้าราชการ',      team: 'CO', sla: 15, withinSla: 17,  overTo30: 2,  over30: 1 },
+  { key: 'bureau_foreign',      label: 'ผลบูโร',           group: 'สินเชื่อ', subGroup: 'ต่างชาติ',  team: 'CO', sla: 2,  withinSla: 12,  overTo30: 2,  over30: 1 },
+  { key: 'preapprove_foreign',  label: 'อนุมัติเบื้องต้น',   group: 'สินเชื่อ', subGroup: 'ต่างชาติ',  team: 'CO', sla: 10, withinSla: 9,   overTo30: 2,  over30: 1 },
+  { key: 'final_foreign',       label: 'อนุมัติจริง',        group: 'สินเชื่อ', subGroup: 'ต่างชาติ',  team: 'CO', sla: 15, withinSla: 7,   overTo30: 2,  over30: 1 },
+  { key: 'bureau_retire',      label: 'ผลบูโร',           group: 'สินเชื่อ', subGroup: 'เกษียณ',    team: 'CO', sla: 2,  withinSla: 10,  overTo30: 1,  over30: 1 },
+  { key: 'preapprove_retire',  label: 'อนุมัติเบื้องต้น',   group: 'สินเชื่อ', subGroup: 'เกษียณ',    team: 'CO', sla: 3,  withinSla: 8,   overTo30: 1,  over30: 1 },
+  { key: 'final_retire',       label: 'อนุมัติจริง',        group: 'สินเชื่อ', subGroup: 'เกษียณ',    team: 'CO', sla: 5,  withinSla: 6,   overTo30: 1,  over30: 1 },
+  // ── CS Inspect (CS) ──
+  { key: 'inspect_cs_review',  label: 'CS Review',              group: 'CS Inspect',  team: 'CS', sla: 1,  withinSla: 110, overTo30: 7,  over30: 3 },
+  { key: 'inspect_appt_cash',  label: 'โทรนัดตรวจ (โอนสด)',      group: 'CS Inspect',  team: 'CS', sla: 1,  withinSla: 28,  overTo30: 1,  over30: 1 },
+  { key: 'inspect_appt_loan',  label: 'โทรนัดตรวจ (กู้ธนาคาร)',  group: 'CS Inspect',  team: 'CS', sla: 1,  withinSla: 82,  overTo30: 5,  over30: 3 },
+  // ── Con Review (CON) ──
+  { key: 'inspect_con_review', label: 'CON Review',             group: 'Con Review',  team: 'CON', sla: 2,  withinSla: 102, overTo30: 12, over30: 6 },
+  { key: 'inspect1_hired',     label: 'ตรวจ 1 (จ้าง)',          group: 'Con Review', subGroup: 'จ้างตรวจ', team: 'CON', sla: 5,  withinSla: 75,  overTo30: 15, over30: 10 },
+  { key: 'inspect2_hired',     label: 'ตรวจ 2 (จ้าง)',          group: 'Con Review', subGroup: 'จ้างตรวจ', team: 'CON', sla: 10, withinSla: 36,  overTo30: 5,  over30: 4 },
+  { key: 'inspect3_hired',     label: 'ตรวจ 3 (จ้าง)',          group: 'Con Review', subGroup: 'จ้างตรวจ', team: 'CON', sla: 10, withinSla: 10,  overTo30: 1,  over30: 1 },
+  { key: 'inspect3plus_hired', label: 'ตรวจ 3+ (จ้าง)',         group: 'Con Review', subGroup: 'จ้างตรวจ', team: 'CON', sla: 10, withinSla: 4,   overTo30: 1,  over30: 0 },
+  { key: 'inspect1_self',      label: 'ตรวจ 1 (เอง)',           group: 'Con Review', subGroup: 'ตรวจเอง', team: 'CON', sla: 7,  withinSla: 42,  overTo30: 10, over30: 8 },
+  { key: 'inspect2_self',      label: 'ตรวจ 2 (เอง)',           group: 'Con Review', subGroup: 'ตรวจเอง', team: 'CON', sla: 5,  withinSla: 14,  overTo30: 4,  over30: 2 },
+  { key: 'inspect3_self',      label: 'ตรวจ 3 (เอง)',           group: 'Con Review', subGroup: 'ตรวจเอง', team: 'CON', sla: 5,  withinSla: 6,   overTo30: 1,  over30: 1 },
+  // ── โอน (CS) ──
+  { key: 'contract_bank',   label: 'สัญญา Bank',   group: 'โอน', team: 'TR', sla: 5,  withinSla: 89,  overTo30: 10, over30: 6 },
+  { key: 'transfer_pkg',    label: 'ส่งชุดโอน',     group: 'โอน', team: 'TR', sla: 5,  withinSla: 85,  overTo30: 9,  over30: 6 },
+  { key: 'title_clear',     label: 'ปลอดโฉนด',     group: 'โอน', team: 'TR', sla: 10, withinSla: 82,  overTo30: 10, over30: 8 },
+  { key: 'transfer_appt',   label: 'นัดโอน',        group: 'โอน', team: 'TR', sla: 3,  withinSla: 92,  overTo30: 5,  over30: 3 },
+  { key: 'transfer_actual', label: 'โอนจริง',       group: 'โอน', team: 'TR', sla: 3,  withinSla: 85,  overTo30: 6,  over30: 4 },
+];
 
 // ─────────────────────────────────────────────
 // SLA Compliance — โอนแล้ว (รายโครงการ)
@@ -235,31 +344,33 @@ export interface BacklogByProjectRow {
   overSla: number;   // เกิน SLA
   avgAging: number;  // เฉลี่ย aging (วัน)
   pct: number;       // %ตาม SLA (0-100)
+  transferred: number; // โอนแล้ว
+  avgE2E: number;    // เฉลี่ย E2E (วัน)
 }
 
 export const BACKLOG_BY_PROJECT_DATA: BacklogByProjectRow[] = [
   // BUD C1
-  { pName: 'เสนา เวล่า สิริโสธร',          n: 18, withinSla: 12, overSla: 6,  avgAging: 6,  pct: 67 },
-  { pName: 'เสนา พาร์ค แกรนด์ รามอินทรา',  n: 22, withinSla: 14, overSla: 8,  avgAging: 7,  pct: 64 },
-  { pName: 'เสนา เรสซิเดนซ์ อารีย์',        n: 10, withinSla: 8,  overSla: 2,  avgAging: 4,  pct: 80 },
+  { pName: 'เสนา เวล่า สิริโสธร',          n: 18, withinSla: 12, overSla: 6,  avgAging: 6,  pct: 67, transferred: 35, avgE2E: 24 },
+  { pName: 'เสนา พาร์ค แกรนด์ รามอินทรา',  n: 22, withinSla: 14, overSla: 8,  avgAging: 7,  pct: 64, transferred: 30, avgE2E: 26 },
+  { pName: 'เสนา เรสซิเดนซ์ อารีย์',        n: 10, withinSla: 8,  overSla: 2,  avgAging: 4,  pct: 80, transferred: 25, avgE2E: 22 },
   // BUD C2
-  { pName: 'เสนา คอนโด วงเวียนใหญ่',       n: 15, withinSla: 7,  overSla: 8,  avgAging: 9,  pct: 47 },
-  { pName: 'เสนา เพลส ลาดพร้าว',           n: 12, withinSla: 8,  overSla: 4,  avgAging: 6,  pct: 67 },
+  { pName: 'เสนา คอนโด วงเวียนใหญ่',       n: 15, withinSla: 7,  overSla: 8,  avgAging: 9,  pct: 47, transferred: 20, avgE2E: 32 },
+  { pName: 'เสนา เพลส ลาดพร้าว',           n: 12, withinSla: 8,  overSla: 4,  avgAging: 6,  pct: 67, transferred: 18, avgE2E: 25 },
   // BUD C3
-  { pName: 'เสนา โซลาร์ พหลโยธิน',         n: 16, withinSla: 11, overSla: 5,  avgAging: 5,  pct: 69 },
-  { pName: 'เสนา วิลล่า สุขุมวิท',          n: 8,  withinSla: 6,  overSla: 2,  avgAging: 4,  pct: 75 },
+  { pName: 'เสนา โซลาร์ พหลโยธิน',         n: 16, withinSla: 11, overSla: 5,  avgAging: 5,  pct: 69, transferred: 22, avgE2E: 23 },
+  { pName: 'เสนา วิลล่า สุขุมวิท',          n: 8,  withinSla: 6,  overSla: 2,  avgAging: 4,  pct: 75, transferred: 15, avgE2E: 21 },
   // BUD C4
-  { pName: 'เสนา คอนโด พระราม 9',          n: 14, withinSla: 6,  overSla: 8,  avgAging: 10, pct: 43 },
-  { pName: 'เสนา คอนโด อ่อนนุช',           n: 11, withinSla: 5,  overSla: 6,  avgAging: 9,  pct: 45 },
+  { pName: 'เสนา คอนโด พระราม 9',          n: 14, withinSla: 6,  overSla: 8,  avgAging: 10, pct: 43, transferred: 16, avgE2E: 33 },
+  { pName: 'เสนา คอนโด อ่อนนุช',           n: 11, withinSla: 5,  overSla: 6,  avgAging: 9,  pct: 45, transferred: 14, avgE2E: 31 },
   // BUD H1
-  { pName: 'เสนา ทาวน์ รังสิต',             n: 24, withinSla: 18, overSla: 6,  avgAging: 5,  pct: 75 },
-  { pName: 'เสนา วีว่า ศรีราชา - อัสสัมชัญ',  n: 19, withinSla: 12, overSla: 7,  avgAging: 7,  pct: 63 },
-  { pName: 'บ้านบูรพา',                     n: 13, withinSla: 10, overSla: 3,  avgAging: 4,  pct: 77 },
+  { pName: 'เสนา ทาวน์ รังสิต',             n: 24, withinSla: 18, overSla: 6,  avgAging: 5,  pct: 75, transferred: 40, avgE2E: 22 },
+  { pName: 'เสนา วีว่า ศรีราชา - อัสสัมชัญ',  n: 19, withinSla: 12, overSla: 7,  avgAging: 7,  pct: 63, transferred: 28, avgE2E: 27 },
+  { pName: 'บ้านบูรพา',                     n: 13, withinSla: 10, overSla: 3,  avgAging: 4,  pct: 77, transferred: 20, avgE2E: 21 },
   // BUD H2
-  { pName: 'เสนา อเวนิว บางปะกง - บ้านโพธิ์', n: 20, withinSla: 8,  overSla: 12, avgAging: 11, pct: 40 },
-  { pName: 'เสนา เอโค่ บางนา',              n: 17, withinSla: 11, overSla: 6,  avgAging: 7,  pct: 65 },
-  { pName: 'เสนา ไลฟ์ บางปู',               n: 14, withinSla: 9,  overSla: 5,  avgAging: 6,  pct: 64 },
-  { pName: 'เสนา เวล่า สุขุมวิท-บางปู',      n: 9,  withinSla: 3,  overSla: 6,  avgAging: 12, pct: 33 },
+  { pName: 'เสนา อเวนิว บางปะกง - บ้านโพธิ์', n: 20, withinSla: 8,  overSla: 12, avgAging: 11, pct: 40, transferred: 18, avgE2E: 35 },
+  { pName: 'เสนา เอโค่ บางนา',              n: 17, withinSla: 11, overSla: 6,  avgAging: 7,  pct: 65, transferred: 24, avgE2E: 26 },
+  { pName: 'เสนา ไลฟ์ บางปู',               n: 14, withinSla: 9,  overSla: 5,  avgAging: 6,  pct: 64, transferred: 19, avgE2E: 25 },
+  { pName: 'เสนา เวล่า สุขุมวิท-บางปู',      n: 9,  withinSla: 3,  overSla: 6,  avgAging: 12, pct: 33, transferred: 10, avgE2E: 34 },
 ];
 
 // ─────────────────────────────────────────────
@@ -362,9 +473,9 @@ export const PERSON_WORKLOAD: PersonWorkload[] = [
   { name: 'ประเสริฐ (เจ)',       team: 'CON',  backlog: 16, withinSla: 13, overSla: 3,  avgAging: 4,  pctSla: 81, transferred: 6,  avgE2E: 23 },
   { name: 'วิชัย (ชัย)',         team: 'CON',  backlog: 8,  withinSla: 6,  overSla: 2,  avgAging: 5,  pctSla: 75, transferred: 5,  avgE2E: 27 },
   // ─── Sale ───
-  { name: 'สกุลกาญจน์ (กิ๊ฟ)',  team: 'Sale', backlog: 9,  withinSla: 7,  overSla: 2,  avgAging: 4,  pctSla: 78, transferred: 10, avgE2E: 21 },
-  { name: 'นภัสสร (มิ้นท์)',    team: 'Sale', backlog: 7,  withinSla: 6,  overSla: 1,  avgAging: 3,  pctSla: 86, transferred: 8,  avgE2E: 19 },
-  { name: 'ภูริวัจน์ (เบนซ์)',   team: 'Sale', backlog: 11, withinSla: 8,  overSla: 3,  avgAging: 6,  pctSla: 73, transferred: 6,  avgE2E: 26 },
+  { name: 'สกุลกาญจน์ (กิ๊ฟ)',  team: 'Sales', backlog: 9,  withinSla: 7,  overSla: 2,  avgAging: 4,  pctSla: 78, transferred: 10, avgE2E: 21 },
+  { name: 'นภัสสร (มิ้นท์)',    team: 'Sales', backlog: 7,  withinSla: 6,  overSla: 1,  avgAging: 3,  pctSla: 86, transferred: 8,  avgE2E: 19 },
+  { name: 'ภูริวัจน์ (เบนซ์)',   team: 'Sales', backlog: 11, withinSla: 8,  overSla: 3,  avgAging: 6,  pctSla: 73, transferred: 6,  avgE2E: 26 },
 ];
 
 // ─────────────────────────────────────────────

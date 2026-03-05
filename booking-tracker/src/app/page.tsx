@@ -28,7 +28,7 @@ import {
   MONTHLY_SALES_DATA, MONTHLY_TRANSFER_DATA, MONTHLY_CANCEL_DATA,
   BACKLOG_INITIAL,
 } from '@/data/chart-data';
-import { PROCESS_BACKLOG, PROCESS_INPROGRESS, GROUP_COLORS, AGING_BUCKETS, AGING_COLORS, SLA_COMPLIANCE_DATA, BACKLOG_BY_PROJECT_DATA, PROJECT_BOOKING_ITEMS, BANK_CREDIT_STATUS, PERSON_WORKLOAD, PERSON_BOOKING_ITEMS, PERSON_MONTHLY_SLA } from '@/data/chart-data-tracking';
+import { PROCESS_BACKLOG, PROCESS_INPROGRESS, GROUP_COLORS, AGING_BUCKETS, AGING_COLORS, SLA_COMPLIANCE_DATA, BACKLOG_BY_PROJECT_DATA, PROJECT_BOOKING_ITEMS, BANK_CREDIT_STATUS, PERSON_WORKLOAD, PERSON_BOOKING_ITEMS, PERSON_MONTHLY_SLA, AGING_DIST_BUCKETS, AGING_DISTRIBUTION_BACKLOG, AGING_DISTRIBUTION_TRANSFERRED, PROCESS_SLA_STATS, TEAM_MASTER } from '@/data/chart-data-tracking';
 import { BookingListItem } from '@/components/BookingListItem';
 import {
   BarChart,
@@ -58,6 +58,7 @@ import {
   ArrowUpRight,
   Layers,
   Bell,
+  ArrowRightCircle,
 } from 'lucide-react';
 
 export default function Home() {
@@ -103,7 +104,9 @@ const [notiOpen, setNotiOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<string | null>(
     () => [...BACKLOG_BY_PROJECT_DATA].sort((a, b) => b.n - a.n)[0]?.pName ?? null
   );
-  const [selectedPerson, setSelectedPerson] = useState<string | null>(null);
+  const [selectedPerson, setSelectedPerson] = useState<string | null>(
+    () => PERSON_WORKLOAD[0]?.name ?? null
+  );
   const [perfTeamFilter, setPerfTeamFilter] = useState<'all' | 'CO' | 'CS' | 'CON' | 'Sale'>('all');
   const [workloadTeamFilter, setWorkloadTeamFilter] = useState<'all' | 'CO' | 'CS' | 'CON' | 'Sale'>('all');
   // Global Filters
@@ -874,175 +877,333 @@ const [notiOpen, setNotiOpen] = useState(false);
                 const transferred = globalFilteredBookings.filter(b => b.stage === 'transferred');
                 const cancelled = globalFilteredBookings.filter(b => b.stage === 'cancelled');
 
-                // Stage counts for pipeline breakdown
+                // Backlog from heatmap
+                const totalBacklog = PROCESS_BACKLOG.reduce((s, p) => s + p.count, 0);
+                const totalOverSla = PROCESS_BACKLOG.reduce((s, p) => {
+                  return s + Object.entries(p.aging).reduce((ss, [bucket, count]) => {
+                    const day = bucket === '15+' ? 16 : parseInt(bucket);
+                    return day > p.sla ? ss + (count as number) : ss;
+                  }, 0);
+                }, 0);
+                const totalWithinSla = totalBacklog - totalOverSla;
+                const slaRate = totalBacklog > 0 ? Math.round((totalWithinSla / totalBacklog) * 100) : 0;
+
+                // In-progress
+                const totalInProgress = PROCESS_INPROGRESS.reduce((s, p) => s + p.count, 0);
+
+                // Aging
+                const agingArr = active.map(b => b.aging_days);
+                const avgAging = agingArr.length > 0 ? Math.round(agingArr.reduce((s, d) => s + d, 0) / agingArr.length) : 0;
+
+                // Values
+                const activeValue = active.reduce((s, b) => s + b.net_contract_value, 0);
+                const transferredValue = transferred.reduce((s, b) => s + b.net_contract_value, 0);
+
+                // Stage counts
                 const stageDoc = active.filter(b => b.stage === 'booking' || b.stage === 'contract').length;
                 const stageCredit = active.filter(b => b.stage === 'credit').length;
                 const stageInsp = active.filter(b => b.stage === 'inspection').length;
                 const stageReady = active.filter(b => b.stage === 'ready').length;
                 const pipeTotal = active.length || 1;
 
-                // Credit approval
-                const allBankSubs = active.flatMap(b => b.banks_submitted).filter(bs => bs.bank !== 'JD' && bs.bank !== 'CASH');
-                const submitted = allBankSubs.length;
-                const approved = allBankSubs.filter(bs => bs.result_flag === 'pass').length;
-                const rejected = allBankSubs.filter(bs => bs.result_flag === 'fail').length;
-                const approvalRate = submitted > 0 ? Math.round((approved / submitted) * 100) : 0;
+                return (
+                  <div className="grid grid-cols-5 gap-3">
+                    {/* 1. Pipeline */}
+                    <div className="bg-white rounded-xl border border-slate-200 p-4">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[11px] font-medium text-slate-400">Pipeline</span>
+                        <Layers className="w-4 h-4 text-indigo-400" />
+                      </div>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-2xl font-bold text-slate-900">{active.length}</span>
+                        <span className="text-[10px] text-slate-400">รายการ</span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-0.5">฿{formatMoney(activeValue)}</div>
+                      <div className="mt-2.5 flex h-2 rounded-full overflow-hidden bg-slate-100">
+                        {stageDoc > 0 && <div className="h-full bg-indigo-400" style={{ width: `${(stageDoc / pipeTotal) * 100}%` }} />}
+                        {stageCredit > 0 && <div className="h-full bg-amber-400" style={{ width: `${(stageCredit / pipeTotal) * 100}%` }} />}
+                        {stageInsp > 0 && <div className="h-full bg-cyan-400" style={{ width: `${(stageInsp / pipeTotal) * 100}%` }} />}
+                        {stageReady > 0 && <div className="h-full bg-emerald-400" style={{ width: `${(stageReady / pipeTotal) * 100}%` }} />}
+                      </div>
+                      <div className="flex justify-between mt-1 text-[9px] text-slate-400">
+                        <span>เอกสาร {stageDoc}</span>
+                        <span>สินเชื่อ {stageCredit}</span>
+                        <span>ตรวจ {stageInsp}</span>
+                        <span>พร้อม {stageReady}</span>
+                      </div>
+                    </div>
 
-                // Aging
-                const agingArr = active.map(b => b.aging_days);
-                const avgAging = agingArr.length > 0 ? Math.round(agingArr.reduce((s, d) => s + d, 0) / agingArr.length) : 0;
-                const maxAging = agingArr.length > 0 ? Math.max(...agingArr) : 0;
-                const overSla = active.filter(b => b.aging_days > 90).length;
+                    {/* 2. งานค้าง */}
+                    <div className="bg-white rounded-xl border border-slate-200 p-4">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[11px] font-medium text-slate-400">งานค้าง (Backlog)</span>
+                        <AlertTriangle className="w-4 h-4 text-amber-400" />
+                      </div>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-2xl font-bold text-slate-900">{totalBacklog}</span>
+                        <span className="text-[10px] text-slate-400">รายการ</span>
+                      </div>
+                      <div className="mt-2.5 flex gap-3 text-[10px]">
+                        <div>
+                          <div className="text-slate-400">ตาม SLA</div>
+                          <div className="font-bold text-emerald-600">{totalWithinSla}</div>
+                        </div>
+                        <div>
+                          <div className="text-slate-400">เกิน SLA</div>
+                          <div className="font-bold text-red-500">{totalOverSla}</div>
+                        </div>
+                        <div>
+                          <div className="text-slate-400">ดำเนินการ</div>
+                          <div className="font-bold text-blue-600">{totalInProgress}</div>
+                        </div>
+                      </div>
+                    </div>
 
-                // Values
-                const activeValue = active.reduce((s, b) => s + b.net_contract_value, 0);
-                const transferredValue = transferred.reduce((s, b) => s + b.net_contract_value, 0);
+                    {/* 3. %SLA */}
+                    <div className="bg-white rounded-xl border border-slate-200 p-4">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[11px] font-medium text-slate-400">%SLA Compliance</span>
+                        <CheckCircle2 className={`w-4 h-4 ${slaRate >= 70 ? 'text-emerald-400' : slaRate >= 50 ? 'text-amber-400' : 'text-red-400'}`} />
+                      </div>
+                      <div className="flex items-baseline gap-1">
+                        <span className={`text-2xl font-bold ${slaRate >= 70 ? 'text-emerald-600' : slaRate >= 50 ? 'text-amber-600' : 'text-red-600'}`}>{slaRate}</span>
+                        <span className="text-lg font-bold text-slate-300">%</span>
+                      </div>
+                      <div className="mt-2.5 h-2.5 rounded-full bg-slate-100 overflow-hidden">
+                        <div className={`h-full rounded-full transition-all ${slaRate >= 70 ? 'bg-emerald-500' : slaRate >= 50 ? 'bg-amber-500' : 'bg-red-500'}`}
+                          style={{ width: `${slaRate}%` }} />
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-1">
+                        {totalWithinSla}/{totalBacklog} ตามกำหนด
+                      </div>
+                    </div>
+
+                    {/* 4. Avg Aging */}
+                    <div className="bg-white rounded-xl border border-slate-200 p-4">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[11px] font-medium text-slate-400">Aging เฉลี่ย</span>
+                        <Clock className="w-4 h-4 text-slate-400" />
+                      </div>
+                      <div className="flex items-baseline gap-1">
+                        <span className={`text-2xl font-bold ${avgAging > 60 ? 'text-red-600' : avgAging > 30 ? 'text-amber-600' : 'text-slate-900'}`}>{avgAging}</span>
+                        <span className="text-[10px] text-slate-400">วัน</span>
+                      </div>
+                      <div className="mt-2.5 h-2 rounded-full bg-slate-100 overflow-hidden">
+                        <div className={`h-full rounded-full ${avgAging > 60 ? 'bg-red-400' : avgAging > 30 ? 'bg-amber-400' : 'bg-emerald-400'}`}
+                          style={{ width: `${Math.min((avgAging / 90) * 100, 100)}%` }} />
+                      </div>
+                      <div className="flex justify-between mt-1 text-[10px] text-slate-400">
+                        <span>ยกเลิก <span className="font-bold text-red-500">{cancelled.length}</span></span>
+                        <span>{globalFilteredBookings.length > 0 ? Math.round((cancelled.length / globalFilteredBookings.length) * 100) : 0}%</span>
+                      </div>
+                    </div>
+
+                    {/* 5. โอนแล้ว */}
+                    <div className="bg-white rounded-xl border border-slate-200 p-4">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[11px] font-medium text-slate-400">โอนแล้ว</span>
+                        <ArrowRightCircle className="w-4 h-4 text-emerald-400" />
+                      </div>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-2xl font-bold text-emerald-600">{transferred.length}</span>
+                        <span className="text-[10px] text-slate-400">รายการ</span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-0.5">฿{formatMoney(transferredValue)}</div>
+                      <div className="mt-2 flex gap-3 text-[10px]">
+                        <div>
+                          <div className="text-slate-400">อัตราโอน</div>
+                          <div className="font-bold text-emerald-600">{globalFilteredBookings.length > 0 ? Math.round((transferred.length / globalFilteredBookings.length) * 100) : 0}%</div>
+                        </div>
+                        <div>
+                          <div className="text-slate-400">ยกเลิก</div>
+                          <div className="font-bold text-red-500">{cancelled.length}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* ════════ Aging Distribution Heatmap Table ════════ */}
+              {(() => {
+                const buckets = AGING_DIST_BUCKETS;
+                const v = (data: Record<string, number>, b: string | number) => data[String(b)] || 0;
+                const backlogTotal = buckets.reduce((s, b) => s + v(AGING_DISTRIBUTION_BACKLOG, b), 0);
+                const transferredTotal = buckets.reduce((s, b) => s + v(AGING_DISTRIBUTION_TRANSFERRED, b), 0);
+
+                // ใช้ระบบสีเดียวกับ heatmap งานค้างในกระบวนการ
+                const GREEN_SHADES_D = ['#064e3b','#065f46','#047857','#059669','#0d9448','#16a34a'];
+                const OVER_COLORS_D = ['#eab308','#f59e0b','#f97316','#ea580c','#dc2626','#b91c1c','#991b1b','#7f1d1d'];
+                const SLA = 30;
+
+                const getCellBg = (bucket: string | number) => {
+                  if (bucket === '≤30') return GREEN_SHADES_D[3]; // #059669 (เขียว SLA)
+                  if (bucket === '>60') return OVER_COLORS_D[7];  // #7f1d1d (แดงจัดสุด)
+                  const day = bucket as number;
+                  if (day <= SLA) {
+                    const idx = Math.min(Math.floor(((day - 1) / Math.max(SLA / GREEN_SHADES_D.length, 1))), GREEN_SHADES_D.length - 1);
+                    return GREEN_SHADES_D[idx];
+                  }
+                  const overDays = day - SLA;
+                  const maxOver = 30; // 31-60 = 30 วันเกิน
+                  const idx = Math.min(Math.floor((overDays - 1) / Math.max(maxOver / OVER_COLORS_D.length, 1)), OVER_COLORS_D.length - 1);
+                  return OVER_COLORS_D[idx];
+                };
+
+                // คำนวณ summary per row
+                const calcSummary = (data: Record<string, number>, total: number) => {
+                  const withinSla = data['≤30'] || 0;
+                  const overSla = total - withinSla;
+                  const pct = total > 0 ? Math.round((withinSla / total) * 100) : 0;
+                  // weighted avg aging: ≤30 count as 20d avg, 31-60 count as actual, >60 count as 70d
+                  let sumDays = withinSla * 20;
+                  for (let d = 31; d <= 60; d++) sumDays += (data[String(d)] || 0) * d;
+                  sumDays += (data['>60'] || 0) * 70;
+                  const avgAging = total > 0 ? Math.round(sumDays / total) : 0;
+                  return { withinSla, overSla, pct, avgAging };
+                };
+
+                const rows = [
+                  { label: 'ระหว่างดำเนินการ', color: '#f59e0b', data: AGING_DISTRIBUTION_BACKLOG, total: backlogTotal, ...calcSummary(AGING_DISTRIBUTION_BACKLOG, backlogTotal) },
+                  { label: 'โอนแล้ว', color: '#059669', data: AGING_DISTRIBUTION_TRANSFERRED, total: transferredTotal, ...calcSummary(AGING_DISTRIBUTION_TRANSFERRED, transferredTotal) },
+                ];
 
                 return (
-                  <div className="space-y-4">
-                    {/* Row 1: Hero Cards — hidden */}
-                    {false && <div className="grid grid-cols-2 gap-4">
-                      {/* Pipeline Card */}
-                      <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl p-5 text-white">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-sm font-medium text-indigo-100">Pipeline ทั้งหมด</span>
-                          <Layers className="w-5 h-5 text-indigo-200" />
-                        </div>
-                        <div className="flex items-baseline gap-2">
-                          <span className="text-4xl font-bold">{active.length}</span>
-                          <span className="text-sm text-indigo-200">รายการ</span>
-                        </div>
-                        <div className="text-sm text-indigo-200 mt-0.5">฿{formatMoney(activeValue)}</div>
-                        {/* Stage breakdown bar */}
-                        <div className="mt-4 flex h-2.5 rounded-full overflow-hidden bg-indigo-400/30">
-                          {stageDoc > 0 && <div className="h-full bg-indigo-200" style={{ width: `${(stageDoc / pipeTotal) * 100}%` }} />}
-                          {stageCredit > 0 && <div className="h-full bg-amber-300" style={{ width: `${(stageCredit / pipeTotal) * 100}%` }} />}
-                          {stageInsp > 0 && <div className="h-full bg-cyan-300" style={{ width: `${(stageInsp / pipeTotal) * 100}%` }} />}
-                          {stageReady > 0 && <div className="h-full bg-emerald-300" style={{ width: `${(stageReady / pipeTotal) * 100}%` }} />}
-                        </div>
-                        <div className="flex justify-between mt-1.5 text-[10px] text-indigo-200">
-                          <span>เอกสาร {stageDoc}</span>
-                          <span>สินเชื่อ {stageCredit}</span>
-                          <span>ตรวจบ้าน {stageInsp}</span>
-                          <span>พร้อมโอน {stageReady}</span>
-                        </div>
-                      </div>
-
-                      {/* Transfer Card */}
-                      <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl p-5 text-white">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-sm font-medium text-emerald-100">โอนแล้ว</span>
-                          <CheckCircle2 className="w-5 h-5 text-emerald-200" />
-                        </div>
-                        <div className="flex items-baseline gap-2">
-                          <span className="text-4xl font-bold">{transferred.length}</span>
-                          <span className="text-sm text-emerald-200">รายการ</span>
-                        </div>
-                        <div className="text-sm text-emerald-200 mt-0.5">฿{formatMoney(transferredValue)}</div>
-                        {/* Cancelled sub-stat */}
-                        <div className="mt-4 pt-3 border-t border-emerald-400/30 flex gap-6">
-                          <div>
-                            <div className="text-[10px] text-emerald-300">ยกเลิก</div>
-                            <div className="text-lg font-bold">{cancelled.length} <span className="text-[10px] font-normal text-emerald-200">รายการ</span></div>
-                          </div>
-                          <div>
-                            <div className="text-[10px] text-emerald-300">อัตรายกเลิก</div>
-                            <div className="text-lg font-bold">{globalFilteredBookings.length > 0 ? Math.round((cancelled.length / globalFilteredBookings.length) * 100) : 0}%</div>
-                          </div>
-                          <div>
-                            <div className="text-[10px] text-emerald-300">อัตราโอน</div>
-                            <div className="text-lg font-bold">{globalFilteredBookings.length > 0 ? Math.round((transferred.length / globalFilteredBookings.length) * 100) : 0}%</div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>}
-
-                    {/* Row 2: Detail Cards */}
-                    <div className="grid grid-cols-4 gap-4">
-                      {/* สินเชื่อ */}
-                      <div className="bg-white rounded-xl border border-slate-200 p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-medium text-slate-500">อัตราอนุมัติสินเชื่อ</span>
-                          <Banknote className="w-4 h-4 text-amber-400" />
-                        </div>
-                        <div className="text-3xl font-bold text-amber-600">{approvalRate}<span className="text-lg">%</span></div>
-                        <div className="mt-2 flex h-2 rounded-full overflow-hidden bg-slate-100">
-                          <div className="h-full bg-emerald-500 rounded-l-full" style={{ width: `${submitted > 0 ? (approved / submitted) * 100 : 0}%` }} />
-                          <div className="h-full bg-red-400" style={{ width: `${submitted > 0 ? (rejected / submitted) * 100 : 0}%` }} />
-                        </div>
-                        <div className="flex justify-between mt-1.5 text-[10px] text-slate-400">
-                          <span className="text-emerald-600 font-medium">อนุมัติ {approved}</span>
-                          <span className="text-red-500 font-medium">ไม่อนุมัติ {rejected}</span>
-                          <span>ส่ง {submitted}</span>
-                        </div>
-                      </div>
-
-                      {/* Aging */}
-                      <div className="bg-white rounded-xl border border-slate-200 p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-medium text-slate-500">Aging เฉลี่ย</span>
-                          <Clock className="w-4 h-4 text-slate-400" />
-                        </div>
-                        <div className="flex items-baseline gap-1">
-                          <span className={`text-3xl font-bold ${avgAging > 60 ? 'text-red-600' : avgAging > 30 ? 'text-amber-600' : 'text-slate-900'}`}>{avgAging}</span>
-                          <span className="text-sm text-slate-400">วัน</span>
-                        </div>
-                        <div className="mt-2 text-[10px] text-slate-400">
-                          <div className="flex justify-between">
-                            <span>สูงสุด <span className="font-bold text-slate-600">{maxAging}</span> วัน</span>
-                            <span>เกิน 90d <span className={`font-bold ${overSla > 0 ? 'text-red-500' : 'text-emerald-500'}`}>{overSla}</span> ราย</span>
-                          </div>
-                        </div>
-                        <div className="mt-1.5 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                          <div className={`h-full rounded-full ${avgAging > 60 ? 'bg-red-400' : avgAging > 30 ? 'bg-amber-400' : 'bg-emerald-400'}`} style={{ width: `${Math.min((avgAging / 120) * 100, 100)}%` }} />
-                        </div>
-                      </div>
-
-                      {/* ติดปัญหา */}
-                      <div className={`bg-white rounded-xl border p-4 ${blockedBookings.length > 0 ? 'border-red-200 bg-red-50/50' : 'border-slate-200'}`}>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-medium text-slate-500">ติดปัญหา</span>
-                          <AlertTriangle className={`w-4 h-4 ${blockedBookings.length > 0 ? 'text-red-400' : 'text-slate-300'}`} />
-                        </div>
-                        <div className={`text-3xl font-bold ${blockedBookings.length > 0 ? 'text-red-600' : 'text-slate-300'}`}>{blockedBookings.length}</div>
-                        <div className="text-[10px] text-slate-400 mt-1">
-                          {blockedBookings.length > 0 ? (
-                            (() => {
-                              const reasons: Record<string, number> = {};
-                              blockedBookings.forEach(b => {
-                                const r = b.current_blocker || 'อื่นๆ';
-                                reasons[r] = (reasons[r] || 0) + 1;
-                              });
-                              const top = Object.entries(reasons).sort((a, b) => b[1] - a[1])[0];
-                              return <span>Top: <span className="font-medium text-red-500">{top[0]}</span> ({top[1]})</span>;
-                            })()
-                          ) : 'ไม่มีรายการติดปัญหา'}
-                        </div>
-                      </div>
-
-                      {/* Stage Pipeline Mini */}
-                      <div className="bg-white rounded-xl border border-slate-200 p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-medium text-slate-500">Stage Distribution</span>
-                          <TrendingUp className="w-4 h-4 text-slate-400" />
-                        </div>
-                        <div className="space-y-1.5 mt-1">
-                          {[
-                            { label: 'เอกสาร', count: stageDoc, color: 'bg-indigo-500' },
-                            { label: 'สินเชื่อ', count: stageCredit, color: 'bg-amber-500' },
-                            { label: 'ตรวจบ้าน', count: stageInsp, color: 'bg-cyan-500' },
-                            { label: 'พร้อมโอน', count: stageReady, color: 'bg-emerald-500' },
-                          ].map(s => (
-                            <div key={s.label} className="flex items-center gap-1.5">
-                              <span className="text-[10px] text-slate-500 w-14 shrink-0">{s.label}</span>
-                              <div className="flex-1 h-3 bg-slate-100 rounded overflow-hidden">
-                                <div className={`h-full ${s.color} rounded`} style={{ width: `${pipeTotal > 0 ? (s.count / pipeTotal) * 100 : 0}%` }} />
-                              </div>
-                              <span className="text-[10px] font-bold text-slate-600 w-5 text-right">{s.count}</span>
-                            </div>
+                  <div className="bg-white rounded-xl border border-slate-200 p-5">
+                    <div className="mb-3">
+                      <h2 className="font-semibold text-slate-900">Aging Distribution</h2>
+                      <p className="text-[10px] text-slate-400 mt-0.5">≤30 วัน = ตาม SLA (เขียว) → 31-60 วัน = เกิน SLA (เหลือง→แดง) → &gt;60 วัน (แดงจัด)</p>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-[10px]" style={{ tableLayout: 'fixed' }}>
+                        <colgroup>
+                          <col style={{ width: 90 }} />
+                          <col style={{ width: 36 }} />
+                          <col style={{ width: 42 }} />
+                          <col style={{ width: 36 }} />
+                          <col style={{ width: 40 }} />
+                          {buckets.map(b => <col key={String(b)} style={{ width: b === '≤30' || b === '>60' ? 38 : 30 }} />)}
+                        </colgroup>
+                        <thead>
+                          <tr>
+                            <th className="text-left py-1.5 px-1 text-slate-500 font-medium"></th>
+                            <th className="text-center py-1.5 px-0.5 text-slate-500 font-medium">รวม</th>
+                            <th className="text-center py-1.5 px-0.5 text-slate-500 font-medium">%SLA</th>
+                            <th className="text-center py-1.5 px-0.5 text-slate-500 font-medium">เกิน</th>
+                            <th className="text-center py-1.5 px-0.5 text-slate-500 font-medium">เฉลี่ย</th>
+                            {buckets.map(b => (
+                              <th key={String(b)} className="text-center py-1.5 px-0.5 font-medium text-slate-500">
+                                {String(b)}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map((row, ri) => (
+                            <tr key={row.label} className={ri > 0 ? 'border-t-4 border-white' : ''}>
+                              <td className="py-2 px-1 font-bold whitespace-nowrap border-r-2 border-white" style={{ color: row.color }}>
+                                {row.label}
+                              </td>
+                              <td className="py-2 px-0.5 text-center font-bold text-slate-700 bg-slate-100 border-r-2 border-white">{row.total}</td>
+                              <td className="py-2 px-0.5 text-center font-bold bg-slate-50">
+                                <span className="inline-flex px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-700">{row.pct}%</span>
+                              </td>
+                              <td className="py-2 px-0.5 text-center font-bold text-red-500 bg-slate-50">{row.overSla}</td>
+                              <td className="py-2 px-0.5 text-center font-bold bg-slate-50 border-r-2 border-white">
+                                <span className={`${row.avgAging <= 30 ? 'text-emerald-600' : row.avgAging <= 40 ? 'text-amber-600' : 'text-red-500'}`}>{row.avgAging}d</span>
+                              </td>
+                              {buckets.map(b => {
+                                const count = v(row.data, b);
+                                const bg = count > 0 ? getCellBg(b) : undefined;
+                                return (
+                                  <td key={String(b)} className="py-2 px-0.5 text-center font-bold"
+                                    style={bg ? { backgroundColor: bg, color: '#fff' } : { backgroundColor: '#f8fafc', color: '#e2e8f0' }}>
+                                    {count > 0 ? count : '—'}
+                                  </td>
+                                );
+                              })}
+                            </tr>
                           ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* ── งานที่จบแล้ว — SLA รายกลุ่ม ── */}
+                    <div className="mt-5 pt-4 border-t border-slate-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <h3 className="font-semibold text-slate-900 text-sm">งานที่จบแล้ว — ประสิทธิภาพรายกลุ่ม</h3>
+                          <p className="text-[10px] text-slate-400 mt-0.5">เฉพาะ Booking ที่โอนแล้ว — วัดว่าแต่ละกลุ่มทำงานได้ทัน SLA ที่กำหนดหรือไม่</p>
+                        </div>
+                        <div className="flex items-center gap-3 text-[9px] text-slate-400">
+                          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-slate-300" />ทัน SLA</span>
+                          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#f59e0b' }} />เกิน ≤30d</span>
+                          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#dc2626' }} />&gt;30d</span>
                         </div>
                       </div>
+                      {(() => {
+                        // group ตาม team จาก TEAM_MASTER
+                        const teamColorMap = Object.fromEntries(TEAM_MASTER.map(t => [t.key, t.color]));
+                        const teamLabelMap = Object.fromEntries(TEAM_MASTER.map(t => [t.key, t.label]));
+                        const grouped = new Map<string, { withinSla: number; overTo30: number; over30: number }>();
+                        PROCESS_SLA_STATS.forEach(p => {
+                          const prev = grouped.get(p.team) || { withinSla: 0, overTo30: 0, over30: 0 };
+                          grouped.set(p.team, {
+                            withinSla: prev.withinSla + p.withinSla,
+                            overTo30: prev.overTo30 + p.overTo30,
+                            over30: prev.over30 + p.over30,
+                          });
+                        });
+                        const rows = TEAM_MASTER.filter(t => grouped.has(t.key)).map(t => {
+                          const d = grouped.get(t.key)!;
+                          const total = d.withinSla + d.overTo30 + d.over30;
+                          const pct = total > 0 ? Math.round((d.withinSla / total) * 100) : 0;
+                          return { label: t.label, color: t.color, ...d, total, pct };
+                        });
+                        const maxTotal = Math.max(...rows.map(r => r.total));
+
+                        return (
+                          <div className="space-y-2">
+                            {rows.map(r => {
+                              const barW = maxTotal > 0 ? (r.total / maxTotal) * 100 : 0;
+                              const slaW = r.total > 0 ? (r.withinSla / r.total) * 100 : 0;
+                              const o30W = r.total > 0 ? (r.overTo30 / r.total) * 100 : 0;
+                              const o30pW = r.total > 0 ? (r.over30 / r.total) * 100 : 0;
+                              return (
+                                <div key={r.label} className="grid items-center gap-2" style={{ gridTemplateColumns: '100px 1fr 60px 40px' }}>
+                                  {/* Group name */}
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: r.color }} />
+                                    <span className="text-[11px] font-semibold text-slate-700 truncate">{r.label}</span>
+                                  </div>
+                                  {/* Stacked bar */}
+                                  <div className="h-5 bg-slate-100 rounded-sm overflow-hidden" style={{ width: `${barW}%` }}>
+                                    <div className="h-full flex">
+                                      <div className="h-full flex items-center justify-center" style={{ width: `${slaW}%`, backgroundColor: r.color }}>
+                                        {r.withinSla > 0 && slaW > 15 && <span className="text-[9px] font-bold text-white">{r.withinSla}</span>}
+                                      </div>
+                                      {r.overTo30 > 0 && (
+                                        <div className="h-full flex items-center justify-center" style={{ width: `${o30W}%`, backgroundColor: '#f59e0b' }}>
+                                          {o30W > 8 && <span className="text-[9px] font-bold text-white">{r.overTo30}</span>}
+                                        </div>
+                                      )}
+                                      {r.over30 > 0 && (
+                                        <div className="h-full flex items-center justify-center" style={{ width: `${o30pW}%`, backgroundColor: '#dc2626' }}>
+                                          {o30pW > 8 && <span className="text-[9px] font-bold text-white">{r.over30}</span>}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {/* Total */}
+                                  <span className="text-[11px] font-bold text-slate-700 tabular-nums text-right">{r.total} ราย</span>
+                                  {/* %SLA */}
+                                  <span className="text-[10px] font-bold text-right" style={{ color: r.color }}>{r.pct}%</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 );
@@ -1324,7 +1485,7 @@ const [notiOpen, setNotiOpen] = useState(false);
                   <table className="w-full text-[11px]">
                     <thead>
                       <tr className="border-b border-slate-200">
-                        <th className="text-left py-2 px-2 text-slate-500 font-medium" style={{ width: 200 }}>โครงการ</th>
+                        <th className="text-left py-2 px-2 text-slate-500 font-medium" style={{ width: 180 }}>โครงการ</th>
                         <th className="text-center py-2 px-2 text-slate-500 font-medium" style={{ width: 50 }}>โอนแล้ว</th>
                         <th className="text-center py-2 px-2 text-slate-500 font-medium whitespace-nowrap" style={{ width: 55 }}>≤30d</th>
                         <th className="text-center py-2 px-2 text-slate-500 font-medium whitespace-nowrap" style={{ width: 55 }}>&gt;30d</th>
@@ -1382,12 +1543,14 @@ const [notiOpen, setNotiOpen] = useState(false);
                   <table className="w-full text-[11px]">
                     <thead>
                       <tr className="border-b border-slate-200">
-                        <th className="text-left py-2 px-2 text-slate-500 font-medium" style={{ width: 200 }}>โครงการ</th>
+                        <th className="text-left py-2 px-2 text-slate-500 font-medium" style={{ width: 180 }}>โครงการ</th>
                         <th className="text-center py-2 px-2 text-slate-500 font-medium" style={{ width: 50 }}>ค้าง</th>
                         <th className="text-center py-2 px-2 text-slate-500 font-medium whitespace-nowrap" style={{ width: 55 }}>ตาม</th>
                         <th className="text-center py-2 px-2 text-slate-500 font-medium whitespace-nowrap" style={{ width: 55 }}>เกิน</th>
                         <th className="text-center py-2 px-2 text-slate-500 font-medium" style={{ width: 60 }}>เฉลี่ย</th>
                         <th className="text-center py-2 px-2 text-slate-500 font-medium" style={{ width: 50 }}>%SLA</th>
+                        <th className="text-center py-2 px-2 text-slate-500 font-medium" style={{ width: 50 }}>โอนแล้ว</th>
+                        <th className="text-center py-2 px-2 text-slate-500 font-medium" style={{ width: 60 }}>E2E</th>
                         <th className="py-2 px-2 text-slate-500 font-medium text-[9px]" style={{ minWidth: 100 }}>
                           <div className="flex justify-between"><span className="text-emerald-500">ตาม</span><span className="text-red-400">เกิน</span></div>
                         </th>
@@ -1417,6 +1580,12 @@ const [notiOpen, setNotiOpen] = useState(false);
                                 'bg-red-100 text-red-700'
                               }`}>
                                 {row.pct}%
+                              </span>
+                            </td>
+                            <td className="py-1 px-2 text-center font-bold text-slate-600 tabular-nums">{row.transferred}</td>
+                            <td className="py-1 px-2 text-center tabular-nums">
+                              <span className={`font-bold ${row.avgE2E <= 25 ? 'text-emerald-600' : row.avgE2E <= 30 ? 'text-amber-600' : 'text-red-500'}`}>
+                                {row.avgE2E}d
                               </span>
                             </td>
                             <td className="p-0 relative">
